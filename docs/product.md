@@ -8,7 +8,7 @@ Initial market: Philippines
 
 ## 1. Executive Summary
 
-FiveFrames is a mobile-first web app for weddings. Every guest gets a deliberately small allowance of captures — **four photos and one video clip of up to 10 seconds** — collected into a private event gallery owned by the host.
+FiveFrames is a mobile-first web app for weddings. Every guest gets a deliberately small allowance of captures — **exactly five photos** — collected into a private event gallery owned by the host.
 
 The limit is the product, not a storage restriction. The intent is that guests capture a few moments that actually matter to them, then put the phone away and enjoy the event. FiveFrames is explicitly **not** an unlimited shared album and **not** a social feed.
 
@@ -40,7 +40,7 @@ The long-term bet is that a small, high-signal collection is more valuable than 
 
 These principles constrain feature decisions and UI copy. They are product requirements, not preferences.
 
-1. **Scarcity is the feature.** Frame counts are fixed at four photos and one video. They are not configurable, not purchasable, and not extendable.
+1. **Scarcity is the feature.** Each guest session gets exactly five photo frames. The count is not configurable, not purchasable, and not extendable.
 2. **Calm over engagement.** No streaks, leaderboards, badges, progress nags, reminders to "finish your frames", or any mechanic designed to increase usage.
 3. **Unused frames are a success, not a failure.** The UI must never imply the guest is behind or wasting something.
 4. **Copy tone: "capture what matters", not "you still have 3 left."** Remaining frames may be shown factually and quietly; they must not be framed as an unfinished task.
@@ -56,7 +56,7 @@ These principles constrain feature decisions and UI copy. They are product requi
 | Role | Identity | Core capabilities |
 |---|---|---|
 | **Host** | Registered account (single owner per event) | Create/configure event, pay, open and close capture, reveal gallery, moderate (hide/unhide/delete/favorite), download, configure sharing and gallery visibility, rotate/revoke links, request cancellation/refund, renew hosting |
-| **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 4 photos and 1 video, add an optional short message per capture, view and download **their own** captures, share own captures when the host allows, view the revealed gallery if the host shared the gallery link and visibility permits |
+| **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures, share own captures when the host allows, view the revealed gallery if the host shared the gallery link and visibility permits |
 | **Gallery viewer** | Possession of the gallery link (no session required) | View the revealed gallery when visibility is "anyone with the link" |
 
 **Co-hosts are out of scope for MVP.** One owning host account per event. Shared logins are not an intended workflow; the "my partner and our coordinator both need access" case is a known post-MVP gap (see Future Ideas).
@@ -146,7 +146,7 @@ Exception: if the host hides or deletes a specific capture, it is removed from t
 ### 8.4 Media protection
 
 - Media must not be reachable at obviously guessable public URLs.
-- Media is served through short-lived, access-checked URLs, including video playback.
+- Media is served through short-lived, access-checked URLs.
 - Deriving a share asset (see §10) must not expose the gallery or other guests' captures.
 
 ---
@@ -155,16 +155,18 @@ Exception: if the host hides or deletes a specific capture, it is removed from t
 
 ### 9.1 The allowance
 
-Each guest session receives exactly **4 photo frames and 1 video frame**. Fixed. Not configurable by the host, not purchasable, not extendable.
+Each guest session receives exactly **5 photo frames**. Fixed. Not configurable by the host, not purchasable, not extendable.
 
-### 9.2 Photo flow
+There is no video capture in MVP. Guests capture photos only. (Video is a future idea — see §18 Post-MVP.)
+
+### 9.2 Capture flow
 
 ```
 Guest opens event link / scans QR
 ↓
 Enters display name → anonymous session created
 ↓
-Sees 4 photo slots + 1 video slot
+Sees 5 photo slots
 ↓
 Capture or select a photo
 ↓
@@ -179,26 +181,18 @@ System safely accepts the media
 Frame is consumed — capture appears in guest's own view
 ```
 
-### 9.3 Video flow
+A native picker/camera flow is acceptable and preferred where it is more reliable than an in-browser capture UI. Cross-device reliability outranks capture polish.
 
-Same shape, with one clip per guest session:
-
-- Accepted clips must be **no longer than 10 seconds**.
-- A native picker/camera flow is acceptable and preferred where it is more reliable than in-browser recording. Cross-device reliability outranks recording polish.
-- Video is uploaded, then **processed**; the guest sees an explicit processing state and does not have to wait on the screen.
-- The video frame is consumed once the system has safely accepted the upload (not gated on transcode completion), and a failed or rejected upload does not consume it.
-- If processing ultimately fails, the guest's video frame is restored and they are told they can try again.
-
-### 9.4 Commitment is final
+### 9.3 Commitment is final
 
 **Decision:** once a guest confirms a capture and the system has accepted it, **that frame is permanently consumed for that guest session**. No undo, no delete-by-guest, no replace.
 
 - The host may hide or delete any capture from the gallery; this never returns a frame to a guest.
-- Finality governs **guest-initiated** undo. The only circumstance in which a frame returns is when the system could not accept or process the media at all (failed upload, failed video processing) — in that case nothing was ever committed.
+- Finality governs **guest-initiated** undo. The only circumstance in which a frame returns is when the system could not safely accept the media at all (failed or abandoned upload) — in that case nothing was ever committed.
 - Rationale: scarcity is the entire mechanic, and a restorable frame turns "keep frame" into "try again".
 - The UI must make the confirmation step clear enough that this is fair — the guest sees a preview and an explicit confirm before anything is committed.
 
-### 9.5 Message text
+### 9.4 Message text
 
 Each capture may carry one optional short message from the guest. Messages are part of the capture, subject to the same moderation (hiding a capture hides its message) and are inputs to post-event products later.
 
@@ -208,13 +202,12 @@ Each capture may carry one optional short message from the guest. Messages are p
 
 Sharing is **host-controlled** and **enabled by default**.
 
-- **What it is:** guests may use FiveFrames' in-app sharing flow to generate and share a branded/custom-frame version of **their own** captures. For photos this is a **separate share-card image** containing the photo plus event name, date, hashtag, message and FiveFrames branding. **The original media is never modified.**
+- **What it is:** guests may use FiveFrames' in-app sharing flow to generate and share a branded/custom-frame version of **their own** captures. This is a **separate share-card image** containing the photo plus event name, date, hashtag, message and FiveFrames branding. **The original media is never modified.**
 - **When:** allowed **including before the gallery is revealed**.
 - **Host control:** the host can disable FiveFrames sharing for the event. This setting governs only FiveFrames-provided sharing features; it cannot and does not prevent a guest from independently sharing media already on their own device. Product copy must not overstate this.
 - **Isolation requirement:** pre-reveal sharing of a guest's own capture must not reveal the gallery or expose any other guest's captures.
 - **Gallery captures:** once the gallery is revealed and visibility permits, sharing of revealed gallery captures follows the same host setting.
 - **Mechanism:** Web Share API where supported; manual image download is an acceptable fallback. MVP must not depend on direct Instagram or Facebook publishing APIs.
-- **Video:** MVP generates branded share cards for **photos only**. A guest may share or save their own clip, but FiveFrames does not render a branded video asset in MVP (that would require the video-compositing pipeline that is an explicit non-goal). Branded video sharing is post-MVP.
 
 ---
 
@@ -231,7 +224,7 @@ Sharing is **host-controlled** and **enabled by default**.
 ### 11.2 Dashboard
 
 - Event status and lifecycle state, with the capture open/close control.
-- Guest session count, photo count, video count.
+- Guest session count and photo count.
 - Gallery grid with moderation: **hide, unhide, delete, favorite**.
 - Downloads: individual captures and bulk download of originals.
 - Gallery link, capture link, printable QR.
@@ -247,19 +240,18 @@ Counts and newly arriving captures **should** update automatically within a few 
 
 These must hold regardless of architecture. How they are enforced is an engineering decision; that they hold is not.
 
-1. A guest session can never hold more than **4 committed photos** and **1 committed video**, even under concurrent or retried requests.
+1. A guest session can never hold more than **5 committed photos**, even under concurrent or retried requests.
 2. A frame is consumed **only** when the system has safely accepted the media. Failed, abandoned, cancelled or timed-out uploads never permanently consume a frame.
 3. Retries are **idempotent**: retrying a submission never produces a duplicate committed capture.
-4. A committed capture is final for the guest — no guest-side delete or replace — and host-side removal never restores a frame. A frame returns only when the system failed to accept or process the media, meaning no capture was ever committed.
+4. A committed capture is final for the guest — no guest-side delete or replace — and host-side removal never restores a frame. A frame returns only when the system never safely accepted the media, meaning no capture was ever committed.
 5. Limits are enforced **server-side and authoritatively**. Client state is never the source of truth for remaining frames.
 6. Guest capture is possible **only** while the event is paid, active, and capture has been explicitly opened by the host and not yet closed.
-7. A video accepted as a guest's clip is **no longer than 10 seconds**.
-8. Payment must succeed before an event link or QR exists. Unpaid events are not distributable.
-9. Media is never served from guessable public URLs, and a hidden or unrevealed gallery is never viewable by an unauthorized party.
-10. A host can only access, moderate or download events they own.
-11. Original media is never modified. Derived assets are additional files.
-12. The host can download their media at any point before permanent deletion.
-13. Frame counts (4 + 1) are product constants and are not configurable per event.
+7. Payment must succeed before an event link or QR exists. Unpaid events are not distributable.
+8. Media is never served from guessable public URLs, and a hidden or unrevealed gallery is never viewable by an unauthorized party.
+9. A host can only access, moderate or download events they own.
+10. Original media is never modified. Derived assets are additional files.
+11. The host can download their media at any point before permanent deletion.
+12. The frame count (5 photos) is a product constant and is not configurable per event.
 
 ---
 
@@ -273,8 +265,6 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 | Guest retries a failed upload | No duplicate committed capture is created. |
 | Connection drops mid-upload | Upload resumes or restarts without consuming a frame. |
 | Guest closes or reloads the browser mid-upload | On return in the same session, state is consistent; either the capture committed or the frame is still available. Never both. |
-| Guest backgrounds the app during video processing | Guest can leave; processing status is visible when they return. |
-| Video processing fails permanently | Video frame is restored and the guest may try again. |
 | Guest loses session entirely | Treated as a new participant with a fresh allowance (§6). |
 | Guest opens link before capture opens | Calm "not open yet" state, not an error. |
 | Guest opens capture link after capture closed | Calm "capture has ended" state, plus their own captures if their session still exists. The full gallery is reached only through the gallery link. |
@@ -286,17 +276,10 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 
 ## 14. Media Expectations
 
-**Photos**
 - Store the **original untouched**, plus derived **display**, **thumbnail**, and **share-card** assets.
 - Must accept common iPhone/Android formats, including **HEIC/HEIF** if still prevalent on target devices/browsers. The exact conversion path is to be validated during implementation rather than designed up front.
 - Large media uploads go **directly to storage**, not proxied through the application server.
-
-**Video**
-- Direct and resumable upload where practical.
-- Visible processing status.
-- Private playback (access-checked, not public URLs).
-- Browser-compatible output across iOS/Android, Safari/Chrome and common in-app browsers.
-- A managed video service is expected. **Self-managed FFmpeg/transcoding infrastructure is a non-goal for MVP.**
+- Upload should be resilient to interruption (resumable or safely restartable) on weak venue connections.
 
 ---
 
@@ -348,7 +331,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Mobile web, no installation.
 - Server-authoritative frame limits with strong consistency guarantees.
 - Direct-to-storage upload for large media.
-- Private, access-checked media delivery including video playback.
+- Private, access-checked media delivery.
 - Support for GCash, Maya and cards in the Philippines.
 
 **Technical recommendations (preferred, replaceable)**
@@ -356,7 +339,6 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - PostgreSQL, because capture limits and state transitions need strong server-side guarantees.
 - Managed infrastructure with as few moving parts as practical.
 - A single backend platform covering Postgres, host auth, photo storage and realtime is attractive; **Supabase is an obvious candidate but is not committed.** Separate services are acceptable if clearly better.
-- A specialized managed video service for upload, transcoding and private playback.
 - PayMongo as a likely payment provider.
 
 **Explicitly left to architecture**
@@ -377,9 +359,8 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Event link + printable QR issued on payment.
 - Host-controlled capture open/close, with automatic safety-net close.
 - Guest join via QR/link with display name and anonymous session; no accounts.
-- 4 photo frames + 1 video frame (≤10s) per guest session, enforced server-side.
-- Photo flow: capture/select → preview → optional message → confirm → direct upload → commit.
-- Video flow: capture/select → confirm → direct upload → processing status → commit.
+- 5 photo frames per guest session, enforced server-side.
+- Capture flow: capture/select → preview → optional message → confirm → direct upload → commit.
 - Reliable upload behavior under bad network, with safe retries and no duplicate commits.
 - Guest's private view of their own captures, with download.
 - Gallery with reveal timing (after event / immediate / custom).
@@ -387,7 +368,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Host moderation: hide, unhide, delete, favorite.
 - Host downloads: individual and bulk originals.
 - Host-controlled sharing toggle; branded share-card generation for photos; Web Share API with download fallback.
-- Private media delivery for photos and video.
+- Private media delivery for photos.
 - Host dashboard with status, counts, gallery, controls.
 - 12-month hosted access with expiry warning, grace period and download access.
 
@@ -397,11 +378,11 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Automated refund execution (manual handling through the provider is acceptable initially).
 
 ### Post-MVP
-- Replay: browser-based "memories" experience from guest photos, clips, timestamps, messages, host favorites and licensed music.
+- Replay: browser-based "memories" experience from guest photos, timestamps, messages, host favorites and licensed music.
 - Physical photobook from the same collection.
 - AI-assisted duplicate detection, curation, moment grouping, and first-draft Replay/Book.
 - Co-host access or a read-only dashboard link.
-- Branded video share assets.
+- Guest video capture: a short clip per guest session, with its own managed upload/processing pipeline and branded video share assets. Not designed for in MVP; the MVP architecture reserves nothing for it.
 - Guest session recovery.
 - Renewal/subscription management beyond a basic extension.
 
@@ -415,7 +396,7 @@ Native apps · guest accounts · unlimited uploads · configurable frame counts 
 **Hypotheses to validate**
 - Launch price ₱1,490 for one event.
 - Renewal ₱499/year.
-- Four photos plus one 10-second video is the right allowance.
+- Five photos is the right allowance.
 - Guests accept commitment finality without frustration.
 - Hosts are comfortable opening capture manually at the venue.
 
@@ -441,40 +422,39 @@ Observable behavior that defines launch readiness.
 
 **Guest capture**
 1. A guest can scan a QR code, enter a display name, and reach their frames without an account, email, OTP, or install.
-2. A guest session can never end up with more than 4 committed photos or more than 1 committed video, including under rapid repeated taps, concurrent requests, and retries.
+2. A guest session can never end up with more than 5 committed photos, including under rapid repeated taps, concurrent requests, and retries.
 3. A failed or interrupted upload leaves the guest's frame available.
 4. Retrying a submission after a failure produces exactly one committed capture, never two.
-5. A video longer than 10 seconds is not accepted as a committed clip.
-6. After committing, a guest has no way to delete or replace that capture.
-7. A returning guest on the same browser sees their remaining frames and their own captures.
-8. A guest whose session is lost is treated as a new participant, and the product's wording never claims otherwise.
-9. Nowhere in the guest experience does the UI pressure the guest to use remaining frames.
+5. After committing, a guest has no way to delete or replace that capture.
+6. A returning guest on the same browser sees their remaining frames and their own captures.
+7. A guest whose session is lost is treated as a new participant, and the product's wording never claims otherwise.
+8. Nowhere in the guest experience does the UI pressure the guest to use remaining frames.
 
 **Lifecycle and payment**
-10. An unpaid event has no working event link or QR.
-11. Guests cannot capture until the host has explicitly opened capture, even on the event date.
-12. Capture stops when the host closes it, and stops automatically after the safety-net period if the host does not.
-13. A failed payment leaves the event unactivated and retryable.
-14. The host sees price, fees, total and refundability before paying.
+9. An unpaid event has no working event link or QR.
+10. Guests cannot capture until the host has explicitly opened capture, even on the event date.
+11. Capture stops when the host closes it, and stops automatically after the safety-net period if the host does not.
+12. A failed payment leaves the event unactivated and retryable.
+13. The host sees price, fees, total and refundability before paying.
 
 **Gallery, privacy and sharing**
-15. Before reveal, the gallery is not viewable by anyone holding the gallery link.
-16. With visibility "only me", the gallery link does not grant access to anyone but the host.
-17. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
-18. Media (photo and video) cannot be retrieved from a guessable URL without an access check.
-19. A host cannot view, moderate, or download another host's event.
-20. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
-21. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
-22. Share-card generation leaves the original media unmodified.
+14. Before reveal, the gallery is not viewable by anyone holding the gallery link.
+15. With visibility "only me", the gallery link does not grant access to anyone but the host.
+16. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
+17. Media cannot be retrieved from a guessable URL without an access check.
+18. A host cannot view, moderate, or download another host's event.
+19. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
+20. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
+21. Share-card generation leaves the original media unmodified.
 
 **Host operations**
-23. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
-24. Host can download individual captures and all originals in bulk.
-25. Dashboard counts remain correct when realtime updates are unavailable.
+22. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
+23. Host can download individual captures and all originals in bulk.
+24. Dashboard counts remain correct when realtime updates are unavailable.
 
 **Platform**
-26. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
-27. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
+25. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
+26. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
 
 ---
 

@@ -1,0 +1,199 @@
+# FiveFrames — Implementation Roadmap
+
+Vertical slices, each delivering observable capability. Acceptance criteria numbers refer to
+[docs/product.md §20](./product.md) as renumbered for the five-photo, no-video MVP.
+
+Ordering logic: the frame-limit mechanism and upload reliability carry the most technical risk,
+so they are built and proven early — before payment, using an event activated directly in the
+development database. The activation gate itself is real from the first slice, so payment later
+plugs into it rather than changing it.
+
+**Device risk is front-loaded.** In-app browser and real-device behavior is validated inside the
+first capture slice, not saved for a final QA pass. Discovering there that Messenger's browser
+breaks the file picker is a design input; discovering it at the end is a rewrite.
+
+Each slice decides its own implementation details when it starts. This document says **what**,
+not **how**.
+
+---
+
+## Slice 1 — Host account and draft event
+
+**Objective:** A host can sign up, sign in, and create and configure a draft event.
+
+- Supabase project provisioned (`ap-southeast-1`), migrations workflow established.
+- `hosts`, `events` schema; RLS deny-all enabled.
+- DAL skeleton with ownership predicates and `import 'server-only'`.
+- Host auth via Supabase Auth; protected `(host)` route group.
+- Event configuration: name, date, timezone, host message, reveal timing, visibility, sharing
+  toggle, hashtag.
+
+**Criteria:** 18 (partial — ownership scoping exists from the start)
+**Verification:** Typecheck, lint. Unit tests on lifecycle state derivation. A second host
+account cannot load the first host's event.
+
+---
+
+## Slice 2 — Guest join and photo capture *(highest technical risk)*
+
+**Objective:** A guest opens an event link, enters a display name, and commits photos against a
+server-authoritative allowance of five — proven on real devices, including in-app browsers.
+
+- Guest session cookie and `guest_sessions` table.
+- `captures` table: `slot_index` 0–4 check constraint, partial unique index on
+  `(guest_session_id, slot_index)`, unique index on `(guest_session_id, reserve_key)`.
+- Client-generated `reserve_key`, persisted before the first reserve request so it survives a
+  reload mid-attempt; duplicate confirms and retries reuse it (decision D6).
+- Defined reserve/commit responses for an existing key by status — `pending` returns the same row,
+  `committed` returns success, `expired` is terminal and commit on it is refused.
+- Reserve → direct upload to Supabase Storage via signed upload URL → commit.
+- Capture gate: paid/active/capture-open re-checked on reserve **and** commit.
+- Guest UI: 5 photo slots, preview, optional message, explicit confirm.
+- Display/thumbnail derivatives; originals untouched.
+- Development-seeded active event stands in for payment.
+
+**Early device validation — an exit condition for this slice, not a later task:**
+- Camera and photo-library picker on current iPhone Safari and Android Chrome.
+- The same flow inside Facebook, Messenger, and Instagram in-app browsers.
+- One interrupted upload on a genuinely weak connection.
+- HEIC behavior on a real iPhone, answering the spec's open question about conversion.
+
+**Criteria:** 1, 2, 3, 4, 5, 6, 8, 10, 21 (partial), and the in-app-browser portion of 25
+**Verification:** Integration tests against real Postgres — concurrent reserve storms, two
+concurrent reserves sharing one `reserve_key` consuming exactly one slot, retry after failure
+producing exactly one capture, abandoned reservation expiry freeing the slot, a retry arriving
+after its reservation expired being reported as lapsed rather than silently taking a second slot,
+and commit being refused for a lapsed reservation. These are the tests
+that matter most in the project. Plus the device checks above, run by hand.
+
+---
+
+## Slice 3 — Guest's own view and network resilience
+
+**Objective:** A returning guest sees their remaining frames and their own captures, and bad
+networks do not cost them frames.
+
+- Private per-session view with download of own captures.
+- Retry, resume, and reconnect behavior; calm error states.
+- Resumable (TUS) upload path for large files, threshold set from slice 2's real-device findings.
+- Calm states for "not open yet" and "capture has ended".
+
+**Criteria:** 3, 6, 7, 16 (guest half)
+**Verification:** Interrupted upload leaves the frame available. Reload mid-upload yields a
+consistent state — committed or available, never both.
+
+---
+
+## Slice 4 — Host dashboard and moderation
+
+**Objective:** A host sees their event's captures and can moderate them.
+
+- Dashboard: lifecycle state, capture open/close control, session and photo counts.
+- Gallery grid with hide, unhide, delete, favorite.
+- Moderation reflected in the guest's own view.
+- Polling for updates.
+
+**Criteria:** 11 (manual close), 22, 24
+**Verification:** Counts correct without realtime. Hidden and deleted captures disappear from
+the guest view. Moderation never restores a frame.
+
+---
+
+## Slice 5 — Gallery reveal, gallery link, visibility
+
+**Objective:** The gallery becomes viewable on the host's terms, through a separate link.
+
+- Reveal timing: after-event default and immediate (custom time is MVP-optional).
+- Separate `gallery_token` and `(gallery)` route group.
+- Visibility: anyone-with-link / only-me.
+- Token rotation and revocation for both links.
+
+**Criteria:** 14, 15, 16, 17
+**Verification:** Gallery link before reveal grants nothing. Only-me visibility denies the link
+holder. Rotated tokens stop working immediately.
+
+---
+
+## Slice 6 — Payment and activation
+
+**Objective:** Payment activates the event and issues the link and printable QR.
+
+- PayMongo Checkout Session with GCash, Maya, cards.
+- Price breakdown — event price, fees, total, refundability — shown before redirect.
+- Webhook-driven activation: `checkout_session.payment.paid`, `Paymongo-Signature` verified,
+  idempotent by provider event id.
+- Separate test-mode and live-mode webhook endpoints and secrets.
+- `event_token` and `gallery_token` issued on activation; printable QR output.
+
+**Criteria:** 9, 12, 13
+**Dependencies:** PayMongo account with KYC completed.
+**Verification:** Unpaid event has no working link. Failed payment leaves the event retryable.
+Replayed webhook activates once. Unsigned or wrongly-signed webhook is rejected.
+
+---
+
+## Slice 7 — Sharing and share cards
+
+**Objective:** A guest shares a branded card of their own photo, subject to the host's setting.
+
+- Share-card generation: photo plus event name, date, hashtag, message, branding.
+- Web Share API with image-download fallback.
+- Host sharing toggle respected.
+
+**Criteria:** 19, 20, 21
+**Verification:** Pre-reveal share exposes neither the gallery nor any other guest's capture.
+Original media unmodified.
+
+---
+
+## Slice 8 — Downloads
+
+**Objective:** The host can retrieve their media.
+
+- Individual capture download via signed URL.
+- Bulk download of originals (sequential signed URLs — see decision D11).
+
+**Criteria:** 23
+**Verification:** Every committed original is retrievable. Downloads work for a host whose event
+has expired but is within the grace period.
+
+---
+
+## Slice 9 — Lifecycle automation and retention
+
+**Objective:** The event closes, expires, and is deleted on schedule without manual work.
+
+- Safety-net automatic capture close (derived; cron materializes for display).
+- Expiry at ~12 months, advance warning to the host.
+- Grace period with downloads intact, then permanent deletion.
+- Vercel Cron jobs; reservation TTL sweep.
+
+**Criteria:** 11 (automatic close)
+**Verification:** Capture is refused past the safety-net deadline even with no cron run.
+Deletion removes originals and all derivatives from Supabase Storage.
+
+---
+
+## Slice 10 — Full-flow device and venue-network validation
+
+**Objective:** The complete guest and host flow is proven end to end on real hardware under
+realistic conditions.
+
+- Current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
+- Weak Wi-Fi, congested mobile data, interrupted uploads, backgrounded browsers.
+- Full journey: QR scan → join → five captures → own view → share → host dashboard → gallery.
+
+**Criteria:** 25, 26
+**Verification:** Human-run on real devices. Not automated.
+**Note:** this is a regression and end-to-end pass, not the first look at device behavior —
+slice 2 already validated the capture flow on the same browsers. Its job is to catch what
+integration broke, not to discover platform surprises.
+
+---
+
+## MVP-optional (ship only if cheap)
+
+- Realtime dashboard updates. Note that client-side Supabase Realtime is not a drop-in: it would
+  cross the no-browser-Supabase-client boundary and require revisiting D4 (see architecture §9).
+- Custom reveal time.
+- Automated refund execution.
