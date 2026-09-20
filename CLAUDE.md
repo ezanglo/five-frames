@@ -72,6 +72,23 @@ change, not a refactor.
 - **Signed URLs are the result of an access check, never a substitute for one.**
 - Schema changes are forward migrations in `supabase/migrations/`. No dashboard edits.
 
+## Recurring implementation gotchas in this stack
+
+- **Event-local datetimes go through `lib/events/timezone.ts`.** An event has its own configured
+  IANA timezone, independent of the server's or the browser's. Never feed a bare
+  `<input type="datetime-local">` value into `new Date(string)` — that parses it in the server
+  process's own timezone, not the event's, and silently stores the wrong instant. Convert with
+  `zonedDateTimeLocalToUtcIso` on save and `utcIsoToZonedDateTimeLocal` on display, both ways,
+  every time such a field round-trips through the UI.
+- **Supabase Auth on this project requires email confirmation** (project default). `signUp()`
+  returns success with no `error` even when no session is issued — check `data.session`, not just
+  `error`, and tell the user to confirm their email rather than redirecting into a session that
+  doesn't exist yet.
+- **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
+  `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
+  displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`
+  children alone aren't enough.
+
 ## Product-behavior rules that are easy to violate in code
 
 - Never add engagement mechanics: no streaks, badges, progress nags, or "you still have 3 left".

@@ -1,0 +1,108 @@
+import { describe, expect, it } from "vitest";
+import { deriveEventLifecycleState, isCaptureOpen } from "./lifecycle";
+import type { EventRow } from "@/lib/db/types";
+
+function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
+  return {
+    id: "00000000-0000-0000-0000-000000000000",
+    host_id: "00000000-0000-0000-0000-000000000001",
+    name: "Test Wedding",
+    event_date: null,
+    timezone: "Asia/Manila",
+    host_message: null,
+    reveal_mode: "after_event",
+    reveal_at: null,
+    visibility: "anyone_with_link",
+    sharing_enabled: true,
+    hashtag: null,
+    event_token: null,
+    gallery_token: null,
+    activated_at: null,
+    capture_opened_at: null,
+    capture_closed_at: null,
+    safety_net_closes_at: null,
+    hosted_until: null,
+    grace_until: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+const NOW = new Date("2026-06-15T12:00:00.000Z");
+
+describe("deriveEventLifecycleState", () => {
+  it("is draft before activation", () => {
+    expect(deriveEventLifecycleState(baseEvent(), NOW)).toBe("draft");
+  });
+
+  it("is active once activated but capture not yet opened", () => {
+    const event = baseEvent({ activated_at: "2026-06-01T00:00:00.000Z" });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("active");
+  });
+
+  it("is capture_open once the host opens capture", () => {
+    const event = baseEvent({
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-15T10:00:00.000Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("capture_open");
+    expect(isCaptureOpen(event, NOW)).toBe(true);
+  });
+
+  it("is capture_closed once the host manually closes capture", () => {
+    const event = baseEvent({
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-15T10:00:00.000Z",
+      capture_closed_at: "2026-06-15T11:00:00.000Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("capture_closed");
+    expect(isCaptureOpen(event, NOW)).toBe(false);
+  });
+
+  it("is capture_closed the instant the safety-net deadline elapses, with no close recorded and no cron run", () => {
+    const event = baseEvent({
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-10T00:00:00.000Z",
+      safety_net_closes_at: "2026-06-15T11:59:59.999Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("capture_closed");
+    expect(isCaptureOpen(event, NOW)).toBe(false);
+  });
+
+  it("is still capture_open one millisecond before the safety-net deadline", () => {
+    const event = baseEvent({
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-10T00:00:00.000Z",
+      safety_net_closes_at: "2026-06-15T12:00:00.001Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("capture_open");
+  });
+
+  it("is expired once hosted_until elapses, regardless of capture state", () => {
+    const event = baseEvent({
+      activated_at: "2026-01-01T00:00:00.000Z",
+      capture_opened_at: "2026-01-02T00:00:00.000Z",
+      hosted_until: "2026-06-15T11:00:00.000Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("expired");
+  });
+
+  it("is archived once the grace period elapses, even if hosted_until is also past", () => {
+    const event = baseEvent({
+      activated_at: "2026-01-01T00:00:00.000Z",
+      hosted_until: "2026-02-01T00:00:00.000Z",
+      grace_until: "2026-06-15T11:00:00.000Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("archived");
+  });
+
+  it("never reports capture_open before activation, even with stale open/close timestamps", () => {
+    const event = baseEvent({
+      activated_at: null,
+      capture_opened_at: "2026-06-01T00:00:00.000Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("draft");
+    expect(isCaptureOpen(event, NOW)).toBe(false);
+  });
+});

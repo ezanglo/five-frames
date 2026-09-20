@@ -2,77 +2,109 @@
 
 Last updated: 2026-09-21
 
+This file is current project state for a fresh implementation session, not a session log.
+History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
+git history (everything else). Update this file by rewriting it to match current reality, not by
+appending narrative.
+
 ## Current phase
 
-**Bootstrap complete and approved (2026-09-21). Ready for implementation.**
+**Slice 1 — Host account and draft event: complete.**
 
-The architecture baseline, decision log and roadmap are the standing plan. Implementation has
-not started: no infrastructure is provisioned, no dependencies are installed, and no application
-code has been written. Beginning Slice 1 is a separate, explicit go-ahead.
+A host can sign up (email confirmation required by this Supabase project), sign in, and is
+gated out of `/dashboard` and `/events/*` until authenticated. From the dashboard a host can
+create a draft event and configure it (name, date, timezone, host message, reveal timing
+including a custom time, gallery visibility, sharing toggle, hashtag), with values round-tripping
+correctly through the event's own timezone. `hosts`/`events` schema is live with deny-all RLS,
+verified against the real anon key. A second host cannot read or write the first host's event —
+covered by an integration test against the real dev database.
 
-## Completed
+Manual verification (checklist below) passed — reported 2026-09-21.
 
-- Product specification reviewed ([docs/product.md](./product.md)) — authoritative, unmodified.
-- Repository inspected: bare Next.js 16.3.4 + React 19 + Tailwind v4 + shadcn (`base-nova`)
-  scaffold. No database, auth, services, or tests yet.
-- Architecture baseline written ([docs/architecture.md](./architecture.md)).
-- Decision log written ([docs/decisions.md](./decisions.md)) — D1–D11, all **Accepted**.
-- Roadmap written ([docs/roadmap.md](./roadmap.md)) — 10 vertical slices.
-- Development capabilities verified (read-only): GitHub CLI (`ezanglo`), Vercel CLI (`ezanglo`),
-  Supabase CLI (authenticated, `ap-southeast-1` available), Node 22.15.0, pnpm 10.10.0.
-- Baseline reviewed and **approved by the user on 2026-09-21**.
+## What exists
 
-### Re-baseline changes (2026-09-21)
+- **Decisions D1–D11** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — 10 vertical slices; Slice 1 done, Slice 2 next.
+- **Supabase project** `five-frames-dev` (ref `lrheuifbgbplekxnljfv`, region `ap-southeast-1`, org
+  `five-frames`). Migrations workflow live in `supabase/migrations/`, applied with
+  `supabase db push --linked`. `.env.local` holds the URL/publishable/secret keys locally
+  (gitignored); `.env.example` documents the variable names.
+- **Schema:** `hosts` (auto-synced from `auth.users` via trigger), `events` (owner, name, date,
+  timezone, host message, reveal mode/time, visibility, sharing toggle, hashtag, lifecycle
+  timestamps, nullable `event_token`/`gallery_token` — populated starting Slice 6, per invariant
+  7). RLS enabled, deny-all, on both tables (decision D4) — confirmed live: anon key gets an empty
+  result on `select` and a `42501` rejection on `insert`; service-role DAL round-trips normally.
+  `supabase db advisors` is clean.
+- **Auth:** `lib/supabase/server.ts` (cookie-bound auth client), `lib/supabase/service-client.ts`
+  (service-role, DAL-only), `lib/supabase/proxy.ts` + `proxy.ts` (Next 16 proxy; session refresh +
+  route gating via `getClaims()`), `lib/auth/host-session.ts`, `lib/auth/actions.ts`
+  (`signUp`/`signIn`/`signOut` Server Actions). The browser never receives a Supabase client.
+- **DAL:** `lib/dal/events.ts` — every function takes `hostId` and scopes its query by it
+  (invariant 9); no function loads an event without that predicate.
+- **Derived state:** `lib/events/lifecycle.ts` — `deriveEventLifecycleState` per decision D8.
+  `pending_payment` is intentionally absent until Slice 6 adds the `payments` table.
+- **Timezone handling:** `lib/events/timezone.ts` — converts `<input type="datetime-local">`
+  values through an event's own IANA timezone, both directions, DST-aware (`Intl`, no added
+  dependency). Any datetime field tied to an event's timezone must go through this, not a bare
+  `new Date(string)` (see `CLAUDE.md`).
+- **UI:** `app/(host)/` (protected dashboard + event editor), `app/login/`, `app/signup/`
+  (public). shadcn components added: `card`, `input`, `label`, `select`, `switch`, `textarea`.
+- **Testing:** Vitest installed and in use (`pnpm test`) — unit tests
+  (`lib/events/lifecycle.test.ts`, `lib/events/timezone.test.ts`) and integration tests against
+  the real linked dev Postgres (`lib/dal/events.integration.test.ts`).
+- **Not yet built** (later slices, by design): payment, `event_token`/`gallery_token` issuance,
+  guest sessions, captures, gallery reveal. The `events` columns Slice 6 will populate already
+  exist (per architecture §4) but nothing writes to them yet.
 
-- **Video removed entirely.** Cloudflare Stream, the video-provider decision, the video roadmap
-  slice, video invariants, video risks, and video blockers are deleted rather than deferred —
-  [product.md §18](./product.md) states the MVP architecture reserves nothing for video.
-- Frame mechanism re-worked for exactly five photo slots; the `kind` column and per-kind slot
-  branching are gone, and the `processing` status is gone with the transcode pipeline.
-- **Reserve idempotency corrected:** the `reserve_key` is now generated by the client before its
-  first request. The prior server-minted design let a double-tapped confirm consume two slots for
-  one photo (decision D6). Key semantics and the expired-reservation rule are defined in
-  architecture §6.
-- **RLS wording corrected:** the service role key bypasses RLS, so deny-all RLS protects nothing
-  on our primary path. Documented accurately in architecture §10 and decision D4.
-- **Device validation moved earlier:** in-app browser and real-device checks are now exit
-  conditions of the first capture slice; the final slice is a regression pass.
-- Consequential provider claims (PayMongo methods, Checkout Sessions, webhook signing; Supabase
-  signed upload URLs, TUS resumable uploads, RLS role behavior) re-grounded in first-party
-  documentation and cited in the decision log.
+## Verification status
 
-### Documentation correction pass (2026-09-21)
+- `pnpm typecheck` — passing.
+- `pnpm test` (Vitest) — 15/15 passing (lifecycle derivation, event ownership isolation against
+  real Postgres, timezone conversion).
+- `pnpm lint` — passing (fixed 2026-09-21; see below). 1 pre-existing warning
+  (`app/layout.tsx`: unused `Geist` import), no errors.
+- Manual RLS check against the live dev project (anon key: denied read+write) — passed.
+- Human manual verification of the Slice 1 checklist — **passed, reported 2026-09-21.**
 
-- Guest↔Supabase boundary restated precisely: guests never query Postgres and never use Supabase
-  Auth, but they *do* upload directly to Storage under server-issued, path-scoped authorization.
-- Upload lifetimes separated: `createSignedUploadUrl` tokens last 2 hours; a TUS resumable
-  upload's created URL may last up to 24 hours. Both outlive the reservation TTL, which is safe
-  only because commit is refused for a lapsed reservation.
-- `reserve_key` semantics tightened, and the expired-reservation case defined so retry behavior
-  is unambiguous.
-- Supabase Realtime reframed: it would cross the D4 boundary and is not a drop-in upgrade.
+**Lint toolchain fix (2026-09-21):** `pnpm lint` previously crashed on every file
+(`TypeError: contextOrFilename.getFilename is not a function`). Root cause: `eslint@10.11.0`
+removed the deprecated `context.getFilename()` API that `eslint-plugin-react@7.37.5` (the latest
+release, pulled in by `eslint-config-next@16.3.4`) still calls internally — no newer
+`eslint-plugin-react` exists yet with a fix. Resolved by pinning `eslint` to `^9` (installed
+`9.39.5`, the last major before the removal), which `eslint-config-next` already supports
+(`peerDependencies: "eslint": ">=9.0.0"`). No other dependencies changed.
 
-## Status
+## Regression protection added for human-found defects
 
-Decisions D1–D11 are **Accepted** and are the standing architecture. Revisiting one means
-superseding it with a new entry, not editing it in place.
+Three defects surfaced during manual verification and were fixed at the root cause. Protection
+is a mix of automated tests and documented guards — not all three got a test:
 
-Nothing provisioned. No dependencies installed. No application code written. No git remote
-configured. No commits made by bootstrap.
+1. **Signup gave no feedback when email confirmation was required.** Fixed by checking
+   `data.session` instead of assuming success means "signed in." **No automated regression test**
+   — this is a UI branch on provider response shape, not something covered by the current test
+   setup; guarded only by the code itself and the note in `CLAUDE.md`.
+2. **Reveal-mode/visibility dropdowns showed the raw enum value instead of the label.** Fixed by
+   passing an `items` map to `Select.Root`. **No automated regression test** — protected by a
+   documented gotcha in `CLAUDE.md` ("Recurring implementation gotchas in this stack") so the same
+   mistake isn't repeated the next time a `Select` is added.
+3. **Custom reveal time drifted after save+reload** (timezone conversion used the server
+   process's timezone instead of the event's, and display didn't convert at all). Fixed with
+   `lib/events/timezone.ts`. **Automated regression tests added** —
+   `lib/events/timezone.test.ts`, including the exact reported Asia/Manila midnight case and a
+   DST-crossing case.
+
+Cross-project lessons from these three were promoted to `~/.claude/rules/application-quality.md`;
+the defect-to-regression handling process itself was added to the global build-app skill
+(`~/.claude/skills/build-app/SKILL.md` §32), for future sessions. None of this touched
+`docs/product.md`.
 
 ## Next slice
 
-**Slice 1 — Host account and draft event** ([roadmap](./roadmap.md)). Not started.
-
-First actions when it begins, each requiring the user's go-ahead because they cross the
-bootstrap authority boundary:
-
-1. Provision the Supabase project (`ap-southeast-1`) and establish the migrations workflow.
-2. Install the first dependencies (Supabase client libraries, Vitest).
-3. Configure a git remote if the work is to be pushed.
-
-Then: `hosts` / `events` schema with deny-all RLS, DAL skeleton with ownership predicates and
-`import 'server-only'`, host auth, and event configuration.
+**Slice 2 — Guest join and photo capture** ([roadmap](./roadmap.md)) — highest technical risk.
+Not started. Needs, when it begins: `guest_sessions` and `captures` tables (client-generated
+`reserve_key`, partial unique slot index per D5/D6), direct-to-Storage signed uploads, and early
+real-device validation (iPhone Safari, Android Chrome, FB/Messenger/IG in-app browsers, one
+interrupted upload, HEIC behavior) as an exit condition, not a later pass.
 
 ## Blockers and open items
 

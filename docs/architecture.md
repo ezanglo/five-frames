@@ -55,16 +55,16 @@ solving any requirement in the spec.
 | Language | TypeScript, strict | Already configured |
 | UI | Tailwind v4, shadcn/ui (`base-nova`), Base UI, lucide | Already scaffolded |
 | Hosting | Vercel | Spec preference; Cron and webhook endpoints included |
-| Database | Supabase Postgres, region `ap-southeast-1` | Singapore — closest to PH guests |
-| Host auth | Supabase Auth (email + password, magic link) | Hosts only |
-| Guest identity | Own signed httpOnly cookie + `guest_sessions` row | See §5 |
-| Photo storage | Supabase Storage, private buckets | Direct upload via signed upload URLs |
-| Payment | PayMongo Checkout Sessions + signed webhooks | GCash, Maya, cards |
-| Image derivatives | `sharp` in server routes | Already allow-listed in `pnpm-workspace.yaml` |
-| Scheduled work | Vercel Cron | Safety-net close, expiry, reservation sweeps |
-| Tests | Vitest (unit + integration against real Postgres) | Not yet installed |
+| Database | Supabase Postgres, region `ap-southeast-1` | Provisioned (Slice 1): `five-frames-dev` |
+| Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
+| Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Not yet built — Slice 2 |
+| Photo storage | Supabase Storage, private buckets | Not yet built — Slice 2 |
+| Payment | PayMongo Checkout Sessions + signed webhooks | Not yet built — Slice 6 |
+| Image derivatives | `sharp` in server routes | Allow-listed in `pnpm-workspace.yaml`; not yet used — Slice 2 |
+| Scheduled work | Vercel Cron | Not yet built — Slice 9 |
+| Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
 
-Dependencies listed here are **planned, not installed**. Installation happens in the slice that needs them.
+Remaining rows not yet built are provisioned/installed in the slice that first needs them.
 
 ---
 
@@ -441,7 +441,8 @@ Weighted toward the invariants, not toward coverage percentage.
   deterministic integration tests need it.
 - Schema changes are migrations in `supabase/migrations/`, applied forward. No ad-hoc dashboard edits.
 
-**Nothing is provisioned yet.** Provisioning happens in the slice that first requires it.
+The development Supabase project (`five-frames-dev`) is provisioned (Slice 1). Vercel, production
+Supabase, and PayMongo are not yet provisioned — each happens in the slice that first requires it.
 
 ### Observability
 
