@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-21
+Last updated: 2026-09-22
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -8,6 +8,15 @@ git history (everything else). Update this file by rewriting it to match current
 appending narrative.
 
 ## Current phase
+
+**Reconciliation pass complete (2026-09-22).** product.md was updated with the pre-purchase demo,
+revised launch pricing (₱999 → ₱1,490 target), the 250-session event capacity boundary, expanded
+signage deliverables, and guest trust cues. Architecture, decisions, and roadmap were reconciled
+against those changes — see decisions D13 (event capacity: atomic counter, configurable cap) and
+D14 (public demo: entirely client-side, no server storage). No code changed. The roadmap gained
+two new slices (event capacity enforcement + trust cues; the public demo) and Slice 6's scope now
+includes signage; slices 6–10 were renumbered to 6–12 to make room since none had started. Slices
+1–5 are unaffected.
 
 **Slice 5 — Gallery reveal, gallery link, visibility: complete.**
 
@@ -21,9 +30,12 @@ see prior verification records in git history if needed.
 
 ## What exists
 
-- **Decisions D1–D12** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
-  D12 (new this slice) records how "after the event" reveal timing is anchored to capture closing.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–5 done, Slice 6 next.
+- **Decisions D1–D14** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
+  D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 (new in
+  this reconciliation pass, not yet implemented) record the event-capacity counter mechanism and
+  the client-only public demo.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–5 done, Slice 6 (event capacity enforcement
+  and guest trust cues) next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -241,16 +253,20 @@ acceptance criteria. If convenient, click through once in a browser as a sanity 
 
 ## Next slice
 
-**Slice 6 — Payment and activation** ([roadmap](./roadmap.md)). Not started.
+**Slice 6 — Event join capacity enforcement and guest trust cues** ([roadmap](./roadmap.md)). Not
+started. (Payment and activation, expanded with event signage, is now Slice 7.)
 
 ## Blockers and open items
 
 | Item | Type | Affects |
 |---|---|---|
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
-| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 6+ production work |
-| PayMongo account with KYC completed | External prerequisite | Slice 6 |
+| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 7+ production work |
+| PayMongo account with KYC completed | External prerequisite | Slice 7 |
 | No git remote configured | Setup | Any push/CI work |
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
-| Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 9 |
+| Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 10 |
 | Refund/retention/deletion legal copy | Business decision, from spec §19 | Pre-launch |
+| 250-session / 1,250-capture launch capacity is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; decision D13) | Launch policy, to revisit with real data | Slice 6, and beyond launch |
+| Exact demo content/mechanism (bundled sample images vs. visitor's own device photo) | Open, left to design/implementation (product.md §19) | Slice 11 |
+| Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch, not a Slice 7 blocker |

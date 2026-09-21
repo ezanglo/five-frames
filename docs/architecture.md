@@ -4,7 +4,8 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-09-21
+Last updated: 2026-09-22 (reconciliation pass: event-capacity enforcement, public demo isolation —
+see D13/D14. No change to the rest of the baseline.)
 
 ---
 
@@ -59,9 +60,9 @@ solving any requirement in the spec.
 | Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
 | Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
 | Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
-| Payment | PayMongo Checkout Sessions + signed webhooks | Not yet built — Slice 6 |
+| Payment | PayMongo Checkout Sessions + signed webhooks | Not yet built — Slice 7 |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit) |
-| Scheduled work | Vercel Cron | Not yet built — Slice 9 |
+| Scheduled work | Vercel Cron | Not yet built — Slice 10 |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
 
 Remaining rows not yet built are provisioned/installed in the slice that first needs them.
@@ -75,6 +76,7 @@ app/
   (host)/                 Host dashboard — Supabase Auth session required
   (guest)/e/[token]/      Guest capture — event token in path, guest cookie for session
   (gallery)/g/[token]/    Gallery viewer — gallery token in path
+  (demo)/demo/            Public pre-purchase demo — client-only, no DAL calls (§6b, D14)
   api/
     webhooks/paymongo/    Signed webhook → activation
     cron/                 Vercel Cron targets
@@ -118,7 +120,7 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 - **`events`** — owner, name, date, timezone, host message, lifecycle timestamps, config
   (reveal mode, visibility, sharing enabled, hashtag), `event_token`, `gallery_token`,
   `activated_at`, `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`,
-  `hosted_until`, `grace_until`.
+  `hosted_until`, `grace_until`, `guest_session_cap`, `guest_session_count` (§6a, D13).
 - **`guest_sessions`** — `event_id`, display name, created/last-seen. One row per browser
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
@@ -280,6 +282,84 @@ returns a frame. There is no guest-initiated path to any of these transitions.
 
 ---
 
+## 6a. Event capacity enforcement
+
+[product.md §9.5](./product.md#9-frames-commitment-and-limits) adds a second, independent limit:
+up to **250 joined guest sessions per event** (a launch hypothesis to validate, not a product
+invariant like the five-frame allowance — it is not in the §12 invariant list and must stay easy
+to change). It bounds how large one flat-price event can grow; it does not touch the per-session
+frame mechanism in §6 at all.
+
+**Decision (D13): an atomic counter on the `events` row, guarded in the same statement that
+increments it — not a count-then-insert check, and not a hardcoded constant.**
+
+```sql
+ALTER TABLE events
+  ADD COLUMN guest_session_cap integer NOT NULL DEFAULT 250,
+  ADD COLUMN guest_session_count integer NOT NULL DEFAULT 0;
+```
+
+`guest_session_cap` is a plain column, not a `CHECK` constant — the launch value (250) lives in
+one place the product can revise without a schema change, unlike the five-frame allowance, which
+is deliberately hardcoded (§12.12) because it *is* a permanent invariant. Making the cap a column
+rather than a code constant also means a future per-event override costs nothing structurally,
+even though nothing in the product spec asks for that yet.
+
+Joining reuses the exact concurrency pattern already accepted for frames (D5/D6): a single atomic
+`UPDATE` acts as the row lock and the guard together, so two simultaneous joins racing the last
+slot cannot both succeed — the same class of bug D6's decision log describes for a
+count-then-insert frame reservation applies identically here.
+
+```sql
+UPDATE events
+  SET guest_session_count = guest_session_count + 1
+  WHERE id = $event_id AND guest_session_count < guest_session_cap
+  RETURNING guest_session_count;
+-- zero rows returned ⇒ at capacity; the guest_sessions insert is skipped entirely.
+```
+
+The `guest_sessions` insert happens in the same transaction, only after this `UPDATE` returns a
+row. A guest who fails to join because the event is at capacity never gets a session row, so
+nothing needs to be rolled back or reconciled.
+
+**Reaching the cap only affects new joins.** It never touches `captures`, never revokes an
+already-issued `guest_sessions` row, and is invisible to every guest already admitted — they keep
+their full five-frame allowance exactly as before. A guest who fails the capacity check sees the
+calm "this event is currently full" state (product.md §9.5, §13), not an error.
+
+**Host visibility:** the dashboard (§11.2) reads `guest_session_count` /`guest_session_cap`
+alongside the existing session/photo counts it already shows — no new query shape, just two more
+columns on a row it already loads.
+
+---
+
+## 6b. Public pre-purchase demo
+
+[product.md §7.1](./product.md#71-pre-purchase-demo) requires a demo that previews the capture
+mechanic without ever creating a real event, issuing a real link, or opening an unbounded storage
+path.
+
+**Decision (D14): the demo is entirely client-side.** It is a static route
+(`app/(demo)/demo/page.tsx`) that runs the five-frame interaction against sample images bundled
+in the repo, or a photo the visitor picks from their own device held only as an in-memory
+`ObjectURL` in the browser. **No network request in the demo path writes to Postgres or Storage.**
+There is no `demo_sessions` table, no server action, no signed upload URL, and no token of any
+kind minted for it.
+
+**Reasoning:** every other way to satisfy "no real event, no real link, no unbounded storage"
+still requires *some* server-side bookkeeping to keep demo state separate from real state —
+a nullable `is_demo` flag on `events`, a separate short-lived table, a rate limiter on anonymous
+uploads. All of that is surface the spec doesn't need: a demo that never talks to the server
+can't leak into the real event lifecycle table (§4), can't be mistaken for a draft event, and
+can't be abused for unbounded storage, because there is no storage path to abuse. This is the
+simplest architecture that satisfies §7.1 outright rather than needing a policy to enforce it.
+**Consequence:** the demo cannot demonstrate the gallery-reveal or host-moderation surfaces
+against real persisted data — only the guest capture interaction and a locally-rendered sample
+gallery. That is exactly the scope §7.1 asks for ("the core mechanic: capturing into five frames
+and seeing the resulting gallery experience"), not a limitation to work around.
+
+---
+
 ## 7. Media handling
 
 ### Upload
@@ -347,6 +427,14 @@ mid-redirect still gets an activated event; a forged redirect activates nothing 
 PayMongo webhook endpoints are scoped to test or live mode, so preview and production register
 separate endpoints with separate secrets. Refunds are handled manually through the PayMongo
 dashboard for MVP; the application exposes the request and reflects the resulting state (spec §15.1).
+
+**Event signage (product.md §11.3).** Once `event_token` exists, the four signage formats
+(printable QR, table card, poster, digital/phone-screen) are rendered from the same token — no
+new identity or link concept. This is server-rendered output (e.g. an image/PDF response built
+from the event name, guest instruction copy, and the existing QR-encodable event link), not a
+new persisted asset and not a customizable design tool (product.md explicitly excludes that). It
+belongs in the same slice as activation because it has nothing to render before a real
+`event_token` exists.
 
 ---
 

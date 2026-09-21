@@ -59,6 +59,16 @@ change, not a refactor.
   without one.
 - **Frame limits are database constraints**, not application counting (decision D5). Do not add
   a code path that counts rows and then inserts.
+- **Event join capacity (launch hypothesis of 250 sessions/event) is an atomic counter**, not a
+  count-then-insert check (decision D13). Do not add a code path that reads
+  `guest_session_count` and then inserts a `guest_sessions` row in a separate statement — that is
+  the exact race D6 already documents for frames, applied to sessions instead. Unlike the 5-photo
+  allowance, this cap is a configurable column (`guest_session_cap`), not a hardcoded constant —
+  it is a hypothesis to validate, not a permanent invariant like §12 above.
+- **The public pre-purchase demo never touches the DAL, Postgres, or Storage** (decision D14). It
+  is a client-only route; no server action, no signed upload URL, no persisted row, no token. If a
+  demo feature seems to need server-side state, that is a signal the feature belongs in the real
+  event flow, not the demo.
 - **The reserve idempotency key comes from the client**, generated and persisted before the first
   request so it survives a reload (decision D6). Never mint it server-side on arrival — that lets
   one double-tapped confirm consume two of the guest's five frames. One `reserve_key` = one

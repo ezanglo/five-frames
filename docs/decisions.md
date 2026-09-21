@@ -263,3 +263,61 @@ before capture even opens if a host under-filled that field, which is a plainer 
 invariant 8 (unrevealed gallery never viewable) than the spec text alone resolves.
 **Reopen note:** revisit if a future slice adds an explicit "event end" concept independent of
 capture (e.g., a multi-day event where capture closes far after the event nominally ends).
+
+---
+
+## D13 — Event join capacity is an atomic counter with a configurable cap, not a hardcoded constant
+
+**Status:** Accepted (2026-09-22)
+**Context:** product.md §9.5 adds a launch-scale boundary — up to 250 joined guest sessions per
+event (1,250 theoretical captures) — distinct from and in addition to the five-frame per-session
+allowance (§9.1). Unlike the five-frame allowance, the spec is explicit that this number is a
+**hypothesis to validate**, not a permanent invariant (it is deliberately absent from the §12
+invariant list), so it must stay easy to change and must not be enforced the same way as the
+frame count.
+**Decision:** Add `guest_session_cap` (default 250) and `guest_session_count` to `events`. Joining
+increments the counter and enforces the cap in one atomic `UPDATE ... WHERE guest_session_count <
+guest_session_cap RETURNING ...`; the `guest_sessions` insert only happens if that update returns
+a row, in the same transaction.
+**Reasoning:** This reuses the exact concurrency pattern already accepted for the frame mechanism
+(D5/D6) — a single atomic statement acts as both the lock and the guard, so two simultaneous joins
+racing the last slot cannot both succeed. A `SELECT count(*) ... WHERE` followed by a conditional
+insert has the identical race D6's log describes for frames (two concurrent requests both read
+"under cap" before either commits), just against `guest_sessions` instead of `captures`.
+**Why a column, not a `CHECK` constant:** the five-frame allowance is hardcoded (§12.12) because
+it is a real product invariant. This number is explicitly not that — product.md §19 lists it as a
+hypothesis "to validate via load testing and early real events." A plain column keeps the launch
+value changeable without a schema migration that touches enforcement logic, and costs nothing
+structurally even though no per-event override is required yet.
+**Scope, stated precisely:** this bounds *new joins* only. It never touches the `captures` table,
+never revokes an admitted guest's session, and is invisible to every guest already joined — they
+keep their full five-frame allowance. Reaching the cap produces the calm "event is currently full"
+state (product.md §9.5, §13), not an error, and does not affect capture, moderation, reveal, or
+download for anyone.
+**Alternatives:** A partial unique index like the frame mechanism's `slot_index` was rejected —
+frames have a small, fixed set of legal index values (0–4) to check membership against; sessions
+have no equivalent bounded identity space, so a counter is the natural mechanism, not a unique
+index over an unbounded value.
+
+---
+
+## D14 — The public pre-purchase demo is entirely client-side; no server storage, no persisted row
+
+**Status:** Accepted (2026-09-22)
+**Context:** product.md §7.1 requires a demo that previews the five-frame capture mechanic before
+payment, without ever creating a real event, a real capture/gallery link, or an unbounded storage
+path, and without becoming a way to run a real event for free.
+**Decision:** The demo is a static, unauthenticated route rendering the five-frame interaction
+against bundled sample images or a photo the visitor picks from their own device, held only as an
+in-browser object URL. No network call in the demo path writes to Postgres or Storage; there is no
+`demo_sessions` table, no server action, no signed upload URL, and no token minted for it.
+**Reasoning:** Every alternative that lets a demo touch the server — a nullable `is_demo` flag on
+`events`, a separate short-lived table, a rate-limited anonymous-upload path — adds bookkeeping
+whose entire job is to keep demo state from leaking into the real event lifecycle (§4) or being
+abused for storage. A demo with no server write path satisfies §7.1 by construction: it cannot be
+mistaken for a draft event, cannot produce a link because no link-bearing row exists, and cannot
+be an upload-abuse vector because there is no upload.
+**Trade-off, accepted:** the demo cannot preview gallery reveal or host moderation against real
+persisted data — only the capture interaction and a locally-rendered sample gallery. That matches
+what §7.1 actually asks the demo to demonstrate ("the core mechanic ... and the resulting gallery
+experience"), not a corner cut to get the simpler design.

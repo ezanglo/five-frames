@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-21 (positioning correction: event-agnostic, not wedding-specific)
+Last updated: 2026-09-22 (competitive/MVP review: pre-purchase demo, launch pricing strategy, event capacity boundary, signage deliverables, guest trust cues, explicit non-goals)
 Initial market: Philippines
 
 ---
@@ -48,6 +48,7 @@ These principles constrain feature decisions and UI copy. They are product requi
 6. **Private by default.** Media is never placed behind guessable public URLs, and nothing becomes broadly viewable without an explicit host action.
 7. **Never hold memories hostage.** The host can always download their media before anything expires.
 8. **No AI during capture.** AI may assist post-event curation later; it must never appear in the guest capture flow, and must never fabricate memories, alter faces, or invent captions.
+9. **Trust is stated up front, briefly.** The guest entry/join screen must clearly and concisely communicate that no app is required, no account is required, and that a guest's captures belong to this event and follow the event's own access rules. This is short interface copy, not a privacy policy, and must not claim stronger privacy guarantees than the access model in §8 actually provides.
 
 ---
 
@@ -58,6 +59,7 @@ These principles constrain feature decisions and UI copy. They are product requi
 | **Host** | Registered account (single owner per event) | Create/configure event, pay, open and close capture, reveal gallery, moderate (hide/unhide/delete/favorite), download, configure sharing and gallery visibility, rotate/revoke links, request cancellation/refund, renew hosting |
 | **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures, share own captures when the host allows, view the revealed gallery if the host shared the gallery link and visibility permits |
 | **Gallery viewer** | Possession of the gallery link (no session required) | View the revealed gallery when visibility is "anyone with the link" |
+| **Demo visitor** | No identity, no session, nothing persisted | Try the five-frame capture interaction and a resulting sample gallery using sample/demo or non-persistent local content only (see §7.1). Cannot create, pay for, or distribute a real event. |
 
 **Co-hosts are out of scope for MVP.** One owning host account per event. Shared logins are not an intended workflow; the "my partner and our coordinator both need access" case is a known post-MVP gap (see Future Ideas).
 
@@ -91,7 +93,20 @@ States are meaningful product concepts and drive what each role can do.
 | **Expired** | 12 months of hosted access elapses | Closed | Read-only / unavailable | Host downloads remain available through the grace period. |
 | **Archived / Deleted** | Grace period ends, or host deletes | Closed | Gone | Media permanently deleted. |
 
-### 7.1 Payment and activation
+### 7.1 Pre-purchase demo
+
+**Decision:** FiveFrames offers a public demo so a prospective host can understand the guest capture experience and the resulting gallery before paying.
+
+- Accessible without payment and without a host account.
+- Demonstrates the core mechanic: capturing into five frames and seeing the resulting gallery experience.
+- Uses sample/demo content, or a non-persistent local demonstration on the visitor's own device — not real guest-submitted media, and nothing durable stored server-side against a real guest identity.
+- **The demo never creates a real, activated event.** It is not a draft event, does not enter the lifecycle table above, and has no event record a host could later "finish" into a real event.
+- **The demo never issues a real capture link or gallery link.** Anything shareable from within the demo (if anything is shareable at all) must be unambiguously marked as a demo and must not function as a working event or gallery link.
+- The demo does not weaken Invariant §12.7 (payment before an event link or QR exists) — no path through the demo produces a distributable link or QR without payment.
+- The demo is not a free-event tier: it cannot be used to actually run, distribute, or collect real guest captures for an occasion. It exists to preview the concept only.
+- The demo must not allow unbounded persistent media storage or upload abuse (e.g., an anonymous visitor repeatedly uploading arbitrary real files that get retained). Sample content and any local/non-persistent demonstration mechanics are left to architecture and design.
+
+### 7.2 Payment and activation
 
 - A host may **create and fully configure a draft event before paying**.
 - There is **no guest-experience preview before payment** in MVP.
@@ -99,7 +114,7 @@ States are meaningful product concepts and drive what each role can do.
 - Payment failure leaves the event in draft/pending-payment. Nothing is activated and no links are issued.
 - Before payment, the host must be shown a clear price breakdown: the FiveFrames event price, any processing/service fees, the total charged, and which amounts are refundable versus non-refundable.
 
-### 7.2 Capture window
+### 7.3 Capture window
 
 **Decision:** capture is **host-controlled to open**, with a manual close and an automatic safety-net close.
 
@@ -110,7 +125,7 @@ States are meaningful product concepts and drive what each role can do.
 - If the host forgets, FiveFrames automatically closes capture a fixed grace period after the event's configured end/date (launch policy parameter, expected 48–72 hours). After the automatic close, capture cannot be re-opened.
 - While capture is closed, a guest opening the event link sees a calm explanatory state, not an error.
 
-### 7.3 Gallery reveal
+### 7.4 Gallery reveal
 
 - The gallery is **hidden by default** and becomes viewable only on reveal.
 - Reveal options: **after the event (default)**, immediately, or a custom reveal time.
@@ -196,6 +211,18 @@ A native picker/camera flow is acceptable and preferred where it is more reliabl
 
 Each capture may carry one optional short message from the guest. Messages are part of the capture, subject to the same moderation (hiding a capture hides its message) and are inputs to post-event products later.
 
+### 9.5 Event capacity (fair-use boundary)
+
+The five-frame allowance is per guest session (§9.1); it does not by itself bound how large one flat-price event can grow. A launch-scale boundary is needed so a single paid event cannot scale without limit.
+
+**Launch capacity hypothesis:** up to **250 joined guest sessions per event**, implying a theoretical maximum of **1,250 committed guest captures** per event (250 sessions × 5 frames).
+
+- This is a **launch hypothesis to validate** through load testing and early real events — not an eternal product constant, and not something the product should treat as permanently fixed the way the 5-photo allowance is (§9.1, §12).
+- It is a fair-use boundary on **event size**, distinct from and in addition to the per-session frame limit.
+- **Reaching the cap is calm and non-destructive:** guest sessions already admitted to the event are completely unaffected and keep their full remaining allowance. A new guest attempting to join once the event is at capacity sees a calm, factual "this event is currently full" state — not an error — and is not charged, blamed, or told the event failed.
+- Reaching the cap does not close capture for existing guests, does not delete or hide anything, and does not affect the host's ability to moderate, reveal, or download.
+- The host should be able to see when an event is near or at capacity, but MVP does not need pricing tiers or a paid way to raise the cap — that is out of scope for this change.
+
 ---
 
 ## 10. Sharing
@@ -227,10 +254,23 @@ Sharing is **host-controlled** and **enabled by default**.
 - Guest session count and photo count.
 - Gallery grid with moderation: **hide, unhide, delete, favorite**.
 - Downloads: individual captures and bulk download of originals.
-- Gallery link, capture link, printable QR.
+- Gallery link, capture link, and event signage (§11.3).
 - Sharing and visibility settings.
 
-### 11.3 Live updates
+### 11.3 Event signage
+
+Once an event is activated, the host can obtain a small set of practical, FiveFrames-branded signage for the venue — not a general invitation/design editor. At minimum:
+
+- A printable event QR.
+- A compact table-card format.
+- A larger poster/sign format.
+- A phone-screen/digital format suitable for sharing directly (e.g., in a group chat or displayed on a screen at the venue).
+
+Each format includes the event name, a short guest instruction, and a clear "No app. No account." reassurance. Messaging emphasizes the core mechanic without pressure — for example, "Scan. You have five frames." rather than urgency-driven copy.
+
+This is a bounded set of ready-made assets, not a customizable design tool.
+
+### 11.4 Live updates
 
 Counts and newly arriving captures **should** update automatically within a few seconds. This is a quality expectation, not a correctness dependency: **the product must remain fully correct if realtime updates are delayed or unavailable**, with refresh/polling as an acceptable fallback.
 
@@ -268,6 +308,7 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 | Guest loses session entirely | Treated as a new participant with a fresh allowance (§6). |
 | Guest opens link before capture opens | Calm "not open yet" state, not an error. |
 | Guest opens capture link after capture closed | Calm "capture has ended" state, plus their own captures if their session still exists. The full gallery is reached only through the gallery link. |
+| Event is at its guest-session capacity (§9.5) and a new guest tries to join | Calm "this event is currently full" state, not an error. Guests already joined are unaffected and keep their full remaining allowance. |
 | Payment fails | Event stays unpaid; nothing is activated; host can retry. |
 | Realtime updates unavailable | Dashboard still correct via refresh; no data loss, no incorrect counts. |
 | Host tries to reveal a gallery with no captures | Allowed; empty-state gallery, no error. |
@@ -287,8 +328,11 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 
 - **Who pays:** the host. Guests never pay, and there are no paid extra frames — ever.
 - **What is purchased:** one event, one-time payment, including approximately **12 months of hosted gallery access**.
-- **Launch price hypothesis:** **₱1,490** — a hypothesis to validate, not a requirement.
-- **Renewal hypothesis:** approximately **₱499/year** to extend hosted access.
+- **Launch pricing strategy (hypotheses, not requirements):**
+  - **Initial launch price hypothesis: ₱999 per event.** Used for the first real paid events, to validate willingness to pay before moving toward the post-validation target.
+  - **Post-validation target price hypothesis: ₱1,490 per event.** Not a fake "regular price" shown crossed out at launch — FiveFrames must not present ₱1,490 as a reference/anchor price unless it has actually sold at that price. The move from ₱999 toward ₱1,490 happens once early paid events validate demand at the lower price.
+  - One event remains a one-time purchase; guests never pay, at either price point.
+- **Renewal hypothesis:** approximately **₱499/year** to extend hosted access. Unaffected by the launch pricing strategy above unless later evidence creates a real contradiction.
 - **Payment methods:** **GCash, Maya, and cards** must be supported for the Philippine launch.
 - **Provider:** PayMongo is a plausible candidate. **The provider is not a product requirement**; architecture may choose differently as long as the three payment methods are supported.
 - **Pre-payment disclosure:** clear breakdown of event price, processing/service fees, total charged, and refundable versus non-refundable amounts.
@@ -319,7 +363,7 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 - Requires camera and photo-library access via standard web/native picker flows.
 - Must tolerate poor connectivity and interrupted sessions.
 - Host dashboard is web; mobile-usable, not necessarily mobile-only.
-- Printable QR code output suitable for signage and table cards.
+- Event signage suitable for real venues, including a printable QR, a table-card format, a poster format, and a phone-screen/digital format (§11.3).
 
 ---
 
@@ -371,6 +415,10 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Private media delivery for photos.
 - Host dashboard with status, counts, gallery, controls.
 - 12-month hosted access with expiry warning, grace period and download access.
+- Public pre-purchase demo (§7.1): sample/non-persistent content only, no real event, no real link or QR ever issued.
+- Event capacity fair-use boundary (§9.5): launch hypothesis of up to 250 guest sessions per event, with a calm at-capacity state for new joins once reached.
+- Event signage (§11.3): printable QR, table card, poster, and digital/phone-screen formats, each carrying event name, guest instruction, and "No app. No account." reassurance.
+- Guest trust cues on the join screen (§4 principle 9): no app required, no account required, captures follow this event's access rules.
 
 ### MVP optional (ship if cheap, not launch-blocking)
 - Realtime dashboard updates (fallback to refresh/polling is acceptable).
@@ -385,20 +433,25 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Guest video capture: a short clip per guest session, with its own managed upload/processing pipeline and branded video share assets. Not designed for in MVP; the MVP architecture reserves nothing for it.
 - Guest session recovery.
 - Renewal/subscription management beyond a basic extension.
+- Live photo wall / slideshow at the venue: not in MVP unless later customer evidence justifies it.
 
 ### Explicitly excluded
-Native apps · guest accounts · unlimited uploads · configurable frame counts · paid extra frames · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges · long-form video · in-browser video editor · photobook editor · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions.
+Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier.
+
+**On competitor feature creep:** none of the items above — nor guest video capture, co-host accounts, or a live photo wall/slideshow (all three already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, co-host accounts, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
 
 ---
 
 ## 19. Open Questions and Hypotheses
 
 **Hypotheses to validate**
-- Launch price ₱1,490 for one event.
+- Initial launch price ₱999 for one event, moving toward a post-validation target of ₱1,490 once early paid events validate willingness to pay at ₱999 (§15).
 - Renewal ₱499/year.
+- Launch event capacity of up to 250 joined guest sessions (1,250 theoretical committed captures) is the right fair-use boundary for one flat-price event (§9.5) — to validate via load testing and early real events.
 - Five photos is the right allowance.
 - Guests accept commitment finality without frustration.
 - Hosts are comfortable opening capture manually at the venue.
+- The pre-purchase demo (§7.1) meaningfully increases a prospective host's willingness to pay, without being mistaken for a free way to run a real event.
 
 **Open — do not block MVP definition**
 - Exact safety-net close duration after the event (48–72 hours).
@@ -408,6 +461,8 @@ Native apps · guest accounts · unlimited uploads · configurable frame counts 
 - Whether bulk download is a zip, a batched flow, or provider-native.
 - Copy and legal text for refunds, retention and deletion (needs a business/legal decision before launch).
 - Whether the branded share card design is fixed by FiveFrames or partially host-customizable beyond name/date/hashtag/message.
+- Exact timing and criteria for moving launch price from ₱999 toward the ₱1,490 target (needs a business decision once early paid-event data exists).
+- Exact demo content/mechanism (sample media vs. fully local/non-persistent demonstration) — left to architecture and design.
 
 **Accepted risks (decided, not open)**
 - Session loss grants a fresh allowance; frame limits are per session, not per person.
@@ -429,39 +484,43 @@ Observable behavior that defines launch readiness.
 6. A returning guest on the same browser sees their remaining frames and their own captures.
 7. A guest whose session is lost is treated as a new participant, and the product's wording never claims otherwise.
 8. Nowhere in the guest experience does the UI pressure the guest to use remaining frames.
+9. The guest join screen states, briefly, that no app is required, no account is required, and that captures follow this event's own access rules.
 
 **Lifecycle and payment**
-9. An unpaid event has no working event link or QR.
-10. Guests cannot capture until the host has explicitly opened capture, even on the event date.
-11. Capture stops when the host closes it, and stops automatically after the safety-net period if the host does not.
-12. A failed payment leaves the event unactivated and retryable.
-13. The host sees price, fees, total and refundability before paying.
+10. An unpaid event has no working event link or QR.
+11. Guests cannot capture until the host has explicitly opened capture, even on the event date.
+12. Capture stops when the host closes it, and stops automatically after the safety-net period if the host does not.
+13. A failed payment leaves the event unactivated and retryable.
+14. The host sees price, fees, total and refundability before paying.
+15. Once an event reaches its guest-session capacity (§9.5), a new guest attempting to join sees a calm "event is full" state; guests already joined are unaffected and keep capturing normally.
+16. A prospective host can experience the pre-purchase demo (§7.1) without paying and without creating any real event, link, or QR; nothing produced by the demo functions as a real capture or gallery link.
 
 **Gallery, privacy and sharing**
-14. Before reveal, the gallery is not viewable by anyone holding the gallery link.
-15. With visibility "only me", the gallery link does not grant access to anyone but the host.
-16. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
-17. Media cannot be retrieved from a guessable URL without an access check.
-18. A host cannot view, moderate, or download another host's event.
-19. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
-20. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
-21. Share-card generation leaves the original media unmodified.
+17. Before reveal, the gallery is not viewable by anyone holding the gallery link.
+18. With visibility "only me", the gallery link does not grant access to anyone but the host.
+19. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
+20. Media cannot be retrieved from a guessable URL without an access check.
+21. A host cannot view, moderate, or download another host's event.
+22. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
+23. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
+24. Share-card generation leaves the original media unmodified.
 
 **Host operations**
-22. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
-23. Host can download individual captures and all originals in bulk.
-24. Dashboard counts remain correct when realtime updates are unavailable.
+25. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
+26. Host can download individual captures and all originals in bulk.
+27. Dashboard counts remain correct when realtime updates are unavailable.
+28. For an activated event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance.
 
 **Platform**
-25. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
-26. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
+29. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
+30. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
 
 ---
 
 ## 21. Success Definition
 
-**MVP is ready when:** a host can create and pay for an event, receive a working link and printable QR, open capture at the venue, guests can join without accounts, frame limits hold under real concurrency and retries, uploads survive ordinary bad-network behavior, the gallery and moderation work, sharing respects event settings, media stays private per the access model above, and the whole flow has been validated on real iPhones and Android phones in realistic venue conditions.
+**MVP is ready when:** a prospective host can try the public demo, then create and pay for an event at the initial launch price, receive event signage (§11.3), open capture at the venue, guests can join without accounts and see the trust cues on the join screen, frame limits and the event-capacity boundary hold under real concurrency and retries, uploads survive ordinary bad-network behavior, the gallery and moderation work, sharing respects event settings, media stays private per the access model above, and the whole flow has been validated on real iPhones and Android phones in realistic venue conditions.
 
-**The product is validated when:** the constrained guest-capture model works at a real event — guests understand the limit, use some or all of their frames without frustration, the host values the resulting collection, and the host would pay again or recommend it. Only then does scope expand toward Replay and the photobook.
+**The product is validated when:** the constrained guest-capture model works at a real event — guests understand the limit, use some or all of their frames without frustration, the host values the resulting collection, and the host would pay again or recommend it. The launch price hypothesis is validated once a meaningful number of hosts pay ₱999 without price being a stated blocker, at which point pricing can move toward the ₱1,490 target. Only then does scope expand toward Replay and the photobook.
 
 **What must not be optimized:** captures per guest, session length, return visits, or any other engagement metric. An event where guests each used two frames and stayed present is a success.
