@@ -8,12 +8,12 @@ import {
   getGuestSessionIdFromCookie,
   setGuestSessionCookie,
 } from "@/lib/auth/guest-session";
-import { isCaptureOpen } from "@/lib/events/lifecycle";
+import { hasReachedGuestCapacity, isCaptureOpen } from "@/lib/events/lifecycle";
 import { createSignedReadUrl } from "@/lib/media/storage";
 import { CAPTURES_BUCKET } from "@/lib/media/constants";
 import type { CaptureRow } from "@/lib/db/types";
 
-export type JoinActionState = { error: string | null };
+export type JoinActionState = { error: string | null; atCapacity?: boolean };
 
 export async function joinEvent(
   token: string,
@@ -25,14 +25,24 @@ export async function joinEvent(
     return { error: "Capture isn't open for this event right now." };
   }
 
+  // A fresh read here is a UX nicety, not the enforcement — the atomic join call below
+  // re-checks the same condition regardless (product.md §9.5, decision D13).
+  if (hasReachedGuestCapacity(event)) {
+    return { error: null, atCapacity: true };
+  }
+
   const raw = formData.get("displayName");
   const displayName = typeof raw === "string" ? raw.trim().slice(0, 60) : "";
   if (!displayName) {
     return { error: "Enter a name so the host knows who captured what." };
   }
 
-  const session = await createGuestSession(event.id, displayName);
-  await setGuestSessionCookie(token, event.id, session.id);
+  const outcome = await createGuestSession(event.id, displayName);
+  if (outcome.kind === "at_capacity") {
+    return { error: null, atCapacity: true };
+  }
+
+  await setGuestSessionCookie(token, event.id, outcome.session.id);
 
   redirect(`/e/${token}`);
 }

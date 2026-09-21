@@ -12,6 +12,15 @@ export function JoinForm({ token }: { token: string }) {
   const boundJoin = joinEvent.bind(null, token);
   const [state, formAction, pending] = useActionState(boundJoin, initialState);
 
+  if (state.atCapacity) {
+    return (
+      <p className="text-sm text-(--guest-ink-muted)">
+        This event just reached its guest capacity for now. Guests who already joined can
+        keep capturing — check back with your host.
+      </p>
+    );
+  }
+
   return (
     <form action={formAction} className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
@@ -38,6 +47,11 @@ export function JoinForm({ token }: { token: string }) {
       >
         {pending ? "Joining..." : "Start capturing"}
       </Button>
+
+      <p className="text-xs text-(--guest-ink-muted)">
+        No app to download, no account to create — your captures follow this event&rsquo;s
+        own access settings.
+      </p>
     </form>
   );
 }

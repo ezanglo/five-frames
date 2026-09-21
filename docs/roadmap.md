@@ -151,6 +151,8 @@ modified again immediately after payment work lands on the same files.
 past `guest_session_cap`; a join attempted exactly at capacity is refused and creates no
 `guest_sessions` row; guests already joined before the cap was reached are unaffected.
 
+**Status: complete.** See [progress.md](./progress.md) for verification results.
+
 ---
 
 ## Slice 7 — Payment, activation, and event signage

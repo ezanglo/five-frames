@@ -3,7 +3,7 @@ import { getEventByToken } from "@/lib/dal/events";
 import { getGuestSession, touchGuestSession } from "@/lib/dal/guest-sessions";
 import { listCapturesForGuestSessionWithUrls } from "@/lib/dal/captures";
 import { getGuestSessionIdFromCookie } from "@/lib/auth/guest-session";
-import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
+import { deriveEventLifecycleState, hasReachedGuestCapacity } from "@/lib/events/lifecycle";
 import { JoinForm } from "./join-form";
 import { CaptureSlots } from "./capture-slots";
 import { OwnCaptures } from "./own-captures";
@@ -67,6 +67,19 @@ export default async function GuestEventPage({
     : null;
 
   if (!session) {
+    // A guest-session-cap check here is only ever a UX nicety for a fresh visitor — the
+    // atomic join_guest_session() call re-checks the same condition regardless (product.md
+    // §9.5, decision D13), so a race between this read and the guest's submit can't let the
+    // event grow past its cap.
+    if (hasReachedGuestCapacity(event)) {
+      return (
+        <CalmState
+          title="This event is full"
+          body="This event has reached its guest capacity for now. Guests who already joined can keep capturing — check back with your host."
+        />
+      );
+    }
+
     return (
       <div className="flex flex-1 flex-col gap-8">
         <EventIdentity name={event.name} hostMessage={event.host_message} />

@@ -9,19 +9,35 @@ import type { GuestSessionRow } from "@/lib/db/types";
  * event it belongs to.
  */
 
+export type JoinGuestSessionOutcome =
+  | { kind: "joined"; session: GuestSessionRow }
+  | { kind: "at_capacity" };
+
+/**
+ * Joins a guest session, enforcing the event's guest-session cap atomically (product.md
+ * §9.5, decision D13) via the `join_guest_session()` database function — a single
+ * `UPDATE ... WHERE guest_session_count < guest_session_cap` acts as both lock and guard,
+ * mirroring `reserve_capture()`'s pattern for frames (D5/D6), so two concurrent joins racing
+ * the last slot cannot both succeed.
+ */
 export async function createGuestSession(
   eventId: string,
   displayName: string,
-): Promise<GuestSessionRow> {
+): Promise<JoinGuestSessionOutcome> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
-    .from("guest_sessions")
-    .insert({ event_id: eventId, display_name: displayName })
-    .select()
+    .rpc("join_guest_session", {
+      p_event_id: eventId,
+      p_display_name: displayName,
+    })
     .single();
 
-  if (error) throw error;
-  return data as GuestSessionRow;
+  if (error) {
+    if (error.code === "P0003") return { kind: "at_capacity" };
+    throw error;
+  }
+
+  return { kind: "joined", session: data as GuestSessionRow };
 }
 
 export async function getGuestSession(

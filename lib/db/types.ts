@@ -26,6 +26,9 @@ export type EventRow = {
   hosted_until: string | null;
   grace_until: string | null;
 
+  guest_session_cap: number;
+  guest_session_count: number;
+
   created_at: string;
   updated_at: string;
 };

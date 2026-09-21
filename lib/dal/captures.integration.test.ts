@@ -62,7 +62,9 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
   }
 
   async function newGuestSession(eventId: string) {
-    return createGuestSession(eventId, "Test guest");
+    const outcome = await createGuestSession(eventId, "Test guest");
+    if (outcome.kind !== "joined") throw new Error("expected joined");
+    return outcome.session;
   }
 
   async function expirePending(guestSessionId: string, reserveKey: string) {

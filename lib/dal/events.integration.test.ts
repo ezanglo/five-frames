@@ -10,6 +10,7 @@ import {
   rotateGalleryToken,
   updateEventConfig,
 } from "@/lib/dal/events";
+import { createGuestSession } from "@/lib/dal/guest-sessions";
 
 /**
  * Runs against the real linked dev Postgres (architecture §11): the ownership
@@ -183,5 +184,114 @@ describe("link rotation and revocation", () => {
 
     const revokeResult = await revokeEventToken(hostAId, draft.id);
     expect(revokeResult).toBeNull();
+  });
+});
+
+/**
+ * Roadmap Slice 6: the event join-capacity mechanism (product.md §9.5, decision D13). Same
+ * class of concurrency risk as the frame mechanism (D5/D6) — a "count then insert" race —
+ * proven here against the real database the way `captures.integration.test.ts` proves the
+ * frame mechanism, rather than assuming the atomic UPDATE pattern behaves as designed.
+ */
+describe("event join-capacity boundary", () => {
+  const supabase = createServiceClient();
+  const suffix = crypto.randomUUID();
+  let hostId: string;
+
+  beforeAll(async () => {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: `capacity-host-${suffix}@example.test`,
+      password: crypto.randomUUID(),
+      email_confirm: true,
+    });
+    if (error) throw error;
+    hostId = data.user.id;
+  });
+
+  afterAll(async () => {
+    if (hostId) await supabase.auth.admin.deleteUser(hostId);
+  });
+
+  async function createOpenEventWithCap(cap: number) {
+    const event = await createDraftEvent(hostId, `Capacity test ${crypto.randomUUID()}`);
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("events")
+      .update({
+        activated_at: now,
+        capture_opened_at: now,
+        guest_session_cap: cap,
+      })
+      .eq("id", event.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  it("never lets concurrent joins push guest_session_count past guest_session_cap", async () => {
+    const event = await createOpenEventWithCap(5);
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, (_, i) =>
+        createGuestSession(event.id, `Concurrent guest ${i}`),
+      ),
+    );
+
+    const joined = results.filter((r) => r.kind === "joined");
+    const atCapacity = results.filter((r) => r.kind === "at_capacity");
+    expect(joined).toHaveLength(5);
+    expect(atCapacity).toHaveLength(3);
+
+    const { count, error } = await supabase
+      .from("guest_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", event.id);
+    if (error) throw error;
+    expect(count).toBe(5);
+
+    const { data: refreshed, error: refreshError } = await supabase
+      .from("events")
+      .select("guest_session_count")
+      .eq("id", event.id)
+      .single();
+    if (refreshError) throw refreshError;
+    expect(refreshed.guest_session_count).toBe(5);
+  });
+
+  it("refuses a join exactly at capacity and creates no guest_sessions row", async () => {
+    const event = await createOpenEventWithCap(1);
+
+    const first = await createGuestSession(event.id, "First guest");
+    expect(first.kind).toBe("joined");
+
+    const second = await createGuestSession(event.id, "Second guest");
+    expect(second.kind).toBe("at_capacity");
+
+    const { count, error } = await supabase
+      .from("guest_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", event.id);
+    if (error) throw error;
+    expect(count).toBe(1);
+  });
+
+  it("leaves guests who already joined unaffected once the event is at capacity", async () => {
+    const event = await createOpenEventWithCap(1);
+
+    const outcome = await createGuestSession(event.id, "Already joined");
+    if (outcome.kind !== "joined") throw new Error("expected joined");
+    const existingSessionId = outcome.session.id;
+
+    const rejected = await createGuestSession(event.id, "Turned away");
+    expect(rejected.kind).toBe("at_capacity");
+
+    const { data: stillThere, error } = await supabase
+      .from("guest_sessions")
+      .select("id")
+      .eq("id", existingSessionId)
+      .maybeSingle();
+    if (error) throw error;
+    expect(stillThere?.id).toBe(existingSessionId);
   });
 });

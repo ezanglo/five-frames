@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { deriveEventLifecycleState, isCaptureOpen, isGalleryRevealed } from "./lifecycle";
+import {
+  deriveEventLifecycleState,
+  hasReachedGuestCapacity,
+  isCaptureOpen,
+  isGalleryRevealed,
+} from "./lifecycle";
 import type { EventRow } from "@/lib/db/types";
 
 function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
@@ -23,6 +28,8 @@ function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
     safety_net_closes_at: null,
     hosted_until: null,
     grace_until: null,
+    guest_session_cap: 250,
+    guest_session_count: 0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -165,5 +172,22 @@ describe("isGalleryRevealed", () => {
       reveal_at: null,
     });
     expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+});
+
+describe("hasReachedGuestCapacity", () => {
+  it("is false below the cap", () => {
+    const event = baseEvent({ guest_session_cap: 250, guest_session_count: 249 });
+    expect(hasReachedGuestCapacity(event)).toBe(false);
+  });
+
+  it("is true exactly at the cap", () => {
+    const event = baseEvent({ guest_session_cap: 250, guest_session_count: 250 });
+    expect(hasReachedGuestCapacity(event)).toBe(true);
+  });
+
+  it("is true past the cap", () => {
+    const event = baseEvent({ guest_session_cap: 250, guest_session_count: 251 });
+    expect(hasReachedGuestCapacity(event)).toBe(true);
   });
 });

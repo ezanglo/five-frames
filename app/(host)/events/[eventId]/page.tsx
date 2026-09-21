@@ -107,8 +107,8 @@ export default async function EventEditPage({
             </h1>
           </div>
           <p className="text-sm text-(--host-ink-muted)">
-            {EVENT_LIFECYCLE_STATE_LABEL[state]} · {stats?.guestSessionCount ?? 0} guest
-            {(stats?.guestSessionCount ?? 0) === 1 ? "" : "s"} ·{" "}
+            {EVENT_LIFECYCLE_STATE_LABEL[state]} · {stats?.guestSessionCount ?? 0} of{" "}
+            {event.guest_session_cap} guest{(stats?.guestSessionCount ?? 0) === 1 ? "" : "s"} ·{" "}
             {stats?.photoCount ?? 0} photo{(stats?.photoCount ?? 0) === 1 ? "" : "s"}
           </p>
           {state === "draft" && (

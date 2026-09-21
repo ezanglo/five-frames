@@ -93,6 +93,18 @@ export function isGalleryRevealed(
 }
 
 /**
+ * Whether the event's guest-session cap (product.md §9.5, decision D13) has been reached.
+ * This is a read for display and pre-render purposes only — the actual enforcement is the
+ * atomic `join_guest_session()` database function (`lib/dal/guest-sessions.ts`), which
+ * re-checks the same condition at join time regardless of what this function reported a
+ * moment earlier. Unlike the five-frame allowance, this cap is a configurable column, not a
+ * permanent invariant (D13).
+ */
+export function hasReachedGuestCapacity(event: EventRow): boolean {
+  return event.guest_session_count >= event.guest_session_cap;
+}
+
+/**
  * Whether the host may open (or reopen) capture right now (product.md §7.2): the event
  * must be activated and not past the automatic safety-net close, which is terminal.
  */

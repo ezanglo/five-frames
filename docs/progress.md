@@ -9,14 +9,35 @@ appending narrative.
 
 ## Current phase
 
-**Reconciliation pass complete (2026-09-22).** product.md was updated with the pre-purchase demo,
+**Slice 6 — Event join capacity enforcement and guest trust cues: complete.**
+
+`guest_session_cap` (default 250) and `guest_session_count` columns were added to `events`
+(migration `20260922000000_event_join_capacity.sql`), enforced by a new
+`join_guest_session()` Postgres function mirroring `reserve_capture()`'s pattern (D5/D6): a
+single atomic `UPDATE events SET guest_session_count = guest_session_count + 1 WHERE
+guest_session_count < guest_session_cap RETURNING ...` acts as both lock and guard, so the
+`guest_sessions` insert only happens once that update returns a row, in the same statement's
+transaction — the exact mechanism decision D13 specifies. `createGuestSession`
+(`lib/dal/guest-sessions.ts`) now calls this RPC and returns a `{kind: "joined" |
+"at_capacity"}` outcome instead of throwing or assuming success. The guest join screen
+(`app/(guest)/e/[token]/`) pre-checks `hasReachedGuestCapacity()` (`lib/events/lifecycle.ts`,
+a read-only display helper — never the enforcement) to show a calm "This event is full"
+state to a fresh visitor without attempting a join; the join action itself re-checks via the
+atomic RPC regardless, so a race between that read and a concurrent submit can't let the
+event grow past its cap. Guest trust cues (product.md §4 principle 9) were added as a short
+line under the join form: no app, no account, captures follow the event's own access
+settings — phrased to match the actual access model (§8), not overstate privacy. The host
+dashboard's existing ambient caption now reads "`N` of `cap` guests" instead of just `N`,
+reusing the event row it already has rather than a new query.
+
+**Reconciliation pass (2026-09-22).** product.md was updated with the pre-purchase demo,
 revised launch pricing (₱999 → ₱1,490 target), the 250-session event capacity boundary, expanded
 signage deliverables, and guest trust cues. Architecture, decisions, and roadmap were reconciled
 against those changes — see decisions D13 (event capacity: atomic counter, configurable cap) and
-D14 (public demo: entirely client-side, no server storage). No code changed. The roadmap gained
-two new slices (event capacity enforcement + trust cues; the public demo) and Slice 6's scope now
-includes signage; slices 6–10 were renumbered to 6–12 to make room since none had started. Slices
-1–5 are unaffected.
+D14 (public demo: entirely client-side, no server storage). The roadmap gained two new slices
+(event capacity enforcement + trust cues; the public demo) and Slice 7's scope now includes
+signage; slices 6–10 were renumbered to 6–12 to make room since none had started. Slices 1–5 are
+unaffected.
 
 **Slice 5 — Gallery reveal, gallery link, visibility: complete.**
 
@@ -34,8 +55,8 @@ see prior verification records in git history if needed.
   D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 (new in
   this reconciliation pass, not yet implemented) record the event-capacity counter mechanism and
   the client-only public demo.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–5 done, Slice 6 (event capacity enforcement
-  and guest trust cues) next.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–6 done, Slice 7 (payment, activation, and
+  event signage) next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -140,6 +161,10 @@ see prior verification records in git history if needed.
   (`lib/auth/link-tokens.ts`, also now used by `scripts/activate-event-dev.ts`), immediately
   invalidating the old URL since every lookup is by exact token match. Copy-link uses
   `window.location.origin` client-side rather than a new base-URL env var.
+- **Event join capacity and guest trust cues (Slice 6, product.md §9.5/§4 principle 9, decision
+  D13):** see the Current phase section above for the full mechanism description
+  (`guest_session_cap`/`guest_session_count` on `events`, `join_guest_session()`, the calm
+  "event is full" state, and the trust-cue copy on the join screen).
 - **Testing:** `lib/dal/captures.integration.test.ts` against the real linked dev Postgres and
   Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
   reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
@@ -155,10 +180,14 @@ see prior verification records in git history if needed.
   favorited one. `lib/dal/events.integration.test.ts` adds: rotating either token immediately
   invalidates the old one and a lookup by it returns null; revoking clears the column so no token
   resolves; rotate/revoke on another host's event is refused and leaves the real tokens
-  unchanged; rotate/revoke before activation is refused. `lib/events/lifecycle.test.ts` adds unit
-  coverage for `isGalleryRevealed()` across all three reveal modes, including the exact-instant
-  boundary for `custom`. `lib/auth/guest-session-token.test.ts` — cookie signing round-trip,
-  tamper rejection, cross-event rejection, wrong-secret rejection.
+  unchanged; rotate/revoke before activation is refused; and (Slice 6) a concurrent-join storm
+  against a small cap never lets `guest_session_count` exceed `guest_session_cap` and the real
+  row count matches exactly, a join attempted exactly at capacity is refused and creates no
+  `guest_sessions` row, and a guest already joined stays unaffected once the event is at
+  capacity. `lib/events/lifecycle.test.ts` adds unit coverage for `isGalleryRevealed()` across
+  all three reveal modes, including the exact-instant boundary for `custom`, and for
+  `hasReachedGuestCapacity()` below/at/above the cap. `lib/auth/guest-session-token.test.ts` —
+  cookie signing round-trip, tamper rejection, cross-event rejection, wrong-secret rejection.
 
 ## Verification status
 
@@ -166,8 +195,8 @@ see prior verification records in git history if needed.
 - `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, and `/g/[token]` register as dynamic
   routes.
-- `pnpm test` (Vitest) — 47/47 passing, including the Slice 5 gallery-viewer and link-rotation
-  integration tests above against the real dev database and storage bucket.
+- `pnpm test` (Vitest) — 53/53 passing, including the Slice 5 gallery-viewer/link-rotation and
+  Slice 6 join-capacity integration tests above against the real dev database and storage bucket.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -182,6 +211,11 @@ see prior verification records in git history if needed.
   restores a frame.") is what those tests assert directly. No manual device checklist is required
   to consider this slice complete; the UI itself has not been clicked through in a browser (this
   environment does not run browser automation) — see the optional recommended checks below.
+- **Slice 6 likewise has no device-dependent acceptance criteria** — the capacity mechanism is
+  proven at the database level by the integration tests above (concurrent storm, exact-boundary
+  refusal, unaffected existing sessions), and the join-screen calm state and trust-cue copy are
+  ordinary server-rendered text with no device-specific behavior. Not clicked through in a
+  browser for the same reason as Slice 4.
 
 ## Regression protection added for human-found defects
 
@@ -253,8 +287,8 @@ acceptance criteria. If convenient, click through once in a browser as a sanity 
 
 ## Next slice
 
-**Slice 6 — Event join capacity enforcement and guest trust cues** ([roadmap](./roadmap.md)). Not
-started. (Payment and activation, expanded with event signage, is now Slice 7.)
+**Slice 7 — Payment, activation, and event signage** ([roadmap](./roadmap.md)). Not started.
+Depends on a PayMongo account with KYC completed (see blockers below).
 
 ## Blockers and open items
 
@@ -267,6 +301,6 @@ started. (Payment and activation, expanded with event signage, is now Slice 7.)
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
 | Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 10 |
 | Refund/retention/deletion legal copy | Business decision, from spec §19 | Pre-launch |
-| 250-session / 1,250-capture launch capacity is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; decision D13) | Launch policy, to revisit with real data | Slice 6, and beyond launch |
+| 250-session / 1,250-capture launch capacity (`guest_session_cap`, now enforced) is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; decision D13) | Launch policy, to revisit with real data | Beyond launch |
 | Exact demo content/mechanism (bundled sample images vs. visitor's own device photo) | Open, left to design/implementation (product.md §19) | Slice 11 |
 | Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch, not a Slice 7 blocker |
