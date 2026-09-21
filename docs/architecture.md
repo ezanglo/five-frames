@@ -57,10 +57,10 @@ solving any requirement in the spec.
 | Hosting | Vercel | Spec preference; Cron and webhook endpoints included |
 | Database | Supabase Postgres, region `ap-southeast-1` | Provisioned (Slice 1): `five-frames-dev` |
 | Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
-| Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Not yet built — Slice 2 |
-| Photo storage | Supabase Storage, private buckets | Not yet built — Slice 2 |
+| Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
+| Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Not yet built — Slice 6 |
-| Image derivatives | `sharp` in server routes | Allow-listed in `pnpm-workspace.yaml`; not yet used — Slice 2 |
+| Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit) |
 | Scheduled work | Vercel Cron | Not yet built — Slice 9 |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
 

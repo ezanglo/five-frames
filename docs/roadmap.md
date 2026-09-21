@@ -36,6 +36,8 @@ account cannot load the first host's event.
 
 ## Slice 2 — Guest join and photo capture *(highest technical risk)*
 
+**Status: complete.** See [progress.md](./progress.md) for verification results.
+
 **Objective:** A guest opens an event link, enters a display name, and commits photos against a
 server-authoritative allowance of five — proven on real devices, including in-app browsers.
 

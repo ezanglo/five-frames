@@ -29,3 +29,38 @@ export type EventRow = {
   created_at: string;
   updated_at: string;
 };
+
+export type GuestSessionRow = {
+  id: string;
+  event_id: string;
+  display_name: string;
+  created_at: string;
+  last_seen_at: string;
+};
+
+export type CaptureStatus = "pending" | "committed" | "expired";
+
+export type CaptureRow = {
+  id: string;
+  guest_session_id: string;
+  event_id: string;
+
+  slot_index: number;
+  reserve_key: string;
+  status: CaptureStatus;
+
+  message: string | null;
+
+  storage_path: string;
+  display_path: string | null;
+  thumbnail_path: string | null;
+  mime_type: string | null;
+
+  hidden_at: string | null;
+  deleted_at: string | null;
+  favorited_at: string | null;
+
+  expires_at: string;
+  committed_at: string | null;
+  created_at: string;
+};

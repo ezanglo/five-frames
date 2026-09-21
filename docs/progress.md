@@ -9,111 +9,129 @@ appending narrative.
 
 ## Current phase
 
-**Slice 1 — Host account and draft event: complete.**
+**Slice 2 — Guest join and photo capture: complete.**
 
-A host can sign up (email confirmation required by this Supabase project), sign in, and is
-gated out of `/dashboard` and `/events/*` until authenticated. From the dashboard a host can
-create a draft event and configure it (name, date, timezone, host message, reveal timing
-including a custom time, gallery visibility, sharing toggle, hashtag), with values round-tripping
-correctly through the event's own timezone. `hosts`/`events` schema is live with deny-all RLS,
-verified against the real anon key. A second host cannot read or write the first host's event —
-covered by an integration test against the real dev database.
-
-Manual verification (checklist below) passed — reported 2026-09-21.
+All 6 items in the manual verification checklist passed on real devices, reported 2026-09-21:
+iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers all completed the
+full join → 5-capture flow; an interrupted upload retried cleanly with no duplicate and no lost
+frame; a reload mid-attempt correctly resumed via the persisted `reserve_key`; and a real HEIC
+capture from an iPhone committed and produced a viewable JPEG derivative — resolving the spec's
+open question (product.md §19): no extra conversion work is needed, `sharp` decodes HEIC/HEIF
+transparently on commit.
 
 ## What exists
 
 - **Decisions D1–D11** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — 10 vertical slices; Slice 1 done, Slice 2 next.
-- **Supabase project** `five-frames-dev` (ref `lrheuifbgbplekxnljfv`, region `ap-southeast-1`, org
-  `five-frames`). Migrations workflow live in `supabase/migrations/`, applied with
-  `supabase db push --linked`. `.env.local` holds the URL/publishable/secret keys locally
-  (gitignored); `.env.example` documents the variable names.
-- **Schema:** `hosts` (auto-synced from `auth.users` via trigger), `events` (owner, name, date,
-  timezone, host message, reveal mode/time, visibility, sharing toggle, hashtag, lifecycle
-  timestamps, nullable `event_token`/`gallery_token` — populated starting Slice 6, per invariant
-  7). RLS enabled, deny-all, on both tables (decision D4) — confirmed live: anon key gets an empty
-  result on `select` and a `42501` rejection on `insert`; service-role DAL round-trips normally.
-  `supabase db advisors` is clean.
-- **Auth:** `lib/supabase/server.ts` (cookie-bound auth client), `lib/supabase/service-client.ts`
-  (service-role, DAL-only), `lib/supabase/proxy.ts` + `proxy.ts` (Next 16 proxy; session refresh +
-  route gating via `getClaims()`), `lib/auth/host-session.ts`, `lib/auth/actions.ts`
-  (`signUp`/`signIn`/`signOut` Server Actions). The browser never receives a Supabase client.
-- **DAL:** `lib/dal/events.ts` — every function takes `hostId` and scopes its query by it
-  (invariant 9); no function loads an event without that predicate.
-- **Derived state:** `lib/events/lifecycle.ts` — `deriveEventLifecycleState` per decision D8.
-  `pending_payment` is intentionally absent until Slice 6 adds the `payments` table.
-- **Timezone handling:** `lib/events/timezone.ts` — converts `<input type="datetime-local">`
-  values through an event's own IANA timezone, both directions, DST-aware (`Intl`, no added
-  dependency). Any datetime field tied to an event's timezone must go through this, not a bare
-  `new Date(string)` (see `CLAUDE.md`).
-- **UI:** `app/(host)/` (protected dashboard + event editor), `app/login/`, `app/signup/`
-  (public). shadcn components added: `card`, `input`, `label`, `select`, `switch`, `textarea`.
-- **Testing:** Vitest installed and in use (`pnpm test`) — unit tests
-  (`lib/events/lifecycle.test.ts`, `lib/events/timezone.test.ts`) and integration tests against
-  the real linked dev Postgres (`lib/dal/events.integration.test.ts`).
-- **Not yet built** (later slices, by design): payment, `event_token`/`gallery_token` issuance,
-  guest sessions, captures, gallery reveal. The `events` columns Slice 6 will populate already
-  exist (per architecture §4) but nothing writes to them yet.
+  No new consequential decisions were needed for this slice; D5–D7 already anticipated the shape
+  implemented here.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–2 done, Slice 3 next.
+- **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
+  Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
+  cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
+  SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`,
+  `GUEST_SESSION_SECRET`) are set for both Preview and Production scopes, both pointing at the
+  **dev** Supabase project. Live at `https://five-frames.vercel.app`.
+  **Known interim state to reconcile before a real production launch:** because Vercel assigns a
+  brand-new project's first deployment to Production regardless of intent, this Vercel project's
+  Production environment currently serves the dev database, not a production one. Fine for
+  continued device testing; must not be mistaken for a real production deployment later —
+  Slice 6+ will need a genuine production Supabase project and Vercel env separation before this
+  goes anywhere near real payments or guest data.
+- **Schema (migration `20260921120000_guest_capture.sql`):** `guest_sessions` (event-scoped,
+  display name); `captures` (`slot_index` 0–4 check constraint, partial unique index on
+  `(guest_session_id, slot_index)` over live statuses, unique index on
+  `(guest_session_id, reserve_key)`); the `reserve_capture()` Postgres function implementing the
+  reserve step — row-locks the guest session, lazily expires abandoned reservations past their
+  30-minute TTL, and is idempotent on `reserve_key`. RLS deny-all on both tables, same rationale
+  as Slice 1. Private Storage bucket `captures` (no public read, `image/jpeg|png|webp|heic|heif`
+  only). `supabase db advisors` shows only the pre-existing, unrelated
+  `auth_leaked_password_protection` warning from Slice 1.
+- **The frame-limit mechanism** (architecture §6, decisions D5/D6): `lib/dal/captures.ts` —
+  `reserveCapture` re-checks the capture gate with a fresh event read, then calls
+  `reserve_capture()`; `commitCapture` re-checks the gate again, refuses a lapsed reservation
+  (checking `expires_at` directly, not just the `status` column, since the lazy sweep only runs
+  inside `reserve_capture()` — see the regression note below), verifies the uploaded object
+  before ever marking a frame consumed, and generates derivatives. Both are idempotent for their
+  respective terminal states.
+- **Guest identity:** `lib/auth/guest-session.ts` + `lib/auth/guest-session-token.ts` — our own
+  httpOnly/Secure/SameSite=Lax signed cookie (decision D3), one cookie name per event token
+  (HMAC-SHA256, `GUEST_SESSION_SECRET`), so one browser can hold sessions for multiple events.
+  `lib/dal/guest-sessions.ts` scopes every query by `event_id`.
+- **Media:** `lib/media/storage.ts` — signed upload URL minting (`createSignedUploadUrl`, D7),
+  commit-time object/mime verification, `sharp`-based display (1600px) and thumbnail (400px)
+  derivative generation written as separate objects (invariant 10: original untouched), signed
+  read URL helper for later slices.
+- **Guest UI:** `app/(guest)/e/[token]/` — calm states for "event not found", "not open yet", and
+  "capture has ended" (no guest-facing error tone); join form; `CaptureSlots` client component
+  driving reserve → direct PUT upload → commit, with the client-generated `reserve_key`
+  persisted to `localStorage` before the first request (survives a reload mid-attempt) and
+  cleared only on a terminal outcome, resuming an in-flight reservation on return.
+- **Dev activation stand-in for payment** (architecture §13, roadmap Slice 2): `pnpm
+  dev:activate-event <eventId>` (`scripts/activate-event-dev.ts`) sets `activated_at`,
+  `capture_opened_at`, and issues `event_token`/`gallery_token` directly against the linked dev
+  database. It is a standalone script, not a route or UI affordance in the app itself — there is
+  no code path in the shipped app that can activate an event without payment (invariant 7 is
+  intact). Real payment-driven activation is Slice 6.
+- **Testing:** `lib/dal/captures.integration.test.ts` against the real linked dev Postgres and
+  Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
+  reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
+  capture), abandoned-reservation TTL freeing its slot, a retry arriving after expiry reported as
+  lapsed rather than revived, commit refused for a lapsed reservation, and reserve/commit refused
+  while capture is closed. `lib/auth/guest-session-token.test.ts` — cookie signing round-trip,
+  tamper rejection, cross-event rejection, wrong-secret rejection.
 
 ## Verification status
 
 - `pnpm typecheck` — passing.
-- `pnpm test` (Vitest) — 15/15 passing (lifecycle derivation, event ownership isolation against
-  real Postgres, timezone conversion).
-- `pnpm lint` — passing (fixed 2026-09-21; see below). 1 pre-existing warning
-  (`app/layout.tsx`: unused `Geist` import), no errors.
-- Manual RLS check against the live dev project (anon key: denied read+write) — passed.
-- Human manual verification of the Slice 1 checklist — **passed, reported 2026-09-21.**
-
-**Lint toolchain fix (2026-09-21):** `pnpm lint` previously crashed on every file
-(`TypeError: contextOrFilename.getFilename is not a function`). Root cause: `eslint@10.11.0`
-removed the deprecated `context.getFilename()` API that `eslint-plugin-react@7.37.5` (the latest
-release, pulled in by `eslint-config-next@16.3.4`) still calls internally — no newer
-`eslint-plugin-react` exists yet with a fix. Resolved by pinning `eslint` to `^9` (installed
-`9.39.5`, the last major before the removal), which `eslint-config-next` already supports
-(`peerDependencies: "eslint": ">=9.0.0"`). No other dependencies changed.
+- `pnpm lint` — passing (same 1 pre-existing warning as Slice 1, `app/layout.tsx` unused `Geist`
+  import; no errors).
+- `pnpm build` — passing; `/e/[token]` registers as a dynamic route.
+- `pnpm test` (Vitest) — 28/28 passing, including the frame-mechanism integration tests above
+  against the real dev database and storage bucket.
+- **Real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
+  Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
+  HEIC) — see below.
 
 ## Regression protection added for human-found defects
 
-Three defects surfaced during manual verification and were fixed at the root cause. Protection
-is a mix of automated tests and documented guards — not all three got a test:
+One defect was caught by the integration tests themselves during implementation, before reaching
+a human: the first version of `commitCapture` only checked the `status` column for "expired," but
+that column is only updated lazily inside `reserve_capture()`, so a reservation whose TTL had
+lapsed without a subsequent reserve call could still pass commit's gate. Fixed by having
+`commitCapture` check `expires_at` directly against the current time, not just `status`. Covered
+by "refuses to commit a lapsed reservation" in `lib/dal/captures.integration.test.ts`. No defects
+were found during human verification.
 
-1. **Signup gave no feedback when email confirmation was required.** Fixed by checking
-   `data.session` instead of assuming success means "signed in." **No automated regression test**
-   — this is a UI branch on provider response shape, not something covered by the current test
-   setup; guarded only by the code itself and the note in `CLAUDE.md`.
-2. **Reveal-mode/visibility dropdowns showed the raw enum value instead of the label.** Fixed by
-   passing an `items` map to `Select.Root`. **No automated regression test** — protected by a
-   documented gotcha in `CLAUDE.md` ("Recurring implementation gotchas in this stack") so the same
-   mistake isn't repeated the next time a `Select` is added.
-3. **Custom reveal time drifted after save+reload** (timezone conversion used the server
-   process's timezone instead of the event's, and display didn't convert at all). Fixed with
-   `lib/events/timezone.ts`. **Automated regression tests added** —
-   `lib/events/timezone.test.ts`, including the exact reported Asia/Manila midnight case and a
-   DST-crossing case.
+## Manual verification results (Slice 2 exit condition) — all passed, 2026-09-21
 
-Cross-project lessons from these three were promoted to `~/.claude/rules/application-quality.md`;
-the defect-to-regression handling process itself was added to the global build-app skill
-(`~/.claude/skills/build-app/SKILL.md` §32), for future sessions. None of this touched
-`docs/product.md`.
+Seeded via a draft event activated with `pnpm dev:activate-event <eventId>`, tested against the
+Vercel deployment described above for real HTTPS.
+
+1. **iPhone Safari** — pass. Full join → 5-capture flow completed.
+2. **Android Chrome** — pass. Full join → 5-capture flow completed.
+3. **Facebook/Messenger/Instagram in-app browsers** — pass. Picker opened and upload completed
+   in each.
+4. **Interrupted upload + retry** — pass. No duplicate capture, no lost frame.
+5. **Reload mid-attempt** — pass. The persisted `reserve_key` correctly resumed the in-progress
+   reservation rather than losing or duplicating it.
+6. **HEIC on a real iPhone** — pass. Committed and produced a viewable JPEG derivative; resolves
+   product.md §19's open question — no dedicated HEIC conversion step is needed, `sharp` handles
+   it on the existing derivative path.
 
 ## Next slice
 
-**Slice 2 — Guest join and photo capture** ([roadmap](./roadmap.md)) — highest technical risk.
-Not started. Needs, when it begins: `guest_sessions` and `captures` tables (client-generated
-`reserve_key`, partial unique slot index per D5/D6), direct-to-Storage signed uploads, and early
-real-device validation (iPhone Safari, Android Chrome, FB/Messenger/IG in-app browsers, one
-interrupted upload, HEIC behavior) as an exit condition, not a later pass.
+**Slice 3 — Guest's own view and network resilience** ([roadmap](./roadmap.md)). Not started.
+Device testing surfaced no upload failures severe enough to demand TUS immediately, but Slice 3
+should still set the resumable-upload size threshold deliberately rather than skip it, per the
+roadmap.
 
 ## Blockers and open items
 
 | Item | Type | Affects |
 |---|---|---|
+| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 6+ production work |
 | PayMongo account with KYC completed | External prerequisite | Slice 6 |
 | No git remote configured | Setup | Any push/CI work |
-| In-app browser (FB/Messenger/IG) camera and upload behavior unproven | Technical risk | Validated as an exit condition of slice 2 |
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
 | Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 9 |
-| HEIC conversion necessity on current devices | Open, from spec §19 | Answered during slice 2 device testing |
 | Refund/retention/deletion legal copy | Business decision, from spec §19 | Pre-launch |

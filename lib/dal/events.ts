@@ -79,6 +79,40 @@ export async function getEventForHost(
 }
 
 /**
+ * Guest-facing lookup: the event (capture) token is itself the credential (architecture
+ * §5), so there is no host ownership predicate here — possession of the token is the
+ * access check. Never used to expose anything beyond what the token is meant to grant.
+ */
+export async function getEventByToken(token: string): Promise<EventRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select()
+    .eq("event_token", token)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+/**
+ * No ownership predicate — internal use only, by the guest capture path (lib/dal/captures.ts)
+ * to re-check the capture gate. Safe because every caller already resolved eventId from a
+ * guest_sessions row matched against the signed guest cookie, not from unverified input.
+ */
+export async function getEventById(eventId: string): Promise<EventRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select()
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+/**
  * Returns null (rather than throwing) when the event doesn't exist or isn't owned by
  * this host — the WHERE clause below is the ownership check, and callers treat a null
  * result as "not found," never distinguishing "not owned" from "doesn't exist."
