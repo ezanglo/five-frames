@@ -1,8 +1,9 @@
 # FiveFrames — Project Guide
 
-A mobile-first web app for weddings. Each guest gets exactly five photos. That scarcity is the
-product, not a storage limit. **There is no video feature** — it is post-MVP, and the
-architecture reserves nothing for it.
+A mobile-first web app for capturing shared moments at any live event — weddings, birthdays,
+parties, reunions, trips, company gatherings, and other shared occasions. Each guest gets exactly
+five photos. That scarcity is the product, not a storage limit. **There is no video feature** —
+it is post-MVP, and the architecture reserves nothing for it.
 
 ## Where things are defined
 

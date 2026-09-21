@@ -1,14 +1,14 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-21
+Last updated: 2026-09-21 (positioning correction: event-agnostic, not wedding-specific)
 Initial market: Philippines
 
 ---
 
 ## 1. Executive Summary
 
-FiveFrames is a mobile-first web app for weddings. Every guest gets a deliberately small allowance of captures — **exactly five photos** — collected into a private event gallery owned by the host.
+FiveFrames is a mobile-first web app for capturing shared moments at any live event — weddings, birthdays, parties, reunions, trips, company gatherings, and other shared occasions. Every guest gets a deliberately small allowance of captures — **exactly five photos** — collected into a private event gallery owned by the host.
 
 The limit is the product, not a storage restriction. The intent is that guests capture a few moments that actually matter to them, then put the phone away and enjoy the event. FiveFrames is explicitly **not** an unlimited shared album and **not** a social feed.
 
@@ -20,7 +20,7 @@ Hosts are the only people with accounts. A host creates and configures an event,
 
 ## 2. Product Vision
 
-> FiveFrames helps wedding guests contribute a handful of genuinely meaningful moments — and helps couples receive a curated, guest-eyed record of their day — by making captures scarce instead of unlimited.
+> FiveFrames helps event guests contribute a handful of genuinely meaningful moments — and helps hosts receive a curated, guest-eyed record of the occasion — by making captures scarce instead of unlimited.
 
 The long-term bet is that a small, high-signal collection is more valuable than a large, noisy one: valuable enough to build post-event products on (Replay, photobook) rather than just hosting files.
 
@@ -30,9 +30,9 @@ The long-term bet is that a small, high-signal collection is more valuable than 
 
 **Initial market:** Philippines. Peso pricing, local payment methods (GCash, Maya, cards), venue conditions with congested Wi-Fi and mobile data.
 
-**Buyer / host:** an engaged couple, a family member, or a wedding coordinator setting up the event on behalf of the couple. Comfortable with a phone and a browser; not technical.
+**Buyer / host:** whoever is organizing the event and wants a curated collection of it — an engaged couple planning a wedding, a family member organizing a birthday or reunion, a coordinator or planner setting up the event on someone else's behalf, or a company/team organizing a group event or trip. Comfortable with a phone and a browser; not technical.
 
-**Guest:** a wedding attendee of any age with a smartphone. May be on iOS or Android, using Safari, Chrome, or a common in-app browser (Facebook, Messenger, Instagram). Will not install anything. Will not create an account. May have weak or intermittent connectivity at the venue.
+**Guest:** an event attendee of any age with a smartphone. May be on iOS or Android, using Safari, Chrome, or a common in-app browser (Facebook, Messenger, Instagram). Will not install anything. Will not create an account. May have weak or intermittent connectivity at the venue.
 
 ---
 
@@ -44,7 +44,7 @@ These principles constrain feature decisions and UI copy. They are product requi
 2. **Calm over engagement.** No streaks, leaderboards, badges, progress nags, reminders to "finish your frames", or any mechanic designed to increase usage.
 3. **Unused frames are a success, not a failure.** The UI must never imply the guest is behind or wasting something.
 4. **Copy tone: "capture what matters", not "you still have 3 left."** Remaining frames may be shown factually and quietly; they must not be framed as an unfinished task.
-5. **Presence beats browsing.** Default behavior keeps guests from scrolling other people's photos during the wedding.
+5. **Presence beats browsing.** Default behavior keeps guests from scrolling other people's photos during the event.
 6. **Private by default.** Media is never placed behind guessable public URLs, and nothing becomes broadly viewable without an explicit host action.
 7. **Never hold memories hostage.** The host can always download their media before anything expires.
 8. **No AI during capture.** AI may assist post-event curation later; it must never appear in the guest capture flow, and must never fabricate memories, alter faces, or invent captions.
@@ -412,7 +412,7 @@ Native apps · guest accounts · unlimited uploads · configurable frame counts 
 **Accepted risks (decided, not open)**
 - Session loss grants a fresh allowance; frame limits are per session, not per person.
 - The sharing toggle cannot prevent a guest from sharing media already on their device.
-- One host account per event; couples/coordinators needing shared access is a known gap.
+- One host account per event; couples, families, or coordinators needing shared access is a known gap.
 
 ---
 
@@ -462,6 +462,6 @@ Observable behavior that defines launch readiness.
 
 **MVP is ready when:** a host can create and pay for an event, receive a working link and printable QR, open capture at the venue, guests can join without accounts, frame limits hold under real concurrency and retries, uploads survive ordinary bad-network behavior, the gallery and moderation work, sharing respects event settings, media stays private per the access model above, and the whole flow has been validated on real iPhones and Android phones in realistic venue conditions.
 
-**The product is validated when:** the constrained guest-capture model works at a real wedding — guests understand the limit, use some or all of their frames without frustration, the couple values the resulting collection, and the host would pay again or recommend it. Only then does scope expand toward Replay and the photobook.
+**The product is validated when:** the constrained guest-capture model works at a real event — guests understand the limit, use some or all of their frames without frustration, the host values the resulting collection, and the host would pay again or recommend it. Only then does scope expand toward Replay and the photobook.
 
-**What must not be optimized:** captures per guest, session length, return visits, or any other engagement metric. A wedding where guests each used two frames and stayed present is a success.
+**What must not be optimized:** captures per guest, session length, return visits, or any other engagement metric. An event where guests each used two frames and stayed present is a success.
