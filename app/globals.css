@@ -196,3 +196,41 @@
 .host-scope .font-host-display {
   font-family: var(--font-guest-display), var(--font-sans);
 }
+
+/**
+ * Operator Console visual system (docs/design-direction.md, "Operator Console" section).
+ * Deliberately more neutral and denser than .guest-scope/.host-scope — this is an internal
+ * support tool, not a customer-facing surface, so warmth is dialed down to near-neutral and
+ * the one saturated color (--operator-privileged) is reserved exclusively for privileged
+ * mutation zones (manual payment confirm/refund, Slice 9), never for ordinary informational
+ * UI, so a privileged action can never be visually confused with a read-only one.
+ */
+.operator-scope {
+  --operator-canvas: oklch(0.97 0.004 75);
+  --operator-canvas-raised: oklch(0.995 0.002 80);
+  --operator-surface: oklch(0.94 0.006 70);
+  --operator-surface-quiet: oklch(0.955 0.004 70);
+  --operator-ink: oklch(0.22 0.01 50);
+  --operator-ink-muted: oklch(0.5 0.008 55);
+  --operator-border: oklch(0.85 0.008 68);
+  --operator-accent: oklch(0.58 0.13 40);
+  --operator-accent-foreground: oklch(0.98 0.012 75);
+  --operator-privileged: oklch(0.47 0.09 275);
+  --operator-privileged-foreground: oklch(0.97 0.01 275);
+  --operator-privileged-surface: oklch(0.965 0.008 275);
+
+  --operator-state-draft: oklch(0.65 0.01 60);
+  --operator-state-active: oklch(0.62 0.11 230);
+  --operator-state-capture_open: oklch(0.6 0.135 148);
+  --operator-state-capture_closed: oklch(0.58 0.02 60);
+  --operator-state-expired: oklch(0.65 0.14 55);
+  --operator-state-archived: oklch(0.5 0.01 60);
+
+  background-color: var(--operator-canvas);
+  color: var(--operator-ink);
+  font-family: var(--font-sans);
+}
+
+.operator-scope .font-operator-display {
+  font-family: var(--font-guest-display), var(--font-sans);
+}

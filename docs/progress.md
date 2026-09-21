@@ -378,6 +378,7 @@ webhook-driven activation path can be exercised against anything but the dev sta
 | Item | Type | Affects |
 |---|---|---|
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
+| Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens, reserved-but-inert manual-payment/refund zone) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. No mutation was implemented; Slice 9 still builds the real actions inside the reserved zone. | Design pass pending approval | `/operator`, `/operator/events/[eventId]`; see checklist in session handoff |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 8+ production work |
 | PayMongo account with KYC completed | External prerequisite | Slice 8 (not Slice 7 or 9 — manual payment doesn't need it) |
 | Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |

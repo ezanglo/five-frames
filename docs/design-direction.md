@@ -443,3 +443,160 @@ numerically — flagged for human verification, same as the guest and host scope
   existing product-controlled sharing elsewhere), not part of this pass.
 - Letting a calm/denial state hint at what's behind it (thumbnail, silhouette, count) — the held-
   archive panel must stay abstract regardless of how tempting a preview would look.
+
+---
+
+# Operator Console
+
+**Status: awaiting human visual verification.** Full Redesign Mode pass, implemented
+2026-09-22, applied to the read-only Operator Console shipped in Slice 7 (no mutations exist
+yet). Extends this direction rather than replacing any scope above — those are unchanged. A
+further identity shift to this surface would need a new foundational pass with its own
+anchor-selection gate.
+
+## Scope
+
+The internal Operator Console only: `/operator` (event list/search) and
+`/operator/events/[eventId]` (event operational detail), both under `app/(operator)/`. Not the
+guest, host, or public-gallery surfaces above, and not a redesign of Slice 7's functional scope —
+still read-only, still no guest-media access, still no mutation wired up. This pass also visually
+reserves, but does not implement, the Slice 9 manual-payment-confirmation/refund actions.
+
+## Product character
+
+Internal and utilitarian, not customer-facing. Before this pass, the Console (built functionally
+in Slice 7) simply reused `.host-scope` wholesale — same tokens, same bordered-`Card`-stack
+layout the host redesign had already moved away from — which read as "the host dashboard, copied
+again" rather than its own surface, and gave an operator no visual cue that they were in a
+different, cross-host tool. This pass gives it its own quieter, denser, more neutral identity:
+trustworthy and internal, built for a support person triaging many events quickly, not for a
+host managing their one event.
+
+## Primary anchor
+
+- **Shopify Admin — Orders list and order detail (including the refund panel)** —
+  https://help.shopify.com (product itself, real production admin; specific screenshots
+  inspected: a Shopify order-refund screen, magecomp.com/blog/wp-content/uploads/2023/06/
+  Refund-reason.png)
+- Source/type: real production SaaS admin, inspiration-only (no code/asset reuse)
+- Why chosen: it is the only reference inspected that already solves *both* required views —
+  a dense entity list and a compact detail view — as one coherent product, and its order-detail
+  composition (read-only informational cards on the left, a visually distinct right-rail
+  "Summary" panel ending in a bold primary action button) is a direct structural fit for "reserve
+  a place for future manual-payment/refund actions that reads differently from informational
+  state." The Console's right-rail "Manual payment actions" panel is built directly on this idea.
+- What was explicitly **not** taken from it: its literal financial-summary math (subtotal/tax/
+  shipping breakdown) — FiveFrames has no line-item order to total, so only the *panel
+  separation and action-placement* pattern transferred, not its content.
+
+## Secondary references
+
+- **Linear — issue search/list view** — https://linear.app/changelog (screenshot inspected:
+  a Linear issue search results view) — contributed the dense, border-free row-scanning pattern:
+  a small colored status glyph leading every row, primary/secondary text pair (title, then a
+  quieter identifier line), inline metadata pills before a trailing detail, no per-row card
+  border. The operator event list's state dot + name/host-email pair + trailing payment/state
+  pills is built on this. Inspiration-only.
+- **Stripe Dashboard — Payments list** — https://docs.stripe.com/dashboard/basics (screenshot
+  inspected: a Stripe payments-list clone/recreation showing the real dashboard's structure) —
+  contributed the single prominent search bar with a leading icon, and the colored status-pill
+  vocabulary (a filled, rounded, low-chroma badge per state) used for the list's Paid/Unpaid
+  badge and the lifecycle state pill. Inspiration-only.
+
+## Structural signature
+
+- The Console no longer reuses `.host-scope`. It has its own `.operator-scope` token family
+  (`app/globals.css`) — near-neutral (far lower chroma than guest/host), denser type, and one
+  reserved saturated color (`--operator-privileged`, a muted indigo) used *exclusively* for the
+  manual-payment/refund reserved zone, never for any ordinary informational element, so a
+  privileged action can never be visually confused with a read-only one.
+- The event list (`operator/page.tsx`) is a border-free, Linear-anchored row list, not the
+  previous plain `<ul>` of name/host-email/lifecycle-label text. Each row leads with a small
+  lifecycle-state color dot (inside a `StatePill`), shows event name (primary) and host email
+  (secondary) as a stacked pair, and trails with a compact "guests/cap" count, a Paid/Unpaid
+  status pill (Stripe-anchored), and the lifecycle-state pill — all visible without opening the
+  row, directly serving "enough information to locate a customer problem quickly."
+- Search is a single Stripe-style pill input with a leading search icon (`operator/page.tsx`) —
+  no non-functional filter chips were added; the underlying search is still the same one-query
+  DAL call from Slice 7 (`listEventsForOperator`), only its presentation changed.
+- The event detail page (`operator/events/[eventId]/page.tsx`) no longer stacks four uniform
+  bordered `Card` sections. It now opens with a compact masthead (event name, a `StatePill`,
+  host email/event id) and splits into a two-column body on desktop: a wider "operational state"
+  column (Lifecycle, Guests and capacity, Capture and moderation, Gallery) using label/value rows
+  separated by quiet `border-t` dividers between subsections rather than boxed cards, and a
+  narrower right-rail panel holding Payment state plus the new "Manual payment actions" reserved
+  zone (Shopify-anchored). Below `lg`, the right-rail panel moves under the operational-state
+  column rather than disappearing or requiring horizontal scroll.
+- The reserved manual-payment/refund zone renders as two non-interactive, dashed-outline rows
+  (a `Lock` icon, an inert-styled label, and "Reserved for Slice 9 — not yet available" copy) in
+  `--operator-privileged` — deliberately *not* real `<button>` elements, so nothing announces
+  itself to assistive tech as an actionable control that does nothing. This is presentation-only:
+  no server action, no mutation, no new data is read from any table Slice 7 didn't already query.
+- The event list's empty/no-results state is a designed dashed-border panel (a `SearchX` icon
+  plus text), replacing the previous bare "No events match." line — consistent with the
+  calm-panel visual language already established for the gallery's access-denial states, adapted
+  to this surface's more neutral tone rather than the guest scope's warm calm-state copy.
+
+## Typography
+
+Same as guest/host: Inter (`--font-sans`) for body/UI, Bricolage Grotesque
+(`--font-guest-display`, applied via `.font-operator-display`) for the event name and page
+headings — one display face for the whole product. Sizes run a step smaller than the host scope
+(`text-lg` mastheads, `text-xs` labels) to fit the higher information density this surface needs.
+
+## Color/material
+
+New `--operator-*` token set in `.operator-scope` (`app/globals.css`):
+
+| Token | Role |
+|---|---|
+| `--operator-canvas` / `--operator-canvas-raised` | page background / raised surfaces (header, right-rail panel, search input) |
+| `--operator-surface` / `--operator-surface-quiet` | row hover fill / quiet fills |
+| `--operator-ink` / `--operator-ink-muted` | primary / secondary text — denser and higher-contrast than the host scope's equivalents |
+| `--operator-border` | hairline dividers, dashed empty-state and reserved-action borders |
+| `--operator-accent` | same warm terracotta as guest/host, used sparingly (links, focus) for identity continuity |
+| `--operator-privileged` / `--operator-privileged-foreground` / `--operator-privileged-surface` | the one reserved color — manual-payment/refund zone only |
+| `--operator-state-{draft,active,capture_open,capture_closed,expired,archived}` | one color per lifecycle state, used only by the small `StateDot`/`StatePill` |
+
+## Layout and rhythm
+
+`flex min-h-dvh flex-col` shell (`app/(operator)/layout.tsx`), `max-w-5xl` content column —
+wider than the host scope's `max-w-3xl` since the list and the two-column detail both need more
+horizontal room at this density. The header is shorter (`py-2.5` vs. the host header's `py-3`)
+and carries a small "Internal" tag next to the wordmark, a cue this is not a customer-facing
+surface.
+
+## Controls and forms
+
+The search input is the existing shadcn/base-ui `Input`, restyled via `className` only — no new
+form primitive, per the component-library rule. The reserved manual-payment/refund zone is
+intentionally not a control at all (see Structural signature) until Slice 9 actually implements
+it.
+
+## Motion
+
+None added. This is a scan-and-read surface; the only interactive affordance (a list row link)
+gets a plain background-color hover transition, consistent with the restraint elsewhere in the
+product.
+
+## Accessibility
+
+List rows are real `<Link>` elements covering the full row (a large hit target, no nested
+interactive elements). The reserved manual-payment/refund placeholders are plain `<div>`s with
+no button/link semantics and no `tabindex`, specifically so they are not reachable as dead
+controls via keyboard or announced as buttons by a screen reader. Status is communicated by both
+a color dot and adjacent text everywhere (list pills, detail masthead), never by color alone.
+Contrast against `--operator-canvas` has not yet been measured numerically — flagged for human
+verification, same as every other scope above.
+
+## Avoid
+
+- Reusing `.host-scope` tokens or the host dashboard's bordered-`Card`-stack layout for anything
+  under `app/(operator)/` — that was the exact pattern this pass moved away from.
+- Any non-functional-looking control in the manual-payment/refund reserved zone — it must read as
+  "not here yet," never as a broken button.
+- Charts, sparklines, or other BI-dashboard decoration — product.md §5.1 is explicit the Console
+  is not a BI/analytics surface, and this pass added none.
+- Exposing a capture's signed media URL, thumbnail, or any per-guest-media affordance from this
+  surface — unchanged from Slice 7's DAL boundary (`lib/dal/operator-events.ts` still selects
+  aggregate counts only).
