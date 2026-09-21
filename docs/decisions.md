@@ -242,3 +242,24 @@ the spec has not settled. Sequential signed URLs satisfy invariant 11 — the ho
 their media — without any of that.
 **Trade-off:** Noticeably less convenient than a single zip. A server-side archive job is a
 recognized follow-up, not a permanent position.
+
+---
+
+## D12 — "After the event" gallery reveal is anchored to capture closing
+
+**Status:** Accepted (2026-09-21)
+**Context:** product.md §7.3 defines reveal timing as "after the event (default), immediately, or
+a custom reveal time," but the schema has no separate "event end" timestamp distinct from capture
+lifecycle — only `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`, plus the
+optional, host-editable `event_date`.
+**Decision:** `isGalleryRevealed()` (`lib/events/lifecycle.ts`) treats "after the event" as
+revealed once capture has ended — closed manually or via the automatic safety-net close — i.e.
+lifecycle state `capture_closed`, `expired`, or `archived`. "Immediate" reveals as soon as the
+event is activated; "custom" reveals at `reveal_at`.
+**Reasoning:** Capture ending is the point at which the event is functionally over for guests —
+the product.md lifecycle table itself pairs "Capture closed / Ended" with "Gallery: per reveal
+setting." Anchoring to a separate, unenforced `event_date` field would let the gallery reveal
+before capture even opens if a host under-filled that field, which is a plainer read of
+invariant 8 (unrevealed gallery never viewable) than the spec text alone resolves.
+**Reopen note:** revisit if a future slice adds an explicit "event end" concept independent of
+capture (e.g., a multi-day event where capture closes far after the event nominally ends).

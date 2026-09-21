@@ -6,6 +6,10 @@ import {
   closeCapture,
   createDraftEvent,
   openCapture,
+  revokeEventToken,
+  revokeGalleryToken,
+  rotateEventToken,
+  rotateGalleryToken,
   updateEventConfig,
   type EventConfigInput,
 } from "@/lib/dal/events";
@@ -107,4 +111,26 @@ export async function moderateCaptureAction(
 ) {
   const host = await requireHost();
   await moderateCapture(host.id, eventId, captureId, action);
+}
+
+/** Bound to link rotate/revoke buttons (product.md §8.1, roadmap Slice 5); no redirect,
+ *  so the route re-renders with the new (or cleared) token in place. */
+export async function rotateEventTokenAction(eventId: string) {
+  const host = await requireHost();
+  await rotateEventToken(host.id, eventId);
+}
+
+export async function revokeEventTokenAction(eventId: string) {
+  const host = await requireHost();
+  await revokeEventToken(host.id, eventId);
+}
+
+export async function rotateGalleryTokenAction(eventId: string) {
+  const host = await requireHost();
+  await rotateGalleryToken(host.id, eventId);
+}
+
+export async function revokeGalleryTokenAction(eventId: string) {
+  const host = await requireHost();
+  await revokeGalleryToken(host.id, eventId);
 }

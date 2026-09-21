@@ -6,12 +6,18 @@ import {
   canOpenCapture,
   deriveEventLifecycleState,
   EVENT_LIFECYCLE_STATE_LABEL,
+  isGalleryRevealed,
 } from "@/lib/events/lifecycle";
 import {
   closeCaptureAction,
   openCaptureAction,
+  revokeEventTokenAction,
+  revokeGalleryTokenAction,
+  rotateEventTokenAction,
+  rotateGalleryTokenAction,
   updateEvent,
 } from "@/app/(host)/events/actions";
+import { LinkRow } from "./link-row";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +65,10 @@ export default async function EventEditPage({
   const boundUpdate = updateEvent.bind(null, eventId);
   const boundOpenCapture = openCaptureAction.bind(null, eventId);
   const boundCloseCapture = closeCaptureAction.bind(null, eventId);
+  const boundRotateEventToken = rotateEventTokenAction.bind(null, eventId);
+  const boundRevokeEventToken = revokeEventTokenAction.bind(null, eventId);
+  const boundRotateGalleryToken = rotateGalleryTokenAction.bind(null, eventId);
+  const boundRevokeGalleryToken = revokeGalleryTokenAction.bind(null, eventId);
 
   const stats = await getEventCaptureStats(host.id, eventId);
   const captures = await listCapturesForEventHost(host.id, eventId);
@@ -139,6 +149,44 @@ export default async function EventEditPage({
       {saved && (
         <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
           Saved.
+        </p>
+      )}
+
+      {event.activated_at ? (
+        <div className="flex flex-col gap-3">
+          <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+            Links
+          </h2>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex-1">
+              <LinkRow
+                label="Capture link"
+                helpText="What guests scan or open at the venue to join and capture."
+                path={event.event_token ? `/e/${event.event_token}` : null}
+                rotateAction={boundRotateEventToken}
+                revokeAction={boundRevokeEventToken}
+              />
+            </div>
+            <div className="flex-1">
+              <LinkRow
+                label="Gallery link"
+                helpText={
+                  !isGalleryRevealed(event)
+                    ? "View-only. Grants nothing until the gallery is revealed."
+                    : event.visibility === "only_me"
+                      ? "View-only. Visibility is set to only me, so this link grants nothing to anyone else."
+                      : "View-only. Anyone you share it with can see the gallery now."
+                }
+                path={event.gallery_token ? `/g/${event.gallery_token}` : null}
+                rotateAction={boundRotateGalleryToken}
+                revokeAction={boundRevokeGalleryToken}
+              />
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-(--host-ink-muted)">
+          Links are issued once the event is activated.
         </p>
       )}
 

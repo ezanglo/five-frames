@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { canOpenCapture, deriveEventLifecycleState } from "@/lib/events/lifecycle";
+import { generateLinkToken } from "@/lib/auth/link-tokens";
 import type { EventRow, GalleryVisibility, RevealMode } from "@/lib/db/types";
 
 /**
@@ -97,6 +98,25 @@ export async function getEventByToken(token: string): Promise<EventRow | null> {
 }
 
 /**
+ * Gallery-viewer-facing lookup (roadmap Slice 5): the gallery token is itself the
+ * credential for "anyone with the link" visibility (architecture §5), so there is no host
+ * ownership predicate here, same reasoning as `getEventByToken`. The caller is still
+ * responsible for checking reveal timing and visibility before showing anything — this
+ * function only resolves the token to an event, it does not decide access.
+ */
+export async function getEventByGalleryToken(token: string): Promise<EventRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select()
+    .eq("gallery_token", token)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+/**
  * No ownership predicate — internal use only, by the guest capture path (lib/dal/captures.ts)
  * to re-check the capture gate. Safe because every caller already resolved eventId from a
  * guest_sessions row matched against the signed guest cookie, not from unverified input.
@@ -167,6 +187,54 @@ export async function openCapture(
 
   if (error) throw error;
   return data as EventRow | null;
+}
+
+type LinkKind = "event_token" | "gallery_token";
+
+/**
+ * Rotate or revoke either link (product.md §8.1/§11.1, roadmap Slice 5). Gated on
+ * `activated_at`: tokens only ever exist post-payment (invariant 7), so rotating or
+ * revoking before activation would be meaningless and is refused rather than silently
+ * minting a token an unpaid event isn't allowed to have. Rotation immediately invalidates
+ * the old URL, since every lookup is by exact token match (architecture §5) — there is
+ * nothing else to invalidate.
+ */
+async function setLinkToken(
+  hostId: string,
+  eventId: string,
+  column: LinkKind,
+  value: string | null,
+): Promise<EventRow | null> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event || !event.activated_at) return null;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ [column]: value })
+    .eq("id", eventId)
+    .eq("host_id", hostId)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+export function rotateEventToken(hostId: string, eventId: string) {
+  return setLinkToken(hostId, eventId, "event_token", generateLinkToken());
+}
+
+export function revokeEventToken(hostId: string, eventId: string) {
+  return setLinkToken(hostId, eventId, "event_token", null);
+}
+
+export function rotateGalleryToken(hostId: string, eventId: string) {
+  return setLinkToken(hostId, eventId, "gallery_token", generateLinkToken());
+}
+
+export function revokeGalleryToken(hostId: string, eventId: string) {
+  return setLinkToken(hostId, eventId, "gallery_token", null);
 }
 
 export async function closeCapture(

@@ -68,6 +68,31 @@ export function isCaptureOpen(
 }
 
 /**
+ * Whether the gallery is revealed right now (product.md §7.3, invariant 8). "After the
+ * event" (the default) is anchored to capture having ended — manually or via the automatic
+ * safety-net close — since the schema has no separate "event end" timestamp and capture
+ * ending is the point at which the event is functionally over. "Immediate" reveals as soon
+ * as the event is activated (payment succeeded); reveal cannot precede payment. "Custom"
+ * reveals at `reveal_at`. This is purely a read; it never mutates and cron is never
+ * consulted, matching D8's derived-state approach for the rest of the lifecycle.
+ */
+export function isGalleryRevealed(
+  event: EventRow,
+  now: Date = new Date(),
+): boolean {
+  if (!event.activated_at) return false;
+
+  if (event.reveal_mode === "immediate") return true;
+
+  if (event.reveal_mode === "custom") {
+    return event.reveal_at !== null && now.getTime() >= Date.parse(event.reveal_at);
+  }
+
+  const state = deriveEventLifecycleState(event, now);
+  return state === "capture_closed" || state === "expired" || state === "archived";
+}
+
+/**
  * Whether the host may open (or reopen) capture right now (product.md §7.2): the event
  * must be activated and not past the automatic safety-net close, which is terminal.
  */

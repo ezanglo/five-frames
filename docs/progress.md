@@ -9,24 +9,21 @@ appending narrative.
 
 ## Current phase
 
-**Slice 4 — Host dashboard and moderation: complete.**
+**Slice 5 — Gallery reveal, gallery link, visibility: complete.**
 
-Built on Slice 2's frame-limit mechanism without changing it: moderation and capture open/close
-only ever touch `hidden_at`/`deleted_at`/`favorited_at`/`capture_opened_at`/`capture_closed_at` —
-never `slot_index` or `status` — so a hidden, deleted, or favorited capture can never free a slot
-or restore a frame (product invariant 4). The event edit page at `/events/[eventId]` is now also
-the host dashboard: lifecycle state, capture open/close control, guest-session and photo counts,
-and a gallery grid with hide/unhide/delete/favorite, refreshed by client-side polling (decision
-D9). No new schema was needed — the moderation columns already existed from Slice 2's migration.
-
-Slice 3 — guest's own view and network resilience — is unchanged and remains complete; see its
-prior verification record in git history if needed.
+No schema change was needed — `reveal_mode`, `reveal_at`, `visibility`, `event_token`, and
+`gallery_token` all already existed on `events` from Slice 1, and the host config form already
+wrote to them. This slice added: the reveal-timing mechanism (`isGalleryRevealed()`); the public
+`(gallery)/g/[token]` viewer route, gated on that plus `visibility`; and host-facing link
+rotation/revocation for both the capture link and the gallery link. See decision D12 for how
+"after the event" reveal is anchored mechanically. Slices 1–4 are unchanged and remain complete;
+see prior verification records in git history if needed.
 
 ## What exists
 
-- **Decisions D1–D11** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
-  No new consequential decisions were needed for this slice.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–4 done, Slice 5 next.
+- **Decisions D1–D12** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
+  D12 (new this slice) records how "after the event" reveal timing is anchored to capture closing.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–5 done, Slice 6 next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -110,6 +107,27 @@ prior verification record in git history if needed.
   a client-side `DashboardPoller` calling `router.refresh()` on an interval (decision D9 — polling,
   not realtime). `EVENT_LIFECYCLE_STATE_LABEL` in `lib/events/lifecycle.ts` is now the single
   source for lifecycle-state display text, shared by the dashboard list and the event page.
+- **Gallery reveal, link, and visibility (Slice 5, product.md §7.3/§8, roadmap criteria 14–17):**
+  `isGalleryRevealed()` (`lib/events/lifecycle.ts`, decision D12) derives reveal state from
+  `reveal_mode`/`reveal_at` plus the existing lifecycle timestamps — never activated is never
+  revealed; `immediate` reveals on activation; `after_event` (default) reveals once capture has
+  closed; `custom` reveals at `reveal_at`. The public viewer lives at `(gallery)/g/[token]`
+  (`app/(gallery)/`), resolved by `getEventByGalleryToken` (`lib/dal/events.ts`) — the gallery
+  token is itself the credential, same pattern as the guest capture token, so there is no host
+  ownership predicate on the lookup. The page is the one place that decides access: not found,
+  `visibility === "only_me"`, and not-yet-revealed each render their own calm denial before any
+  capture is ever loaded; only once access is granted does `listCapturesForGalleryViewer`
+  (`lib/dal/captures.ts`) run, minting signed display-resolution URLs for committed,
+  non-hidden, non-deleted captures only (the query is the access check, the signed URL is its
+  result — same rule as every other media surface). The viewer shows images only, no download
+  affordance — bulk/individual download is host-only and is Slice 8. Host dashboard link
+  rotation/revocation (`rotateEventToken`/`revokeEventToken`/`rotateGalleryToken`/
+  `revokeGalleryToken` in `lib/dal/events.ts`, `LinkRow` client component) is gated on
+  `activated_at` — an unactivated (unpaid) event has nothing to rotate into existence (invariant
+  7) — and rotation always mints a fresh token via the shared `generateLinkToken()`
+  (`lib/auth/link-tokens.ts`, also now used by `scripts/activate-event-dev.ts`), immediately
+  invalidating the old URL since every lookup is by exact token match. Copy-link uses
+  `window.location.origin` client-side rather than a new base-URL env var.
 - **Testing:** `lib/dal/captures.integration.test.ts` against the real linked dev Postgres and
   Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
   reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
@@ -120,16 +138,23 @@ prior verification record in git history if needed.
   a capture from the guest's own view while a fresh reserve storm still only yields the remaining
   slots (never restoring the hidden/deleted one), moderation/stats scoped to the owning host only,
   `getEventCaptureStats` counting sessions and non-deleted committed photos, and capture
-  open/close transitions including the "cannot reopen once the safety-net close has passed" rule.
-  `lib/auth/guest-session-token.test.ts` — cookie signing round-trip, tamper rejection, cross-event
-  rejection, wrong-secret rejection.
+  open/close transitions including the "cannot reopen once the safety-net close has passed" rule,
+  and (Slice 5) the gallery viewer excluding hidden/deleted captures while still showing a
+  favorited one. `lib/dal/events.integration.test.ts` adds: rotating either token immediately
+  invalidates the old one and a lookup by it returns null; revoking clears the column so no token
+  resolves; rotate/revoke on another host's event is refused and leaves the real tokens
+  unchanged; rotate/revoke before activation is refused. `lib/events/lifecycle.test.ts` adds unit
+  coverage for `isGalleryRevealed()` across all three reveal modes, including the exact-instant
+  boundary for `custom`. `lib/auth/guest-session-token.test.ts` — cookie signing round-trip,
+  tamper rejection, cross-event rejection, wrong-secret rejection.
 
 ## Verification status
 
 - `pnpm typecheck` — passing.
 - `pnpm lint` — passing, no errors or warnings.
-- `pnpm build` — passing; `/e/[token]` and `/events/[eventId]` register as dynamic routes.
-- `pnpm test` (Vitest) — 33/33 passing, including the Slice 4 moderation/capture-control
+- `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, and `/g/[token]` register as dynamic
+  routes.
+- `pnpm test` (Vitest) — 47/47 passing, including the Slice 5 gallery-viewer and link-rotation
   integration tests above against the real dev database and storage bucket.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
@@ -199,23 +224,24 @@ HTTP).
 All four items passed; no failures to fix, so this slice's defect-to-regression policy does not
 apply.
 
-## Recommended (optional) manual check for Slice 4
+## Recommended (optional) manual check for Slice 5
 
-Not a blocking exit condition — the roadmap's verification for this slice is fully covered by
-automated tests above. If convenient, click through once in a browser as a sanity check:
+Not a blocking exit condition — the roadmap's verification for this slice (gallery link before
+reveal grants nothing, only-me visibility denies the link holder, rotated tokens stop working
+immediately) is fully covered by the automated tests above, and this slice has no device-specific
+acceptance criteria. If convenient, click through once in a browser as a sanity check:
 
-1. Open `/events/[eventId]` for an event with a few committed captures. Confirm the guest-session
-   and photo counts match reality, and the "Open capture" / "Close capture" button matches the
-   current lifecycle state.
-2. Hide, then unhide, a capture in the gallery grid. Confirm it disappears/reappears without a
-   full page reload.
-3. Delete a capture. Confirm it disappears and stays gone after a manual refresh.
-4. Open the same event's guest link (`/e/[token]`) as the moderated guest and confirm the hidden/
-   deleted capture is gone from their own view too.
+1. On `/events/[eventId]` for an activated event, confirm the capture link and gallery link rows
+   appear, "Copy link" copies a working absolute URL, and "Rotate"/"Revoke" update the shown link
+   (or clear it) without a full page reload.
+2. Set reveal to "Immediately," open the gallery link in a private/incognito window, and confirm
+   captures appear. Switch visibility to "Only me" and confirm the same link now denies access.
+3. Set reveal back to "After the event" with capture still open, and confirm the gallery link
+   denies access until capture is closed.
 
 ## Next slice
 
-**Slice 5 — Gallery reveal, gallery link, visibility** ([roadmap](./roadmap.md)). Not started.
+**Slice 6 — Payment and activation** ([roadmap](./roadmap.md)). Not started.
 
 ## Blockers and open items
 

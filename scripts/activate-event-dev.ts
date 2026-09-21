@@ -8,10 +8,10 @@
  *
  * Usage: pnpm dev:activate-event <eventId>
  */
-import { randomBytes } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
+import { generateLinkToken } from "@/lib/auth/link-tokens";
 
 function loadEnvLocal() {
   const envPath = path.resolve(import.meta.dirname, "..", ".env.local");
@@ -22,10 +22,6 @@ function loadEnvLocal() {
       process.env[match[1].trim()] = match[2].trim();
     }
   }
-}
-
-function token(): string {
-  return randomBytes(16).toString("base64url");
 }
 
 async function main() {
@@ -52,8 +48,8 @@ async function main() {
   const { data, error } = await supabase
     .from("events")
     .update({
-      event_token: token(),
-      gallery_token: token(),
+      event_token: generateLinkToken(),
+      gallery_token: generateLinkToken(),
       activated_at: now,
       capture_opened_at: now,
       safety_net_closes_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),

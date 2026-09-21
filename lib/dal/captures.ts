@@ -355,6 +355,58 @@ export async function listCapturesForEventHost(
   );
 }
 
+export type GalleryCaptureView = {
+  id: string;
+  message: string | null;
+  favorited: boolean;
+  imageUrl: string;
+};
+
+/**
+ * The public gallery viewer (product.md §7.3/§8.2, roadmap Slice 5). No ownership
+ * predicate: the caller (the `(gallery)/g/[token]` route) has already resolved the event by
+ * its gallery token and checked reveal timing and visibility before calling this — the
+ * access check happens once, at the event level, same as everywhere else media is served
+ * (architecture §7). Hidden and deleted captures are excluded, same as every other gallery
+ * surface. Uses the display derivative, not the original, since a public viewer only ever
+ * needs to view — downloading originals is host-only (product.md §11.2, roadmap Slice 8).
+ */
+export async function listCapturesForGalleryViewer(
+  eventId: string,
+): Promise<GalleryCaptureView[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("captures")
+    .select("id, message, favorited_at, display_path, thumbnail_path, storage_path, created_at")
+    .eq("event_id", eventId)
+    .eq("status", "committed")
+    .is("hidden_at", null)
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    message: string | null;
+    favorited_at: string | null;
+    display_path: string | null;
+    thumbnail_path: string | null;
+    storage_path: string;
+  };
+
+  return Promise.all(
+    (data as Row[]).map(async (row) => ({
+      id: row.id,
+      message: row.message,
+      favorited: row.favorited_at !== null,
+      imageUrl: await createSignedReadUrl(
+        row.display_path ?? row.thumbnail_path ?? row.storage_path,
+      ),
+    })),
+  );
+}
+
 export type ModerationAction =
   | "hide"
   | "unhide"

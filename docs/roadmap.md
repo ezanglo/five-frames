@@ -116,6 +116,8 @@ the guest view. Moderation never restores a frame.
 **Verification:** Gallery link before reveal grants nothing. Only-me visibility denies the link
 holder. Rotated tokens stop working immediately.
 
+**Status: complete.** See [progress.md](./progress.md) for verification results.
+
 ---
 
 ## Slice 6 — Payment and activation

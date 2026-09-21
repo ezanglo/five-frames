@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveEventLifecycleState, isCaptureOpen } from "./lifecycle";
+import { deriveEventLifecycleState, isCaptureOpen, isGalleryRevealed } from "./lifecycle";
 import type { EventRow } from "@/lib/db/types";
 
 function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
@@ -104,5 +104,66 @@ describe("deriveEventLifecycleState", () => {
     });
     expect(deriveEventLifecycleState(event, NOW)).toBe("draft");
     expect(isCaptureOpen(event, NOW)).toBe(false);
+  });
+});
+
+describe("isGalleryRevealed", () => {
+  it("is never revealed before activation, regardless of reveal mode", () => {
+    const event = baseEvent({ reveal_mode: "immediate" });
+    expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+
+  it("'immediate' reveals as soon as the event is activated, capture open or not", () => {
+    const event = baseEvent({
+      reveal_mode: "immediate",
+      activated_at: "2026-06-01T00:00:00.000Z",
+    });
+    expect(isGalleryRevealed(event, NOW)).toBe(true);
+  });
+
+  it("'after_event' (default) is not revealed while capture is still open", () => {
+    const event = baseEvent({
+      reveal_mode: "after_event",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-10T00:00:00.000Z",
+    });
+    expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+
+  it("'after_event' reveals once capture has closed", () => {
+    const event = baseEvent({
+      reveal_mode: "after_event",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-10T00:00:00.000Z",
+      capture_closed_at: "2026-06-15T00:00:00.000Z",
+    });
+    expect(isGalleryRevealed(event, NOW)).toBe(true);
+  });
+
+  it("'custom' is not revealed before reveal_at", () => {
+    const event = baseEvent({
+      reveal_mode: "custom",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      reveal_at: "2026-06-15T12:00:00.001Z",
+    });
+    expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+
+  it("'custom' is revealed the instant reveal_at elapses", () => {
+    const event = baseEvent({
+      reveal_mode: "custom",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      reveal_at: "2026-06-15T12:00:00.000Z",
+    });
+    expect(isGalleryRevealed(event, NOW)).toBe(true);
+  });
+
+  it("'custom' with no reveal_at set is never revealed", () => {
+    const event = baseEvent({
+      reveal_mode: "custom",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      reveal_at: null,
+    });
+    expect(isGalleryRevealed(event, NOW)).toBe(false);
   });
 });

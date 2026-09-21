@@ -6,6 +6,7 @@ import {
   commitCapture,
   getEventCaptureStats,
   listCapturesForEventHost,
+  listCapturesForGalleryViewer,
   listCapturesForGuestSessionWithUrls,
   moderateCapture,
   reserveCapture,
@@ -402,4 +403,31 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
 
     expect(await openCapture(hostId, event.id)).toBeNull();
   });
+
+  it(
+    "the gallery viewer never sees a hidden or deleted capture, but does see a favorited one",
+    async () => {
+      const event = await createOpenEvent();
+      const session = await newGuestSession(event.id);
+      const visible = await commitTinyCapture(event.id, session.id);
+      const hidden = await commitTinyCapture(event.id, session.id);
+      const deleted = await commitTinyCapture(event.id, session.id);
+      const favorited = await commitTinyCapture(event.id, session.id);
+
+      await moderateCapture(hostId, event.id, hidden.id, "hide");
+      await moderateCapture(hostId, event.id, deleted.id, "delete");
+      await moderateCapture(hostId, event.id, favorited.id, "favorite");
+
+      const gallery = await listCapturesForGalleryViewer(event.id);
+      const ids = gallery.map((c) => c.id);
+
+      expect(ids).toContain(visible.id);
+      expect(ids).toContain(favorited.id);
+      expect(ids).not.toContain(hidden.id);
+      expect(ids).not.toContain(deleted.id);
+      expect(gallery.find((c) => c.id === favorited.id)?.favorited).toBe(true);
+      expect(gallery.every((c) => c.imageUrl.length > 0)).toBe(true);
+    },
+    15000,
+  );
 });
