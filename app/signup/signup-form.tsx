@@ -15,7 +15,14 @@ export function SignupForm() {
     <form action={formAction} className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required autoComplete="email" />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          className="border-(--host-border) bg-(--host-canvas)"
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -27,17 +34,22 @@ export function SignupForm() {
           required
           minLength={8}
           autoComplete="new-password"
+          className="border-(--host-border) bg-(--host-canvas)"
         />
       </div>
 
       {state.error && (
-        <p className="text-sm text-destructive">{state.error}</p>
+        <p className="text-sm text-(--host-danger)">{state.error}</p>
       )}
       {state.message && (
-        <p className="text-sm text-muted-foreground">{state.message}</p>
+        <p className="text-sm text-(--host-ink-muted)">{state.message}</p>
       )}
 
-      <Button type="submit" disabled={pending} className="mt-2">
+      <Button
+        type="submit"
+        disabled={pending}
+        className="mt-2 bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90"
+      >
         {pending ? "Creating account..." : "Create account"}
       </Button>
     </form>

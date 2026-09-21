@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { getEventById } from "@/lib/dal/events";
+import { getEventById, getEventForHost } from "@/lib/dal/events";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
 import {
   createSignedReadUrl,
@@ -180,6 +180,10 @@ export async function listCapturesForGuestSession(
     .eq("guest_session_id", guestSessionId)
     .eq("event_id", eventId)
     .in("status", ["pending", "committed"])
+    // Host moderation removes a capture from the guest's own view too (spec §8.3
+    // exception), without ever freeing its slot — the frame stays consumed either way.
+    .is("hidden_at", null)
+    .is("deleted_at", null)
     .order("slot_index", { ascending: true });
 
   if (error) throw error;
@@ -236,4 +240,161 @@ export async function listCapturesForGuestSessionWithUrls(
       };
     }),
   );
+}
+
+/**
+ * Host dashboard and moderation (roadmap Slice 4, product.md §11.2). Every function below
+ * takes hostId and verifies ownership via getEventForHost before touching captures — the
+ * same ownership-predicate discipline as lib/dal/events.ts (product invariant 9). A null
+ * return means "not found or not owned," never distinguished further.
+ */
+
+export type EventCaptureStats = {
+  guestSessionCount: number;
+  photoCount: number;
+};
+
+export async function getEventCaptureStats(
+  hostId: string,
+  eventId: string,
+): Promise<EventCaptureStats | null> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return null;
+
+  const supabase = createServiceClient();
+  const [sessions, photos] = await Promise.all([
+    supabase
+      .from("guest_sessions")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId),
+    supabase
+      .from("captures")
+      .select("id", { count: "exact", head: true })
+      .eq("event_id", eventId)
+      .eq("status", "committed")
+      .is("deleted_at", null),
+  ]);
+
+  if (sessions.error) throw sessions.error;
+  if (photos.error) throw photos.error;
+
+  return {
+    guestSessionCount: sessions.count ?? 0,
+    photoCount: photos.count ?? 0,
+  };
+}
+
+export type HostCaptureView = {
+  id: string;
+  slotIndex: number;
+  guestDisplayName: string;
+  message: string | null;
+  hidden: boolean;
+  favorited: boolean;
+  thumbnailUrl: string;
+  downloadUrl: string;
+};
+
+/**
+ * The gallery grid (product.md §11.2): every committed, non-deleted capture across the
+ * event's guest sessions, with signed urls minted after the ownership check above — same
+ * "query is the access check, signed url is its result" rule as the guest-facing view.
+ */
+export async function listCapturesForEventHost(
+  hostId: string,
+  eventId: string,
+): Promise<HostCaptureView[] | null> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return null;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("captures")
+    .select(
+      "id, slot_index, message, hidden_at, favorited_at, thumbnail_path, storage_path, created_at, guest_sessions(display_name)",
+    )
+    .eq("event_id", eventId)
+    .eq("status", "committed")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    slot_index: number;
+    message: string | null;
+    hidden_at: string | null;
+    favorited_at: string | null;
+    thumbnail_path: string | null;
+    storage_path: string;
+    guest_sessions: { display_name: string } | { display_name: string }[] | null;
+  };
+
+  return Promise.all(
+    (data as Row[]).map(async (row) => {
+      const [thumbnailUrl, downloadUrl] = await Promise.all([
+        createSignedReadUrl(row.thumbnail_path ?? row.storage_path),
+        createSignedReadUrl(row.storage_path),
+      ]);
+      const guestSession = Array.isArray(row.guest_sessions)
+        ? row.guest_sessions[0]
+        : row.guest_sessions;
+
+      return {
+        id: row.id,
+        slotIndex: row.slot_index,
+        guestDisplayName: guestSession?.display_name ?? "Guest",
+        message: row.message,
+        hidden: row.hidden_at !== null,
+        favorited: row.favorited_at !== null,
+        thumbnailUrl,
+        downloadUrl,
+      };
+    }),
+  );
+}
+
+export type ModerationAction =
+  | "hide"
+  | "unhide"
+  | "delete"
+  | "favorite"
+  | "unfavorite";
+
+/**
+ * Hide, unhide, delete, favorite, unfavorite (product.md §11.2). Moderation only ever
+ * touches these flag columns, never slot_index or status — so it can never free a slot or
+ * restore a frame (product invariant 4). Delete is terminal: there is no undelete.
+ */
+export async function moderateCapture(
+  hostId: string,
+  eventId: string,
+  captureId: string,
+  action: ModerationAction,
+): Promise<boolean> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return false;
+
+  const now = new Date().toISOString();
+  const patch: Record<string, string | null> =
+    action === "hide"
+      ? { hidden_at: now }
+      : action === "unhide"
+        ? { hidden_at: null }
+        : action === "delete"
+          ? { deleted_at: now }
+          : action === "favorite"
+            ? { favorited_at: now }
+            : { favorited_at: null };
+
+  const supabase = createServiceClient();
+  const { error } = await supabase
+    .from("captures")
+    .update(patch)
+    .eq("id", captureId)
+    .eq("event_id", eventId);
+
+  if (error) throw error;
+  return true;
 }

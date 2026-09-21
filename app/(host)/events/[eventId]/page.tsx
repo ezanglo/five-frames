@@ -1,8 +1,17 @@
 import { notFound } from "next/navigation";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
-import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
-import { updateEvent } from "@/app/(host)/events/actions";
+import { getEventCaptureStats, listCapturesForEventHost } from "@/lib/dal/captures";
+import {
+  canOpenCapture,
+  deriveEventLifecycleState,
+  EVENT_LIFECYCLE_STATE_LABEL,
+} from "@/lib/events/lifecycle";
+import {
+  closeCaptureAction,
+  openCaptureAction,
+  updateEvent,
+} from "@/app/(host)/events/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,8 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
+import { DashboardPoller } from "./dashboard-poller";
+import { GalleryGrid } from "./gallery-grid";
 
 const REVEAL_MODE_ITEMS = [
   { value: "after_event", label: "After the event" },
@@ -47,149 +57,244 @@ export default async function EventEditPage({
 
   const state = deriveEventLifecycleState(event);
   const boundUpdate = updateEvent.bind(null, eventId);
+  const boundOpenCapture = openCaptureAction.bind(null, eventId);
+  const boundCloseCapture = closeCaptureAction.bind(null, eventId);
+
+  const stats = await getEventCaptureStats(host.id, eventId);
+  const captures = await listCapturesForEventHost(host.id, eventId);
+
+  const captureCanOpen = canOpenCapture(event);
+
+  const isLive = state === "capture_open";
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold">{event.name}</h1>
-        <span className="text-xs text-muted-foreground">{state}</span>
+    <div className="flex flex-col gap-8">
+      <DashboardPoller />
+
+      {/* Masthead status band — the dominant operational control (structural delta plan:
+          "Event status" + "Capture open/close"). State reads from color alone before any
+          text is read; counts are ambient caption text, not stat widgets. */}
+      <div
+        className={
+          "flex flex-col gap-4 rounded-2xl border p-5 sm:flex-row sm:items-center sm:justify-between " +
+          (isLive
+            ? "border-(--host-live)/30 bg-(--host-live)/10"
+            : "border-(--host-border) bg-(--host-canvas-raised)")
+        }
+      >
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className={
+                "size-2 rounded-full " +
+                (isLive ? "bg-(--host-live) animate-pulse" : "bg-(--host-ink-muted)/50")
+              }
+            />
+            <h1 className="font-host-display text-2xl font-semibold text-(--host-ink)">
+              {event.name}
+            </h1>
+          </div>
+          <p className="text-sm text-(--host-ink-muted)">
+            {EVENT_LIFECYCLE_STATE_LABEL[state]} · {stats?.guestSessionCount ?? 0} guest
+            {(stats?.guestSessionCount ?? 0) === 1 ? "" : "s"} ·{" "}
+            {stats?.photoCount ?? 0} photo{(stats?.photoCount ?? 0) === 1 ? "" : "s"}
+          </p>
+          {state === "draft" && (
+            <p className="text-xs text-(--host-ink-muted)">
+              Capture opens once the event is activated.
+            </p>
+          )}
+          {state === "capture_closed" && !captureCanOpen && (
+            <p className="text-xs text-(--host-ink-muted)">
+              Capture closed automatically and can&rsquo;t be reopened.
+            </p>
+          )}
+        </div>
+
+        {state === "capture_open" ? (
+          <form action={boundCloseCapture}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full bg-(--host-canvas-raised) text-(--host-live) ring-1 ring-(--host-live)/40 hover:bg-(--host-canvas-raised)/80 sm:w-auto"
+            >
+              Close capture
+            </Button>
+          </form>
+        ) : (
+          <form action={boundOpenCapture}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!captureCanOpen}
+              className="w-full bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90 sm:w-auto"
+            >
+              Open capture
+            </Button>
+          </form>
+        )}
       </div>
 
       {saved && (
-        <p className="rounded-md bg-muted px-3 py-2 text-sm">Saved.</p>
+        <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
+          Saved.
+        </p>
       )}
 
-      <form action={boundUpdate}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Event details</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="name">Event name</Label>
-              <Input id="name" name="name" defaultValue={event.name} required />
-            </div>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+          Gallery
+        </h2>
+        <GalleryGrid eventId={eventId} captures={captures ?? []} />
+      </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="eventDate">Event date</Label>
-              <Input
-                id="eventDate"
-                name="eventDate"
-                type="date"
-                defaultValue={event.event_date ?? ""}
-              />
-            </div>
+      <form
+        action={boundUpdate}
+        className="flex flex-col gap-6 rounded-2xl border border-(--host-border) bg-(--host-canvas-raised) p-5"
+      >
+        <div className="flex flex-col gap-4">
+          <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+            Event details
+          </h2>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="timezone">Timezone</Label>
-              <Input
-                id="timezone"
-                name="timezone"
-                defaultValue={event.timezone}
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="name">Event name</Label>
+            <Input
+              id="name"
+              name="name"
+              defaultValue={event.name}
+              required
+              className="border-(--host-border) bg-(--host-canvas)"
+            />
+          </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="hostMessage">Message to guests</Label>
-              <Textarea
-                id="hostMessage"
-                name="hostMessage"
-                defaultValue={event.host_message ?? ""}
-                placeholder="Thank you for celebrating with us..."
-              />
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="eventDate">Event date</Label>
+            <Input
+              id="eventDate"
+              name="eventDate"
+              type="date"
+              defaultValue={event.event_date ?? ""}
+              className="border-(--host-border) bg-(--host-canvas)"
+            />
+          </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="hashtag">Hashtag</Label>
-              <Input
-                id="hashtag"
-                name="hashtag"
-                defaultValue={event.hashtag ?? ""}
-                placeholder="#AnaAndMiguel2026"
-              />
-            </div>
-          </CardContent>
-        </Card>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="timezone">Timezone</Label>
+            <Input
+              id="timezone"
+              name="timezone"
+              defaultValue={event.timezone}
+              className="border-(--host-border) bg-(--host-canvas)"
+            />
+          </div>
 
-        <Card className="mt-4">
-          <CardHeader>
-            <CardTitle>Gallery reveal</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="revealMode">When should the gallery reveal?</Label>
-              <Select
-                name="revealMode"
-                items={REVEAL_MODE_ITEMS}
-                defaultValue={event.reveal_mode}
-              >
-                <SelectTrigger id="revealMode" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {REVEAL_MODE_ITEMS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="hostMessage">Message to guests</Label>
+            <Textarea
+              id="hostMessage"
+              name="hostMessage"
+              defaultValue={event.host_message ?? ""}
+              placeholder="Thank you for celebrating with us..."
+              className="border-(--host-border) bg-(--host-canvas)"
+            />
+          </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="revealAt">Custom reveal time</Label>
-              <Input
-                id="revealAt"
-                name="revealAt"
-                type="datetime-local"
-                defaultValue={
-                  event.reveal_at
-                    ? utcIsoToZonedDateTimeLocal(event.reveal_at, event.timezone)
-                    : ""
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Only used when reveal is set to &ldquo;Custom time&rdquo;.
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="hashtag">Hashtag</Label>
+            <Input
+              id="hashtag"
+              name="hashtag"
+              defaultValue={event.hashtag ?? ""}
+              placeholder="#AnaAndMiguel2026"
+              className="border-(--host-border) bg-(--host-canvas)"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-4 border-t border-(--host-border) pt-6">
+          <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+            Gallery reveal &amp; sharing
+          </h2>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="revealMode">When should the gallery reveal?</Label>
+            <Select
+              name="revealMode"
+              items={REVEAL_MODE_ITEMS}
+              defaultValue={event.reveal_mode}
+            >
+              <SelectTrigger id="revealMode" className="w-full border-(--host-border) bg-(--host-canvas)">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {REVEAL_MODE_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="revealAt">Custom reveal time</Label>
+            <Input
+              id="revealAt"
+              name="revealAt"
+              type="datetime-local"
+              defaultValue={
+                event.reveal_at
+                  ? utcIsoToZonedDateTimeLocal(event.reveal_at, event.timezone)
+                  : ""
+              }
+              className="border-(--host-border) bg-(--host-canvas)"
+            />
+            <p className="text-xs text-(--host-ink-muted)">
+              Only used when reveal is set to &ldquo;Custom time&rdquo;.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="visibility">Who can view the gallery link?</Label>
+            <Select
+              name="visibility"
+              items={VISIBILITY_ITEMS}
+              defaultValue={event.visibility}
+            >
+              <SelectTrigger id="visibility" className="w-full border-(--host-border) bg-(--host-canvas)">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {VISIBILITY_ITEMS.map((item) => (
+                  <SelectItem key={item.value} value={item.value}>
+                    {item.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between rounded-lg bg-(--host-surface-quiet) p-3">
+            <div>
+              <Label htmlFor="sharingEnabled">Allow guest sharing</Label>
+              <p className="text-xs text-(--host-ink-muted)">
+                Guests can share a branded card of their own photo.
               </p>
             </div>
+            <Switch
+              id="sharingEnabled"
+              name="sharingEnabled"
+              defaultChecked={event.sharing_enabled}
+            />
+          </div>
+        </div>
 
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="visibility">Who can view the gallery link?</Label>
-              <Select
-                name="visibility"
-                items={VISIBILITY_ITEMS}
-                defaultValue={event.visibility}
-              >
-                <SelectTrigger id="visibility" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VISIBILITY_ITEMS.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <Label htmlFor="sharingEnabled">Allow guest sharing</Label>
-                <p className="text-xs text-muted-foreground">
-                  Guests can share a branded card of their own photo.
-                </p>
-              </div>
-              <Switch
-                id="sharingEnabled"
-                name="sharingEnabled"
-                defaultChecked={event.sharing_enabled}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Button type="submit" className="mt-4">
+        <Button
+          type="submit"
+          className="w-full bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90 sm:w-auto sm:self-start"
+        >
           Save changes
         </Button>
       </form>

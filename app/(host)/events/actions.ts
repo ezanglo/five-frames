@@ -3,10 +3,13 @@
 import { redirect, notFound } from "next/navigation";
 import { requireHost } from "@/lib/auth/host-session";
 import {
+  closeCapture,
   createDraftEvent,
+  openCapture,
   updateEventConfig,
   type EventConfigInput,
 } from "@/lib/dal/events";
+import { moderateCapture, type ModerationAction } from "@/lib/dal/captures";
 import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 
@@ -81,4 +84,27 @@ export async function updateEvent(eventId: string, formData: FormData) {
   }
 
   redirect(`/events/${eventId}?saved=1`);
+}
+
+export async function openCaptureAction(eventId: string) {
+  const host = await requireHost();
+  await openCapture(host.id, eventId);
+  redirect(`/events/${eventId}`);
+}
+
+export async function closeCaptureAction(eventId: string) {
+  const host = await requireHost();
+  await closeCapture(host.id, eventId);
+  redirect(`/events/${eventId}`);
+}
+
+/** Bound to a moderation button; no redirect, so the same route's server components
+ *  just re-render with the updated capture in place. */
+export async function moderateCaptureAction(
+  eventId: string,
+  captureId: string,
+  action: ModerationAction,
+) {
+  const host = await requireHost();
+  await moderateCapture(host.id, eventId, captureId, action);
 }

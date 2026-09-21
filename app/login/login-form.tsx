@@ -17,7 +17,14 @@ export function LoginForm({ next }: { next: string }) {
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="email">Email</Label>
-        <Input id="email" name="email" type="email" required autoComplete="email" />
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          className="border-(--host-border) bg-(--host-canvas)"
+        />
       </div>
 
       <div className="flex flex-col gap-1.5">
@@ -28,14 +35,19 @@ export function LoginForm({ next }: { next: string }) {
           type="password"
           required
           autoComplete="current-password"
+          className="border-(--host-border) bg-(--host-canvas)"
         />
       </div>
 
       {state.error && (
-        <p className="text-sm text-destructive">{state.error}</p>
+        <p className="text-sm text-(--host-danger)">{state.error}</p>
       )}
 
-      <Button type="submit" disabled={pending} className="mt-2">
+      <Button
+        type="submit"
+        disabled={pending}
+        className="mt-2 bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90"
+      >
         {pending ? "Signing in..." : "Sign in"}
       </Button>
     </form>

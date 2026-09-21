@@ -157,3 +157,142 @@ Errors are communicated by text (`text-destructive`), never by color alone.
   the iOS-keyboard problems this pass deliberately avoided.
 - Wedding-invitation or editorial-microsite framing for the event header — it must stay compact
   and secondary to the frames across every event type.
+
+---
+
+# Host experience
+
+**Status: accepted.** Foundational host-surface redesign (Full Redesign Mode) through Slice 4,
+human-verified 2026-09-21. Extends this direction rather than replacing it — the guest section
+above is unchanged and remains its own accepted scope. Later host-surface work should extend this
+direction rather than replace it; a further identity shift would need a new foundational pass
+with its own anchor-selection gate.
+
+## Scope
+
+Host authentication (login/signup), draft event creation, the event dashboard (status, capture
+open/close, guest/photo counts), the moderation gallery (hide/unhide/delete/favorite), and event
+configuration (details, gallery reveal, sharing), through Slice 4. Scoped under `.host-scope`
+(`app/(host)/layout.tsx`, plus `/login` and `/signup`). Slice 5 (gallery-link/reveal delivery
+behavior) was explicitly not designed or implemented in this pass — only existing configuration
+fields were restyled.
+
+## Product character
+
+Operational, not decorative. The host dashboard exists so an event organizer can tell, at a
+glance, whether capture is live, and moderate a small photography-forward gallery — not to
+showcase the product's warmth the way the guest join/capture flow does. Calmer and quieter than
+the guest scope by design.
+
+## Primary anchor
+
+- **Pixieset — Client Gallery Dashboard** (2024 redesign)
+- https://blog.pixieset.com/blog/client-gallery-dashboard/
+- Source/type: real production SaaS product, inspiration-only (no code/asset reuse)
+- Why chosen: the only reference found where the operator (photographer) manages a gallery that
+  someone else (a client/guest) contributed to or views — structurally the same host↔guest
+  relationship as FiveFrames. Its composition of state + one primary lever + gallery in a single
+  coherent operator view, with counts as ambient badges rather than boxed stat widgets, is the
+  skeleton the event dashboard's masthead and layout are built on.
+- What was explicitly **not** taken from it: its cool-neutral/white palette. FiveFrames' host
+  surfaces stay warm, in the same family as the guest scope, just quieter.
+
+## Secondary references
+
+- **Photo Mechanic** (Camera Bits) — https://carlseibert.com/tag/photo-mechanic/ — contributed
+  the moderation-gallery pattern: a gutter-only contact sheet with no per-tile card border, and
+  persistent status iconography (flag/star equivalent) rendered directly on the photo rather than
+  a button row beneath it. Translated from its desktop/keyboard paradigm to touch — every action
+  icon is always visible (no hover-only affordances) and sized ≥44px. Inspiration-only.
+- **Picflow** — https://picflow.com/ — contributed the individual photo-tile treatment (mat,
+  rounded corner, soft shadow) applied across the moderation grid, keeping continuity with the
+  guest scope's tactile "photo object" language at dashboard density. Inspiration-only.
+
+## Structural signature
+
+- The event dashboard opens with a masthead status band, not a text label — lifecycle state is
+  legible from color and a live-state pulse dot before any copy is read. Capture open/close is
+  the single dominant control in that band (accent-filled when actionable, live-tinted outline
+  when open), not a button nested inside a Card two levels down.
+- Guest-session and photo counts are an ambient caption line inside the masthead ("12 guests ·
+  43 photos"), never boxed stat tiles.
+- The event page is no longer a stack of bordered `Card` components. The masthead is one region;
+  the moderation gallery is a labeled section with no card shell; event configuration is one
+  continuous form surface with quiet section dividers (`border-t`) instead of separate Cards.
+- Moderation tiles (`gallery-grid.tsx`) are a Photo Mechanic–style contact sheet: gutter-only
+  spacing, no individual tile border, favorite/hide as always-visible icon toggles on the photo
+  (Picflow-style mat/rounded/shadow treatment underneath). Delete is deliberately visually
+  quieter and requires a second tap (an inline confirm/cancel pair replaces the tile) so a
+  destructive action never carries the same weight as the one-tap reversible toggles — the
+  underlying `window.confirm` safety check is unchanged.
+- The dashboard (event list) replaces the "New event" Card with an inline composer bar and
+  renders events as compact rows with a state dot instead of a card grid.
+
+## Typography
+
+Same as guest scope: Inter (`--font-sans`) for UI/body, Bricolage Grotesque
+(`--font-guest-display`, applied via the `.font-host-display` utility) for the event name, page
+headings, and the masthead — one display face for the whole product, not a host-specific one.
+
+## Color/material
+
+New `--host-*` token set in `.host-scope` (`app/globals.css`), same warm/low-chroma family as
+`.guest-scope` but quieter and with a dedicated live-state color the guest scope doesn't need:
+
+| Token | Role |
+|---|---|
+| `--host-canvas` / `--host-canvas-raised` | page background / raised surfaces (inputs, panels) |
+| `--host-surface` / `--host-surface-quiet` | moderation-tile background / quiet inline panels |
+| `--host-ink` / `--host-ink-muted` | primary / secondary text |
+| `--host-accent` / `--host-accent-foreground` | primary action (open capture, create, save) —
+  same terracotta hue as the guest accent for identity continuity |
+| `--host-live` / `--host-live-foreground` | the one host-only color: capture-open state |
+| `--host-danger` | destructive-action text/fill (delete) |
+| `--host-border` | hairline dividers and input borders |
+
+## Layout and rhythm
+
+`flex min-h-dvh flex-col` shell (`app/(host)/layout.tsx`), `max-w-3xl` content column — wider
+than the guest scope's `max-w-md` because this is a data-dense operator surface, not a single
+capture card. Generous `rounded-2xl` on the masthead and form panels, consistent with the guest
+scope's rounded/tactile language.
+
+## Media treatment
+
+Moderation-tile photos render `object-cover` in a fixed `aspect-square`, matted inside a
+`rounded-2xl` surface with a small soft shadow — the same "photo object" idea as the guest
+frames, at grid density rather than hero scale.
+
+## Controls and forms
+
+Primary actions (open capture, create draft, save changes) use `--host-accent`. Close capture
+uses a live-tinted outline rather than a second solid color, so "the event is live" stays legible
+even on the control that turns it off. Existing shadcn/base-ui primitives (`Input`, `Textarea`,
+`Label`, `Select`, `Switch`, `Button`) are unchanged — restyled via `className` only, per the
+component-library rule.
+
+## Motion
+
+Minimal: a pulse on the live-state dot when capture is open, standard button/hover transitions.
+No celebratory or gamified motion, consistent with the guest scope's restraint.
+
+## Accessibility
+
+Favorite/hide are real `<button>` elements with `aria-label` and `aria-pressed`; delete requires
+an explicit second tap (inline confirm/cancel) in addition to the existing `window.confirm`, so
+it's not reachable by a single accidental tap. Status is never communicated by color alone — the
+masthead always also states the lifecycle label in text. Contrast against the warm host canvas
+has not yet been measured numerically; flagged below for human verification, same as the guest
+scope.
+
+## Avoid
+
+- Reusing the guest scope's five-frame bento/photo-board composition for anything host-facing —
+  that pattern is specific to the guest capture mechanic (product.md invariant, brief for this
+  pass).
+- Reintroducing a stack of bordered `Card` components as the default host page structure — this
+  was the exact pattern this pass moved away from.
+- Hover-only affordances anywhere in the moderation grid — the dashboard must work as a touch
+  surface first.
+- Implying or building Slice 5 gallery-link/reveal delivery behavior — only existing
+  configuration fields were restyled in this pass.

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
+import { canOpenCapture, deriveEventLifecycleState } from "@/lib/events/lifecycle";
 import type { EventRow, GalleryVisibility, RevealMode } from "@/lib/db/types";
 
 /**
@@ -126,6 +127,61 @@ export async function updateEventConfig(
   const { data, error } = await supabase
     .from("events")
     .update(toRow(input))
+    .eq("id", eventId)
+    .eq("host_id", hostId)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+/**
+ * Capture open/close control (product.md §7.2, roadmap Slice 4). Re-derives lifecycle
+ * state server-side before mutating rather than trusting the caller's idea of it, and
+ * refuses to reopen a capture window the automatic safety-net close already ended —
+ * "after the automatic close, capture cannot be re-opened" (architecture §4). Returns
+ * null for "not found/not owned" and for an invalid transition alike; callers don't need
+ * to distinguish them beyond "nothing changed."
+ */
+export async function openCapture(
+  hostId: string,
+  eventId: string,
+): Promise<EventRow | null> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return null;
+
+  if (!canOpenCapture(event)) return null;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({
+      capture_opened_at: event.capture_opened_at ?? new Date().toISOString(),
+      capture_closed_at: null,
+    })
+    .eq("id", eventId)
+    .eq("host_id", hostId)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+export async function closeCapture(
+  hostId: string,
+  eventId: string,
+): Promise<EventRow | null> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return null;
+
+  if (deriveEventLifecycleState(event) !== "capture_open") return null;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ capture_closed_at: new Date().toISOString() })
     .eq("id", eventId)
     .eq("host_id", hostId)
     .select()

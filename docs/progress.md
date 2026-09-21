@@ -9,22 +9,24 @@ appending narrative.
 
 ## Current phase
 
-**Slice 3 — Guest's own view and network resilience: complete.**
+**Slice 4 — Host dashboard and moderation: complete.**
 
-All required human verification passed, reported 2026-09-21 — see the checklist below. Built on
-Slice 2's frame-limit mechanism without changing it: the reserve/commit gate, the `reserve_key`
-idempotency, and the reservation TTL are all unchanged. This slice added the guest's private
-downloadable view of their own captures, and a resumable (TUS) upload path for large files,
-resolving D7's deferred size threshold (see decisions.md), and proved on a real device that an
-interrupted upload resumes rather than losing the frame, and that a reload mid-upload leaves a
-consistent state.
+Built on Slice 2's frame-limit mechanism without changing it: moderation and capture open/close
+only ever touch `hidden_at`/`deleted_at`/`favorited_at`/`capture_opened_at`/`capture_closed_at` —
+never `slot_index` or `status` — so a hidden, deleted, or favorited capture can never free a slot
+or restore a frame (product invariant 4). The event edit page at `/events/[eventId]` is now also
+the host dashboard: lifecycle state, capture open/close control, guest-session and photo counts,
+and a gallery grid with hide/unhide/delete/favorite, refreshed by client-side polling (decision
+D9). No new schema was needed — the moderation columns already existed from Slice 2's migration.
+
+Slice 3 — guest's own view and network resilience — is unchanged and remains complete; see its
+prior verification record in git history if needed.
 
 ## What exists
 
 - **Decisions D1–D11** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
-  No new consequential decisions were needed for this slice; D5–D7 already anticipated the shape
-  implemented here.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–3 done, Slice 4 next.
+  No new consequential decisions were needed for this slice.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–4 done, Slice 5 next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -92,23 +94,43 @@ consistent state.
   database. It is a standalone script, not a route or UI affordance in the app itself — there is
   no code path in the shipped app that can activate an event without payment (invariant 7 is
   intact). Real payment-driven activation is Slice 6.
+- **Host dashboard and moderation (Slice 4, product.md §11.2, roadmap criteria 11/22/24):**
+  `/events/[eventId]` (`app/(host)/events/[eventId]/page.tsx`) now also serves as the dashboard —
+  guest-session and photo counts (`getEventCaptureStats`), a capture open/close control
+  (`openCapture`/`closeCapture` in `lib/dal/events.ts`, gated by the new `canOpenCapture` helper
+  in `lib/events/lifecycle.ts`: refuses to reopen once the automatic safety-net close has passed),
+  and a gallery grid (`listCapturesForEventHost`, `GalleryGrid` client component) with
+  hide/unhide/delete/favorite (`moderateCapture` in `lib/dal/captures.ts`). All four moderation
+  and both capture-control functions verify event ownership via `getEventForHost` before touching
+  anything, matching the existing ownership-predicate discipline. Moderation only ever writes
+  `hidden_at`/`deleted_at`/`favorited_at` — never `slot_index` or `status` — so it can never free a
+  slot or return a frame (product invariant 4); `listCapturesForGuestSession` now also excludes
+  hidden/deleted rows, so moderated captures disappear from the guest's own view too (spec §8.3
+  exception), without affecting which slots are considered occupied. The dashboard refreshes via
+  a client-side `DashboardPoller` calling `router.refresh()` on an interval (decision D9 — polling,
+  not realtime). `EVENT_LIFECYCLE_STATE_LABEL` in `lib/events/lifecycle.ts` is now the single
+  source for lifecycle-state display text, shared by the dashboard list and the event page.
 - **Testing:** `lib/dal/captures.integration.test.ts` against the real linked dev Postgres and
   Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
   reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
   capture), abandoned-reservation TTL freeing its slot, a retry arriving after expiry reported as
   lapsed rather than revived, commit refused for a lapsed reservation, reserve/commit refused
-  while capture is closed, and (Slice 3) the guest's own view returning signed thumbnail/download
-  urls for a committed capture and null urls for a still-pending one. `lib/auth/guest-session-
-  token.test.ts` — cookie signing round-trip, tamper rejection, cross-event rejection, wrong-
-  secret rejection.
+  while capture is closed, the guest's own view returning signed thumbnail/download urls for a
+  committed capture and null urls for a still-pending one, and (Slice 4) host moderation removing
+  a capture from the guest's own view while a fresh reserve storm still only yields the remaining
+  slots (never restoring the hidden/deleted one), moderation/stats scoped to the owning host only,
+  `getEventCaptureStats` counting sessions and non-deleted committed photos, and capture
+  open/close transitions including the "cannot reopen once the safety-net close has passed" rule.
+  `lib/auth/guest-session-token.test.ts` — cookie signing round-trip, tamper rejection, cross-event
+  rejection, wrong-secret rejection.
 
 ## Verification status
 
 - `pnpm typecheck` — passing.
 - `pnpm lint` — passing, no errors or warnings.
-- `pnpm build` — passing; `/e/[token]` registers as a dynamic route.
-- `pnpm test` (Vitest) — 29/29 passing, including the frame-mechanism and guest-view integration
-  tests above against the real dev database and storage bucket.
+- `pnpm build` — passing; `/e/[token]` and `/events/[eventId]` register as dynamic routes.
+- `pnpm test` (Vitest) — 33/33 passing, including the Slice 4 moderation/capture-control
+  integration tests above against the real dev database and storage bucket.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -116,6 +138,13 @@ consistent state.
   (interrupted upload over the resumable path, reload mid-upload, own-captures thumbnails/
   downloads, capture-ended own-view) — see below. Items 1–2 were this slice's roadmap exit
   condition.
+- **Slice 4 has no device-dependent acceptance criteria** — the dashboard is a standard desktop/
+  browser host UI (counts, a button, a gallery grid), fully exercised by the integration tests
+  above and the automated checks. The roadmap's own verification for this slice ("Counts correct
+  without realtime. Hidden and deleted captures disappear from the guest view. Moderation never
+  restores a frame.") is what those tests assert directly. No manual device checklist is required
+  to consider this slice complete; the UI itself has not been clicked through in a browser (this
+  environment does not run browser automation) — see the optional recommended checks below.
 
 ## Regression protection added for human-found defects
 
@@ -170,9 +199,23 @@ HTTP).
 All four items passed; no failures to fix, so this slice's defect-to-regression policy does not
 apply.
 
+## Recommended (optional) manual check for Slice 4
+
+Not a blocking exit condition — the roadmap's verification for this slice is fully covered by
+automated tests above. If convenient, click through once in a browser as a sanity check:
+
+1. Open `/events/[eventId]` for an event with a few committed captures. Confirm the guest-session
+   and photo counts match reality, and the "Open capture" / "Close capture" button matches the
+   current lifecycle state.
+2. Hide, then unhide, a capture in the gallery grid. Confirm it disappears/reappears without a
+   full page reload.
+3. Delete a capture. Confirm it disappears and stays gone after a manual refresh.
+4. Open the same event's guest link (`/e/[token]`) as the moderated guest and confirm the hidden/
+   deleted capture is gone from their own view too.
+
 ## Next slice
 
-**Slice 4 — Host dashboard and moderation** ([roadmap](./roadmap.md)). Not started.
+**Slice 5 — Gallery reveal, gallery link, visibility** ([roadmap](./roadmap.md)). Not started.
 
 ## Blockers and open items
 

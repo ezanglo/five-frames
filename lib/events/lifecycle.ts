@@ -50,10 +50,37 @@ export function deriveEventLifecycleState(
   return "active";
 }
 
+export const EVENT_LIFECYCLE_STATE_LABEL: Record<EventLifecycleState, string> = {
+  draft: "Draft",
+  active: "Active",
+  capture_open: "Capture open",
+  capture_closed: "Capture closed",
+  expired: "Expired",
+  archived: "Archived",
+};
+
 /** Product invariant 6: capture is possible only while this is true. */
 export function isCaptureOpen(
   event: EventRow,
   now: Date = new Date(),
 ): boolean {
   return deriveEventLifecycleState(event, now) === "capture_open";
+}
+
+/**
+ * Whether the host may open (or reopen) capture right now (product.md §7.2): the event
+ * must be activated and not past the automatic safety-net close, which is terminal.
+ */
+export function canOpenCapture(event: EventRow, now: Date = new Date()): boolean {
+  const state = deriveEventLifecycleState(event, now);
+  if (state === "capture_open") return true;
+  if (state !== "active" && state !== "capture_closed") return false;
+  if (
+    state === "capture_closed" &&
+    event.safety_net_closes_at &&
+    now.getTime() >= Date.parse(event.safety_net_closes_at)
+  ) {
+    return false;
+  }
+  return true;
 }

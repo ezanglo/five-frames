@@ -1,8 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { createDraftEvent } from "@/lib/dal/events";
+import { closeCapture, createDraftEvent, openCapture } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
-import { commitCapture, listCapturesForGuestSessionWithUrls, reserveCapture } from "@/lib/dal/captures";
+import {
+  commitCapture,
+  getEventCaptureStats,
+  listCapturesForEventHost,
+  listCapturesForGuestSessionWithUrls,
+  moderateCapture,
+  reserveCapture,
+} from "@/lib/dal/captures";
 
 /**
  * Runs against the real linked dev Postgres and dev Storage bucket (architecture §11) —
@@ -64,6 +71,25 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
       .eq("guest_session_id", guestSessionId)
       .eq("reserve_key", reserveKey);
     if (error) throw error;
+  }
+
+  /** Reserves, uploads a tiny real PNG, and commits — for tests that need a genuinely
+   *  committed capture (moderation only ever applies to committed rows). */
+  async function commitTinyCapture(eventId: string, guestSessionId: string) {
+    const reserved = await reserveCapture(eventId, guestSessionId, crypto.randomUUID());
+    if (reserved.kind !== "reserved") throw new Error("expected reserved");
+
+    const { error: uploadError } = await supabase.storage
+      .from("captures")
+      .upload(reserved.capture.storage_path, TINY_PNG, {
+        contentType: "image/png",
+        upsert: true,
+      });
+    if (uploadError) throw uploadError;
+
+    const committed = await commitCapture(eventId, guestSessionId, reserved.capture.id, null);
+    if (committed.kind !== "committed") throw new Error("expected committed");
+    return committed.capture;
   }
 
   it("never lets a guest session reserve more than 5 slots, even under a concurrent storm", async () => {
@@ -265,5 +291,115 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
         .from("captures")
         .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
     }
+  });
+
+  it("host moderation (hide/delete) removes a capture from the guest's own view but never frees its slot", async () => {
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+    const capture = await commitTinyCapture(event.id, session.id);
+
+    const hidden = await moderateCapture(hostId, event.id, capture.id, "hide");
+    expect(hidden).toBe(true);
+
+    let view = await listCapturesForGuestSessionWithUrls(event.id, session.id);
+    expect(view.find((c) => c.id === capture.id)).toBeUndefined();
+
+    // Product invariant 4: hiding never returns the frame — the slot stays occupied, so a
+    // fresh reserve storm still only yields the 4 remaining slots, never 5.
+    const keys = Array.from({ length: 5 }, () => crypto.randomUUID());
+    const results = await Promise.all(
+      keys.map((key) => reserveCapture(event.id, session.id, key)),
+    );
+    expect(results.filter((r) => r.kind === "reserved")).toHaveLength(4);
+    expect(results.filter((r) => r.kind === "frames_exhausted")).toHaveLength(1);
+
+    const unhidden = await moderateCapture(hostId, event.id, capture.id, "unhide");
+    expect(unhidden).toBe(true);
+    view = await listCapturesForGuestSessionWithUrls(event.id, session.id);
+    expect(view.find((c) => c.id === capture.id)).toBeDefined();
+
+    const deleted = await moderateCapture(hostId, event.id, capture.id, "delete");
+    expect(deleted).toBe(true);
+    view = await listCapturesForGuestSessionWithUrls(event.id, session.id);
+    expect(view.find((c) => c.id === capture.id)).toBeUndefined();
+
+    const gallery = await listCapturesForEventHost(hostId, event.id);
+    expect(gallery?.find((c) => c.id === capture.id)).toBeUndefined();
+  });
+
+  it("moderation is scoped to the owning host — a different host can neither read nor moderate", async () => {
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+    const capture = await commitTinyCapture(event.id, session.id);
+
+    const { data: otherHost, error } = await supabase.auth.admin.createUser({
+      email: `other-host-${crypto.randomUUID()}@example.test`,
+      password: crypto.randomUUID(),
+      email_confirm: true,
+    });
+    if (error) throw error;
+
+    try {
+      expect(await listCapturesForEventHost(otherHost.user.id, event.id)).toBeNull();
+      expect(await getEventCaptureStats(otherHost.user.id, event.id)).toBeNull();
+      expect(await moderateCapture(otherHost.user.id, event.id, capture.id, "delete")).toBe(false);
+
+      // The real host's view is unaffected — the other host's attempted delete was a no-op.
+      const gallery = await listCapturesForEventHost(hostId, event.id);
+      expect(gallery?.find((c) => c.id === capture.id)).toBeDefined();
+    } finally {
+      await supabase.auth.admin.deleteUser(otherHost.user.id);
+    }
+  });
+
+  it(
+    "getEventCaptureStats counts guest sessions and committed, non-deleted photos",
+    async () => {
+      const event = await createOpenEvent();
+      const sessionA = await newGuestSession(event.id);
+      const sessionB = await newGuestSession(event.id);
+      await commitTinyCapture(event.id, sessionA.id);
+      const toDelete = await commitTinyCapture(event.id, sessionA.id);
+      await commitTinyCapture(event.id, sessionB.id);
+      await moderateCapture(hostId, event.id, toDelete.id, "delete");
+
+      const stats = await getEventCaptureStats(hostId, event.id);
+      expect(stats).toEqual({ guestSessionCount: 2, photoCount: 2 });
+    },
+    15000,
+  );
+
+  it("capture open/close: close only works while capture is open; a reopen after the automatic safety-net close is refused", async () => {
+    const event = await createOpenEvent();
+
+    const notYetOpen = await supabase
+      .from("events")
+      .update({ capture_opened_at: null })
+      .eq("id", event.id)
+      .select()
+      .single();
+    if (notYetOpen.error) throw notYetOpen.error;
+    expect(await closeCapture(hostId, event.id)).toBeNull();
+
+    const opened = await openCapture(hostId, event.id);
+    expect(opened?.capture_opened_at).not.toBeNull();
+    expect(opened?.capture_closed_at).toBeNull();
+
+    const closed = await closeCapture(hostId, event.id);
+    expect(closed?.capture_closed_at).not.toBeNull();
+
+    const reopened = await openCapture(hostId, event.id);
+    expect(reopened?.capture_closed_at).toBeNull();
+
+    const { error: pastSafetyNetError } = await supabase
+      .from("events")
+      .update({
+        capture_closed_at: new Date().toISOString(),
+        safety_net_closes_at: new Date(Date.now() - 1000).toISOString(),
+      })
+      .eq("id", event.id);
+    if (pastSafetyNetError) throw pastSafetyNetError;
+
+    expect(await openCapture(hostId, event.id)).toBeNull();
   });
 });
