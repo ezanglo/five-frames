@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, TUS_CHUNK_SIZE_BYTES } from "@/lib/media/constants";
 import type { ReserveResponse } from "./actions";
+import { FrameGrid, type FrameState } from "./frame-grid";
 
 type SlotStatus = "committed" | "pending";
 type Slot = {
@@ -291,96 +292,83 @@ export function CaptureSlots({
     setError("Something went wrong. Try again.");
   }
 
-  const capturedCount = slots.filter((s) => s?.status === "committed").length;
   const nextEmptyIndex = slots.findIndex((s) => s === null);
+  const pendingIndex = slots.findIndex((s) => s?.status === "pending");
+  const activeIndex = pendingIndex !== -1 ? pendingIndex : nextEmptyIndex;
   const busy = phase === "reserving" || phase === "uploading" || phase === "committing";
+  const composing = Boolean(selectedFile && previewUrl && (phase === "previewing" || busy || phase === "error"));
+
+  const frames = slots.map((slot, index): FrameState => {
+    if (slot?.status === "committed") {
+      return { kind: "filled", thumbnailUrl: slot.thumbnailUrl, downloadUrl: slot.downloadUrl };
+    }
+    if (index === activeIndex) {
+      if (composing && previewUrl) {
+        return { kind: "composing", previewUrl, busy, error: phase === "error" };
+      }
+      if (slot?.status === "pending") {
+        return { kind: "resuming" };
+      }
+      return { kind: "active" };
+    }
+    return { kind: "future" };
+  }) as [FrameState, FrameState, FrameState, FrameState, FrameState];
+
+  const allCaptured = activeIndex === -1;
 
   return (
-    <div className="flex flex-col gap-6">
-      <p className="text-sm text-muted-foreground">{capturedCount} of 5 frames captured</p>
+    <div className="flex flex-1 flex-col gap-5">
+      <p className="font-guest-display text-lg text-(--guest-ink)">
+        {allCaptured
+          ? "These are yours to keep."
+          : "Capture a few moments that matter."}
+      </p>
 
-      <div className="grid grid-cols-3 gap-3">
-        {slots.map((slot, index) =>
-          slot?.status === "committed" && slot.thumbnailUrl ? (
-            <a
-              key={index}
-              href={slot.downloadUrl ?? undefined}
-              download
-              className="block aspect-square overflow-hidden rounded-lg border"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={slot.thumbnailUrl}
-                alt="Your capture"
-                className="h-full w-full object-cover"
-              />
-            </a>
-          ) : (
-            <div
-              key={index}
-              className="flex aspect-square items-center justify-center rounded-lg border text-xs text-muted-foreground"
-            >
-              {slot?.status === "committed"
-                ? "Captured"
-                : slot?.status === "pending"
-                  ? "Uploading…"
-                  : index === nextEmptyIndex && phase === "idle"
-                    ? null
-                    : "Frame"}
-            </div>
-          ),
-        )}
-      </div>
+      <FrameGrid frames={frames} onActivate={() => fileInputRef.current?.click()} />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onFileChosen(file);
+          e.target.value = "";
+        }}
+      />
 
       {phase === "resuming" && (
-        <p className="text-sm text-muted-foreground">
-          You have a photo still in progress. Choose it again to finish, or pick a new one.
+        <p className="text-sm text-(--guest-ink-muted)">
+          You have a photo still in progress. Tap that frame to finish, or choose a new photo.
         </p>
       )}
 
-      {(phase === "idle" || phase === "resuming") && nextEmptyIndex !== -1 && (
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) onFileChosen(file);
-              e.target.value = "";
-            }}
-          />
-          <Button type="button" onClick={() => fileInputRef.current?.click()}>
-            Add a photo
-          </Button>
-        </div>
-      )}
-
-      {nextEmptyIndex === -1 && (
-        <p className="text-sm text-muted-foreground">
-          All five frames are captured. Thanks for sharing these moments.
-        </p>
-      )}
-
-      {selectedFile && previewUrl && (phase === "previewing" || busy || phase === "error") && (
-        <div className="flex flex-col gap-3 rounded-lg border p-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewUrl} alt="Selected capture preview" className="max-h-64 rounded-md object-contain" />
-
+      {composing && previewUrl && (
+        <div
+          className="sticky bottom-0 z-10 -mx-4 mt-auto flex flex-col gap-3 border-t border-(--guest-border) bg-(--guest-canvas)/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-(--guest-canvas)/85"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
           <Textarea
             placeholder="Add a short message (optional)"
             value={message}
             maxLength={280}
             onChange={(e) => setMessage(e.target.value)}
+            onFocus={(e) => e.currentTarget.scrollIntoView({ block: "center", behavior: "smooth" })}
             disabled={busy}
+            className="border-(--guest-border) bg-(--guest-canvas-raised)"
           />
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <div className="flex gap-2">
-            <Button type="button" onClick={confirmAttempt} disabled={busy}>
+          <div className="flex gap-2 pb-1">
+            <Button
+              type="button"
+              onClick={confirmAttempt}
+              disabled={busy}
+              className="bg-(--guest-accent) text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
+            >
               {phase === "uploading"
                 ? "Uploading…"
                 : phase === "committing"

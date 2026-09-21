@@ -130,3 +130,39 @@
     @apply font-sans;
     }
 }
+
+/**
+ * Guest-experience visual system (docs/design-direction.md). Scoped to `.guest-scope` so the
+ * host dashboard and marketing surfaces keep the default shadcn palette until they get their
+ * own design pass.
+ */
+.guest-scope {
+  --guest-canvas: oklch(0.965 0.014 78);
+  --guest-canvas-raised: oklch(0.99 0.008 80);
+  --guest-surface: oklch(0.915 0.02 68);
+  --guest-surface-quiet: oklch(0.895 0.018 66);
+  --guest-ink: oklch(0.27 0.025 50);
+  --guest-ink-muted: oklch(0.5 0.02 55);
+  --guest-accent: oklch(0.58 0.13 40);
+  --guest-accent-foreground: oklch(0.98 0.012 75);
+  --guest-border: oklch(0.87 0.02 68);
+
+  background-color: var(--guest-canvas);
+  color: var(--guest-ink);
+  font-family: var(--font-sans);
+}
+
+.guest-scope .font-guest-display {
+  font-family: var(--font-guest-display), var(--font-sans);
+}
+
+/**
+ * The five-frame photo board (frame-grid.tsx). A fixed 4-column, 5rem-row board that each
+ * frame's grid-line placement is written against — irregular by design (hero + tall portrait +
+ * wide strip + two squares), not a uniform card grid.
+ */
+.guest-scope .frame-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 5rem;
+}

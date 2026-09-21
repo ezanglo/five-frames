@@ -68,13 +68,8 @@ export default async function GuestEventPage({
 
   if (!session) {
     return (
-      <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-lg font-semibold">{event.name}</h1>
-          {event.host_message && (
-            <p className="mt-1 text-sm text-muted-foreground">{event.host_message}</p>
-          )}
-        </div>
+      <div className="flex flex-1 flex-col gap-8">
+        <EventIdentity name={event.name} hostMessage={event.host_message} />
         <JoinForm token={token} />
       </div>
     );
@@ -84,13 +79,8 @@ export default async function GuestEventPage({
   const captures = await listCapturesForGuestSessionWithUrls(event.id, session.id);
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-lg font-semibold">{event.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Capturing as {session.display_name}
-        </p>
-      </div>
+    <div className="flex flex-1 flex-col gap-6">
+      <EventIdentity name={event.name} hostMessage={session.display_name} isGuestLine />
       <CaptureSlots
         token={token}
         eventId={event.id}
@@ -106,6 +96,28 @@ export default async function GuestEventPage({
   );
 }
 
+/** Compact, quiet identity — the five frames are the hero, not the event header. */
+function EventIdentity({
+  name,
+  hostMessage,
+  isGuestLine,
+}: {
+  name: string;
+  hostMessage: string | null;
+  isGuestLine?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">{name}</h1>
+      {hostMessage && (
+        <p className="text-sm text-(--guest-ink-muted)">
+          {isGuestLine ? `Capturing as ${hostMessage}` : hostMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function CalmState({
   title,
   body,
@@ -116,10 +128,10 @@ function CalmState({
   children?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center gap-4 py-16 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
       <div className="flex flex-col items-center gap-2">
-        <h1 className="text-lg font-semibold">{title}</h1>
-        <p className="max-w-xs text-sm text-muted-foreground">{body}</p>
+        <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">{title}</h1>
+        <p className="max-w-xs text-sm text-(--guest-ink-muted)">{body}</p>
       </div>
       {children}
     </div>
