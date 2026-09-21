@@ -2,6 +2,7 @@ import "server-only";
 
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/service-client";
+import { CAPTURES_BUCKET } from "@/lib/media/constants";
 
 /**
  * Private bucket for photo originals and derivatives (architecture §7, invariant 8). No
@@ -10,7 +11,7 @@ import { createServiceClient } from "@/lib/supabase/service-client";
  * scoped to one specific path — the one narrow exception to "the browser never touches
  * Supabase directly" (D3/D4).
  */
-const BUCKET = "captures";
+const BUCKET = CAPTURES_BUCKET;
 
 const ACCEPTED_MIME_TYPES = new Set([
   "image/jpeg",
@@ -20,19 +21,34 @@ const ACCEPTED_MIME_TYPES = new Set([
   "image/heif",
 ]);
 
+export type SignedUpload = { signedUrl: string; token: string };
+
 /**
- * Mints a time-limited signed upload URL for one specific object path (D7). The browser
- * PUTs its file bytes directly to this URL — no Supabase client or key ever reaches it,
- * only a bare URL capability for exactly this path.
+ * Mints a time-limited signed upload credential for one specific object path (D7). The
+ * browser either PUTs its file bytes directly to `signedUrl`, or — for the resumable path —
+ * presents `token` in the TUS `x-signature` header. Either way, no Supabase client or
+ * broader credential ever reaches the browser, only a scoped capability for this one path.
  */
-export async function createSignedUploadUrl(path: string): Promise<string> {
+export async function createSignedUploadUrl(path: string): Promise<SignedUpload> {
   const supabase = createServiceClient();
   const { data, error } = await supabase.storage
     .from(BUCKET)
     .createSignedUploadUrl(path, { upsert: true });
 
   if (error) throw error;
-  return data.signedUrl;
+  return { signedUrl: data.signedUrl, token: data.token };
+}
+
+/**
+ * TUS resumable-upload endpoint for this project (D7, first-party: direct storage hostname
+ * is recommended for large-file performance). Derived from the same project URL already
+ * used for every other Supabase client, not a new secret.
+ */
+export function getResumableUploadEndpoint(): string {
+  const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!projectUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured");
+  const projectId = new URL(projectUrl).hostname.split(".")[0];
+  return `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable`;
 }
 
 export type UploadedObjectCheck =

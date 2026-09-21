@@ -9,22 +9,22 @@ appending narrative.
 
 ## Current phase
 
-**Slice 2 — Guest join and photo capture: complete.**
+**Slice 3 — Guest's own view and network resilience: complete.**
 
-All 6 items in the manual verification checklist passed on real devices, reported 2026-09-21:
-iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers all completed the
-full join → 5-capture flow; an interrupted upload retried cleanly with no duplicate and no lost
-frame; a reload mid-attempt correctly resumed via the persisted `reserve_key`; and a real HEIC
-capture from an iPhone committed and produced a viewable JPEG derivative — resolving the spec's
-open question (product.md §19): no extra conversion work is needed, `sharp` decodes HEIC/HEIF
-transparently on commit.
+All required human verification passed, reported 2026-09-21 — see the checklist below. Built on
+Slice 2's frame-limit mechanism without changing it: the reserve/commit gate, the `reserve_key`
+idempotency, and the reservation TTL are all unchanged. This slice added the guest's private
+downloadable view of their own captures, and a resumable (TUS) upload path for large files,
+resolving D7's deferred size threshold (see decisions.md), and proved on a real device that an
+interrupted upload resumes rather than losing the frame, and that a reload mid-upload leaves a
+consistent state.
 
 ## What exists
 
 - **Decisions D1–D11** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
   No new consequential decisions were needed for this slice; D5–D7 already anticipated the shape
   implemented here.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–2 done, Slice 3 next.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–3 done, Slice 4 next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -57,15 +57,35 @@ transparently on commit.
   httpOnly/Secure/SameSite=Lax signed cookie (decision D3), one cookie name per event token
   (HMAC-SHA256, `GUEST_SESSION_SECRET`), so one browser can hold sessions for multiple events.
   `lib/dal/guest-sessions.ts` scopes every query by `event_id`.
-- **Media:** `lib/media/storage.ts` — signed upload URL minting (`createSignedUploadUrl`, D7),
-  commit-time object/mime verification, `sharp`-based display (1600px) and thumbnail (400px)
-  derivative generation written as separate objects (invariant 10: original untouched), signed
-  read URL helper for later slices.
+- **Media:** `lib/media/storage.ts` — signed upload URL minting (`createSignedUploadUrl`, now
+  returning both the PUT `signedUrl` and the bare `token` used for TUS auth), commit-time
+  object/mime verification, `sharp`-based display (1600px) and thumbnail (400px) derivative
+  generation written as separate objects (invariant 10: original untouched), `createSignedReadUrl`
+  for private delivery, and `getResumableUploadEndpoint()` deriving the TUS host from the same
+  project URL every other Supabase client already uses. `lib/media/constants.ts` holds the bucket
+  name and the 6MB resumable-upload threshold (D7) without a `server-only` import, so the client
+  upload code can read them too.
+- **Upload path (Slice 3, resolves D7's deferred threshold):** the client picks a standard
+  signed-URL PUT below 6MB, or `tus-js-client` at or above it — Supabase's own recommended cutover
+  point, same value as the fixed TUS chunk size. The TUS path authenticates via the
+  `createSignedUploadUrl` token in the `x-signature` header, never the anon key or a session token
+  (D3/D4 boundary holds). `tus-js-client`'s default fingerprint-based resume continues a
+  re-selected file from its last successful chunk, including across a reload, which is what makes
+  "connection drops mid-upload" cheap for large files beyond the reserve/commit gate itself.
 - **Guest UI:** `app/(guest)/e/[token]/` — calm states for "event not found", "not open yet", and
   "capture has ended" (no guest-facing error tone); join form; `CaptureSlots` client component
-  driving reserve → direct PUT upload → commit, with the client-generated `reserve_key`
+  driving reserve → direct upload (PUT or TUS) → commit, with the client-generated `reserve_key`
   persisted to `localStorage` before the first request (survives a reload mid-attempt) and
-  cleared only on a terminal outcome, resuming an in-flight reservation on return.
+  cleared only on a terminal outcome, resuming an in-flight reservation on return. Committed slots
+  render their actual thumbnail (signed URL) with a download link to the original, not just a
+  "Captured" placeholder.
+- **Guest's own view (Slice 3, spec §8.3/§13, criteria 6 and 16-guest-half):**
+  `listCapturesForGuestSessionWithUrls` (`lib/dal/captures.ts`) wraps the existing
+  ownership-scoped query and mints signed thumbnail/download URLs only for committed captures —
+  the query itself is the access check, the signed URL is its result, never a substitute (the same
+  rule as everywhere else media is served). The "capture has ended" calm state now also loads and
+  shows the guest's own captures when their session still exists, via the shared `OwnCaptures`
+  component (`app/(guest)/e/[token]/own-captures.tsx`), instead of only the generic message.
 - **Dev activation stand-in for payment** (architecture §13, roadmap Slice 2): `pnpm
   dev:activate-event <eventId>` (`scripts/activate-event-dev.ts`) sets `activated_at`,
   `capture_opened_at`, and issues `event_token`/`gallery_token` directly against the linked dev
@@ -76,21 +96,26 @@ transparently on commit.
   Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
   reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
   capture), abandoned-reservation TTL freeing its slot, a retry arriving after expiry reported as
-  lapsed rather than revived, commit refused for a lapsed reservation, and reserve/commit refused
-  while capture is closed. `lib/auth/guest-session-token.test.ts` — cookie signing round-trip,
-  tamper rejection, cross-event rejection, wrong-secret rejection.
+  lapsed rather than revived, commit refused for a lapsed reservation, reserve/commit refused
+  while capture is closed, and (Slice 3) the guest's own view returning signed thumbnail/download
+  urls for a committed capture and null urls for a still-pending one. `lib/auth/guest-session-
+  token.test.ts` — cookie signing round-trip, tamper rejection, cross-event rejection, wrong-
+  secret rejection.
 
 ## Verification status
 
 - `pnpm typecheck` — passing.
-- `pnpm lint` — passing (same 1 pre-existing warning as Slice 1, `app/layout.tsx` unused `Geist`
-  import; no errors).
+- `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]` registers as a dynamic route.
-- `pnpm test` (Vitest) — 28/28 passing, including the frame-mechanism integration tests above
-  against the real dev database and storage bucket.
-- **Real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
+- `pnpm test` (Vitest) — 29/29 passing, including the frame-mechanism and guest-view integration
+  tests above against the real dev database and storage bucket.
+- **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
-  HEIC) — see below.
+  HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
+- **Slice 3 real-device validation — passed, reported 2026-09-21.** All 4 checklist items
+  (interrupted upload over the resumable path, reload mid-upload, own-captures thumbnails/
+  downloads, capture-ended own-view) — see below. Items 1–2 were this slice's roadmap exit
+  condition.
 
 ## Regression protection added for human-found defects
 
@@ -118,12 +143,36 @@ Vercel deployment described above for real HTTPS.
    product.md §19's open question — no dedicated HEIC conversion step is needed, `sharp` handles
    it on the existing derivative path.
 
+## Manual verification results (Slice 3 exit condition) — all passed, reported 2026-09-21
+
+This is the roadmap's own verification for this slice ("Interrupted upload leaves the frame
+available. Reload mid-upload yields a consistent state — committed or available, never both.").
+Automated tests prove the reservation/commit mechanism honors this at the database level; these
+four checks prove it holds in a real browser on a real network, which no automated test here can.
+
+Seeded an active event the same way Slice 2 did (`pnpm dev:activate-event <eventId>`, tested
+against the real-HTTPS Vercel deployment — the guest cookie is `Secure` and won't set over plain
+HTTP).
+
+1. **Interrupted upload is resumable, not lost** — pass. A photo at or above 6MB (the resumable
+   threshold) was confirmed, the connection was killed mid-upload for several seconds, then
+   restored. The upload continued rather than restarting or failing, and completed; the frame was
+   never committed without the photo landing, and was never lost.
+2. **Reload mid-upload leaves a consistent state** — pass. A large-photo attempt was reloaded
+   mid-upload. After reload the slot correctly resolved to available-for-a-fresh-attempt or
+   already-committed, never both and never stuck; re-selecting the same photo let the attempt
+   finish rather than forcing a full restart.
+3. **Own-captures thumbnails/downloads** — pass. Committed slots show the actual photo thumbnail
+   with a working download link, not a placeholder.
+4. **Capture-ended own-view** — pass. The event link after capture closed shows the "capture has
+   ended" message plus the guest's own previously-committed captures with working downloads.
+
+All four items passed; no failures to fix, so this slice's defect-to-regression policy does not
+apply.
+
 ## Next slice
 
-**Slice 3 — Guest's own view and network resilience** ([roadmap](./roadmap.md)). Not started.
-Device testing surfaced no upload failures severe enough to demand TUS immediately, but Slice 3
-should still set the resumable-upload size threshold deliberately rather than skip it, per the
-roadmap.
+**Slice 4 — Host dashboard and moderation** ([roadmap](./roadmap.md)). Not started.
 
 ## Blockers and open items
 

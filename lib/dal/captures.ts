@@ -3,8 +3,14 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventById } from "@/lib/dal/events";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
-import { createSignedUploadUrl, generateDerivatives, verifyUploadedObject } from "@/lib/media/storage";
-import type { CaptureRow } from "@/lib/db/types";
+import {
+  createSignedReadUrl,
+  createSignedUploadUrl,
+  generateDerivatives,
+  getResumableUploadEndpoint,
+  verifyUploadedObject,
+} from "@/lib/media/storage";
+import type { CaptureRow, CaptureStatus } from "@/lib/db/types";
 
 /**
  * The frame-limit mechanism (architecture §6, decisions D5/D6). Every function here takes
@@ -13,7 +19,13 @@ import type { CaptureRow } from "@/lib/db/types";
  */
 
 export type ReserveOutcome =
-  | { kind: "reserved"; capture: CaptureRow; uploadUrl: string }
+  | {
+      kind: "reserved";
+      capture: CaptureRow;
+      uploadUrl: string;
+      uploadToken: string;
+      resumableEndpoint: string;
+    }
   | { kind: "already_committed"; capture: CaptureRow }
   | { kind: "expired" }
   | { kind: "capture_not_open" }
@@ -56,8 +68,14 @@ export async function reserveCapture(
     return { kind: "expired" };
   }
 
-  const uploadUrl = await createSignedUploadUrl(capture.storage_path);
-  return { kind: "reserved", capture, uploadUrl };
+  const { signedUrl, token } = await createSignedUploadUrl(capture.storage_path);
+  return {
+    kind: "reserved",
+    capture,
+    uploadUrl: signedUrl,
+    uploadToken: token,
+    resumableEndpoint: getResumableUploadEndpoint(),
+  };
 }
 
 export type CommitOutcome =
@@ -166,4 +184,56 @@ export async function listCapturesForGuestSession(
 
   if (error) throw error;
   return data as CaptureRow[];
+}
+
+export type GuestCaptureView = {
+  id: string;
+  slotIndex: number;
+  status: CaptureStatus;
+  message: string | null;
+  thumbnailUrl: string | null;
+  downloadUrl: string | null;
+};
+
+/**
+ * A guest's private view of their own captures (spec §8.3, invariant 11's guest-side
+ * counterpart), with signed read URLs minted after the ownership-scoped query above has
+ * already done the access check (architecture §7 — the signed URL is the result of
+ * authorization, never a substitute for it). Only committed captures have derivatives, so
+ * a pending row's urls are null.
+ */
+export async function listCapturesForGuestSessionWithUrls(
+  eventId: string,
+  guestSessionId: string,
+): Promise<GuestCaptureView[]> {
+  const captures = await listCapturesForGuestSession(eventId, guestSessionId);
+
+  return Promise.all(
+    captures.map(async (capture) => {
+      if (capture.status !== "committed" || !capture.thumbnail_path) {
+        return {
+          id: capture.id,
+          slotIndex: capture.slot_index,
+          status: capture.status,
+          message: capture.message,
+          thumbnailUrl: null,
+          downloadUrl: null,
+        };
+      }
+
+      const [thumbnailUrl, downloadUrl] = await Promise.all([
+        createSignedReadUrl(capture.thumbnail_path),
+        createSignedReadUrl(capture.storage_path),
+      ]);
+
+      return {
+        id: capture.id,
+        slotIndex: capture.slot_index,
+        status: capture.status,
+        message: capture.message,
+        thumbnailUrl,
+        downloadUrl,
+      };
+    }),
+  );
 }

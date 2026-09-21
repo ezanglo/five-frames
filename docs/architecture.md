@@ -306,8 +306,13 @@ for a lapsed reservation** (§6): such an upload lands in storage as an orphaned
 removed by the same sweep that expires reservations. Upload authorization proves only "you may
 write these bytes to this path" — it never implies the slot is still yours.
 
-Which of the two paths a given photo takes is an implementation detail for the capture slice,
-decided against real file sizes from real devices rather than guessed now.
+**Implemented (Slice 3):** the client picks standard signed-URL PUT below 6MB, TUS at or above it
+— Supabase's own recommended threshold, and the same value as the fixed chunk size (D7). The TUS
+path authenticates with the `token` from `createSignedUploadUrl` via the `x-signature` header, so
+the browser still never receives the anon key or a broader credential (D3/D4). `tus-js-client`'s
+default fingerprint-based resume means a re-selected file continues from its last successful
+chunk rather than restarting, including across a reload — this is the mechanism, beyond the
+reserve/commit gate, that makes "connection drops mid-upload" cheap for large files.
 
 ### Derivatives
 

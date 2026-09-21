@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import { getEventByToken } from "@/lib/dal/events";
 import { getGuestSession, touchGuestSession } from "@/lib/dal/guest-sessions";
-import { listCapturesForGuestSession } from "@/lib/dal/captures";
+import { listCapturesForGuestSessionWithUrls } from "@/lib/dal/captures";
 import { getGuestSessionIdFromCookie } from "@/lib/auth/guest-session";
 import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
 import { JoinForm } from "./join-form";
 import { CaptureSlots } from "./capture-slots";
+import { OwnCaptures } from "./own-captures";
 
 export default async function GuestEventPage({
   params,
@@ -35,11 +37,27 @@ export default async function GuestEventPage({
   }
 
   if (state !== "capture_open") {
+    // A guest may still hold a session from before capture closed — they always keep a
+    // private, downloadable view of their own captures (product.md §8.3, §13).
+    const endedGuestSessionId = await getGuestSessionIdFromCookie(token, event.id);
+    const endedSession = endedGuestSessionId
+      ? await getGuestSession(event.id, endedGuestSessionId)
+      : null;
+    const ownCaptures = endedSession
+      ? await listCapturesForGuestSessionWithUrls(event.id, endedSession.id)
+      : [];
+
     return (
       <CalmState
         title="Capture has ended"
         body="Thanks for being part of this. Your host will share the gallery when it's ready."
-      />
+      >
+        <OwnCaptures
+          captures={ownCaptures
+            .filter((c) => c.thumbnailUrl && c.downloadUrl)
+            .map((c) => ({ id: c.id, thumbnailUrl: c.thumbnailUrl!, downloadUrl: c.downloadUrl! }))}
+        />
+      </CalmState>
     );
   }
 
@@ -63,7 +81,7 @@ export default async function GuestEventPage({
   }
 
   await touchGuestSession(event.id, session.id);
-  const captures = await listCapturesForGuestSession(event.id, session.id);
+  const captures = await listCapturesForGuestSessionWithUrls(event.id, session.id);
 
   return (
     <div className="flex flex-col gap-6">
@@ -78,19 +96,32 @@ export default async function GuestEventPage({
         eventId={event.id}
         initialCaptures={captures.map((c) => ({
           id: c.id,
-          slotIndex: c.slot_index,
+          slotIndex: c.slotIndex,
           status: c.status as "pending" | "committed",
+          thumbnailUrl: c.thumbnailUrl,
+          downloadUrl: c.downloadUrl,
         }))}
       />
     </div>
   );
 }
 
-function CalmState({ title, body }: { title: string; body: string }) {
+function CalmState({
+  title,
+  body,
+  children,
+}: {
+  title: string;
+  body: string;
+  children?: ReactNode;
+}) {
   return (
-    <div className="flex flex-col items-center gap-2 py-16 text-center">
-      <h1 className="text-lg font-semibold">{title}</h1>
-      <p className="max-w-xs text-sm text-muted-foreground">{body}</p>
+    <div className="flex flex-col items-center gap-4 py-16 text-center">
+      <div className="flex flex-col items-center gap-2">
+        <h1 className="text-lg font-semibold">{title}</h1>
+        <p className="max-w-xs text-sm text-muted-foreground">{body}</p>
+      </div>
+      {children}
     </div>
   );
 }

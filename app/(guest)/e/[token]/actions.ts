@@ -9,6 +9,8 @@ import {
   setGuestSessionCookie,
 } from "@/lib/auth/guest-session";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
+import { createSignedReadUrl } from "@/lib/media/storage";
+import { CAPTURES_BUCKET } from "@/lib/media/constants";
 import type { CaptureRow } from "@/lib/db/types";
 
 export type JoinActionState = { error: string | null };
@@ -37,7 +39,16 @@ export async function joinEvent(
 
 /** Guest-facing result shapes are plain data — serializable across the client/server boundary. */
 export type ReserveResponse =
-  | { kind: "reserved"; captureId: string; slotIndex: number; uploadUrl: string }
+  | {
+      kind: "reserved";
+      captureId: string;
+      slotIndex: number;
+      uploadUrl: string;
+      uploadToken: string;
+      resumableEndpoint: string;
+      bucket: string;
+      objectName: string;
+    }
   | { kind: "already_committed"; captureId: string; slotIndex: number }
   | { kind: "expired" }
   | { kind: "capture_not_open" }
@@ -63,6 +74,10 @@ export async function reserveSlot(
         captureId: outcome.capture.id,
         slotIndex: outcome.capture.slot_index,
         uploadUrl: outcome.uploadUrl,
+        uploadToken: outcome.uploadToken,
+        resumableEndpoint: outcome.resumableEndpoint,
+        bucket: CAPTURES_BUCKET,
+        objectName: outcome.capture.storage_path,
       };
     case "already_committed":
       return {
@@ -80,7 +95,7 @@ export async function reserveSlot(
 }
 
 export type CommitResponse =
-  | { kind: "committed"; capture: CaptureRow }
+  | { kind: "committed"; capture: CaptureRow; thumbnailUrl: string | null; downloadUrl: string | null }
   | { kind: "not_found" }
   | { kind: "expired" }
   | { kind: "capture_not_open" }
@@ -106,5 +121,16 @@ export async function commitSlot(
     trimmedMessage || null,
   );
 
-  return outcome;
+  if (outcome.kind !== "committed") return outcome;
+
+  if (!outcome.capture.thumbnail_path) {
+    return { kind: "committed", capture: outcome.capture, thumbnailUrl: null, downloadUrl: null };
+  }
+
+  const [thumbnailUrl, downloadUrl] = await Promise.all([
+    createSignedReadUrl(outcome.capture.thumbnail_path),
+    createSignedReadUrl(outcome.capture.storage_path),
+  ]);
+
+  return { kind: "committed", capture: outcome.capture, thumbnailUrl, downloadUrl };
 }

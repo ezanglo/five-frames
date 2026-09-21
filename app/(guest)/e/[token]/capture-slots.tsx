@@ -1,12 +1,57 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import * as tus from "tus-js-client";
 import { reserveSlot, commitSlot } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, TUS_CHUNK_SIZE_BYTES } from "@/lib/media/constants";
+import type { ReserveResponse } from "./actions";
 
 type SlotStatus = "committed" | "pending";
-type Slot = { id: string; status: SlotStatus } | null;
+type Slot = {
+  id: string;
+  status: SlotStatus;
+  thumbnailUrl: string | null;
+  downloadUrl: string | null;
+} | null;
+
+/**
+ * Uploads directly to Supabase Storage over TUS (D7) — resumable in fixed 6MB chunks, and
+ * automatically continues from a previous attempt's byte offset if this same file (by name,
+ * size, type and last-modified) was already partway uploaded, including across a reload.
+ */
+function uploadViaTus(params: {
+  file: File;
+  endpoint: string;
+  token: string;
+  bucket: string;
+  objectName: string;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const upload = new tus.Upload(params.file, {
+      endpoint: params.endpoint,
+      retryDelays: [0, 1000, 3000, 5000],
+      chunkSize: TUS_CHUNK_SIZE_BYTES,
+      headers: { "x-signature": params.token, "x-upsert": "true" },
+      metadata: {
+        bucketName: params.bucket,
+        objectName: params.objectName,
+        contentType: params.file.type || "application/octet-stream",
+        cacheControl: "3600",
+      },
+      onError: (error) => reject(error),
+      onSuccess: () => resolve(),
+    });
+
+    upload.findPreviousUploads().then((previousUploads) => {
+      if (previousUploads.length > 0) {
+        upload.resumeFromPreviousUpload(previousUploads[0]);
+      }
+      upload.start();
+    });
+  });
+}
 
 type Phase =
   | "idle"
@@ -21,6 +66,30 @@ function pendingStorageKey(eventId: string) {
   return `ff_pending_reserve:${eventId}`;
 }
 
+/** Standard signed-URL PUT for typical phone photos; TUS above the threshold (D7). */
+async function uploadFile(
+  file: File,
+  reserved: Extract<ReserveResponse, { kind: "reserved" }>,
+): Promise<void> {
+  if (file.size >= RESUMABLE_UPLOAD_THRESHOLD_BYTES) {
+    await uploadViaTus({
+      file,
+      endpoint: reserved.resumableEndpoint,
+      token: reserved.uploadToken,
+      bucket: reserved.bucket,
+      objectName: reserved.objectName,
+    });
+    return;
+  }
+
+  const putResponse = await fetch(reserved.uploadUrl, {
+    method: "PUT",
+    body: file,
+    headers: { "content-type": file.type || "application/octet-stream" },
+  });
+  if (!putResponse.ok) throw new Error("upload failed");
+}
+
 export function CaptureSlots({
   token,
   eventId,
@@ -28,12 +97,23 @@ export function CaptureSlots({
 }: {
   token: string;
   eventId: string;
-  initialCaptures: { id: string; slotIndex: number; status: SlotStatus }[];
+  initialCaptures: {
+    id: string;
+    slotIndex: number;
+    status: SlotStatus;
+    thumbnailUrl: string | null;
+    downloadUrl: string | null;
+  }[];
 }) {
   const [slots, setSlots] = useState<Slot[]>(() => {
     const next: Slot[] = [null, null, null, null, null];
     for (const c of initialCaptures) {
-      next[c.slotIndex] = { id: c.id, status: c.status };
+      next[c.slotIndex] = {
+        id: c.id,
+        status: c.status,
+        thumbnailUrl: c.thumbnailUrl,
+        downloadUrl: c.downloadUrl,
+      };
     }
     return next;
   });
@@ -72,7 +152,12 @@ export function CaptureSlots({
       } else if (res.kind === "already_committed") {
         setSlots((prev) => {
           const next = [...prev];
-          next[res.slotIndex] = { id: res.captureId, status: "committed" };
+          next[res.slotIndex] = {
+            id: res.captureId,
+            status: "committed",
+            thumbnailUrl: null,
+            downloadUrl: null,
+          };
           return next;
         });
         clearPending();
@@ -158,12 +243,7 @@ export function CaptureSlots({
       slotIndex = reserved.slotIndex;
       setPhase("uploading");
       try {
-        const putResponse = await fetch(reserved.uploadUrl, {
-          method: "PUT",
-          body: selectedFile,
-          headers: { "content-type": selectedFile.type || "application/octet-stream" },
-        });
-        if (!putResponse.ok) throw new Error("upload failed");
+        await uploadFile(selectedFile, reserved);
       } catch {
         setPhase("error");
         setError("Upload failed. Check your connection and try again — your frame is safe.");
@@ -180,7 +260,12 @@ export function CaptureSlots({
     if (committed.kind === "committed") {
       setSlots((prev) => {
         const next = [...prev];
-        next[slotIndex] = { id: captureId, status: "committed" };
+        next[slotIndex] = {
+          id: captureId,
+          status: "committed",
+          thumbnailUrl: committed.thumbnailUrl,
+          downloadUrl: committed.downloadUrl,
+        };
         return next;
       });
       clearPending();
@@ -215,20 +300,36 @@ export function CaptureSlots({
       <p className="text-sm text-muted-foreground">{capturedCount} of 5 frames captured</p>
 
       <div className="grid grid-cols-3 gap-3">
-        {slots.map((slot, index) => (
-          <div
-            key={index}
-            className="flex aspect-square items-center justify-center rounded-lg border text-xs text-muted-foreground"
-          >
-            {slot?.status === "committed"
-              ? "Captured"
-              : slot?.status === "pending"
-                ? "Uploading…"
-                : index === nextEmptyIndex && phase === "idle"
-                  ? null
-                  : "Frame"}
-          </div>
-        ))}
+        {slots.map((slot, index) =>
+          slot?.status === "committed" && slot.thumbnailUrl ? (
+            <a
+              key={index}
+              href={slot.downloadUrl ?? undefined}
+              download
+              className="block aspect-square overflow-hidden rounded-lg border"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={slot.thumbnailUrl}
+                alt="Your capture"
+                className="h-full w-full object-cover"
+              />
+            </a>
+          ) : (
+            <div
+              key={index}
+              className="flex aspect-square items-center justify-center rounded-lg border text-xs text-muted-foreground"
+            >
+              {slot?.status === "committed"
+                ? "Captured"
+                : slot?.status === "pending"
+                  ? "Uploading…"
+                  : index === nextEmptyIndex && phase === "idle"
+                    ? null
+                    : "Frame"}
+            </div>
+          ),
+        )}
       </div>
 
       {phase === "resuming" && (

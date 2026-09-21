@@ -72,6 +72,8 @@ that matter most in the project. Plus the device checks above, run by hand.
 
 ## Slice 3 — Guest's own view and network resilience
 
+**Status: complete.** See [progress.md](./progress.md) for verification results.
+
 **Objective:** A returning guest sees their remaining frames and their own captures, and bad
 networks do not cost them frames.
 

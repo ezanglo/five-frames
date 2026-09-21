@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { createDraftEvent } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
-import { commitCapture, reserveCapture } from "@/lib/dal/captures";
+import { commitCapture, listCapturesForGuestSessionWithUrls, reserveCapture } from "@/lib/dal/captures";
 
 /**
  * Runs against the real linked dev Postgres and dev Storage bucket (architecture §11) —
@@ -225,5 +225,45 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
 
     const result = await reserveCapture(event.id, session.id, crypto.randomUUID());
     expect(result.kind).toBe("capture_not_open");
+  });
+
+  it("the guest's own view has signed urls for a committed capture and none for a pending one", async () => {
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+
+    const committedKey = crypto.randomUUID();
+    const reservedCommitted = await reserveCapture(event.id, session.id, committedKey);
+    expect(reservedCommitted.kind).toBe("reserved");
+    if (reservedCommitted.kind !== "reserved") return;
+
+    const { error: uploadError } = await supabase.storage
+      .from("captures")
+      .upload(reservedCommitted.capture.storage_path, TINY_PNG, {
+        contentType: "image/png",
+        upsert: true,
+      });
+    if (uploadError) throw uploadError;
+    const committed = await commitCapture(event.id, session.id, reservedCommitted.capture.id, null);
+    expect(committed.kind).toBe("committed");
+
+    const pendingKey = crypto.randomUUID();
+    const reservedPending = await reserveCapture(event.id, session.id, pendingKey);
+    expect(reservedPending.kind).toBe("reserved");
+
+    const view = await listCapturesForGuestSessionWithUrls(event.id, session.id);
+    const committedView = view.find((c) => c.status === "committed");
+    const pendingView = view.find((c) => c.status === "pending");
+
+    expect(committedView?.thumbnailUrl).toMatch(/^https?:\/\//);
+    expect(committedView?.downloadUrl).toMatch(/^https?:\/\//);
+    expect(pendingView?.thumbnailUrl).toBeNull();
+    expect(pendingView?.downloadUrl).toBeNull();
+
+    if (reservedCommitted.kind === "reserved") {
+      const basePath = reservedCommitted.capture.storage_path.replace(/\/original$/, "");
+      await supabase.storage
+        .from("captures")
+        .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
+    }
   });
 });

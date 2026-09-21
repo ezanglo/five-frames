@@ -174,6 +174,18 @@ with no additional vendor. The 409-on-concurrent-path behavior is a bonus: a dup
 fails cleanly instead of racing.
 **Deferred:** the exact size threshold between the two paths is set during the capture slice
 against real files from real devices, not guessed now.
+**Deferred item resolved (Slice 3, 2026-09-21):** Slice 2's real-device testing produced no upload
+failures severe enough to force this immediately, so the threshold above is set from Supabase's
+own first-party recommendation rather than guessed: resumable uploads above **6MB** — the same
+value as the fixed TUS chunk size — standard signed-URL PUT below that. This is an implementation
+detail the original decision already anticipated and explicitly deferred, not a change to the
+decision itself, so it is recorded here rather than as a new or superseding decision. Client-side
+authorization for the TUS path uses the `token` from `createSignedUploadUrl` in the `x-signature`
+header, not the anon key or any broader credential — the D3/D4 boundary (no Supabase client or
+session token in the browser) holds for the resumable path exactly as it does for the standard
+one. **Verified against a real interrupted upload and a real reload on a real device, reported
+2026-09-21** — an interruption mid-upload resumed rather than losing the frame, and a page reload
+mid-upload resolved to a consistent state. See `docs/progress.md` for the full result.
 
 ---
 
