@@ -9,8 +9,9 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–6: complete.** No implementation has started on Slice 7 (operator model) or later —
-see the reconciliation note immediately below for what changed in the plan since Slice 6 landed.
+**Slices 1–7: complete.** No implementation has started on Slice 8 (PayMongo payment, shared
+activation, signage) or later — see the reconciliation note below for what changed in the plan
+since Slice 6 landed, and the Slice 7 entry under "What exists" for what was just built.
 
 **Reconciliation pass (2026-09-22, second pass — operator role, manual payment, Operator
 Console).** product.md was updated with the internal Operator role, supplier-assisted/manual
@@ -84,8 +85,8 @@ see prior verification records in git history if needed.
   the event-capacity counter mechanism and the client-only public demo (implemented, Slice 6).
   D15–D17 (new in this reconciliation pass, not yet implemented) record the operator grant model,
   the shared provider/manual activation function, and the payment-row-as-audit-trail decision.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–6 done, Slice 7 (operator identity model and
-  a read-only Operator Console) next.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–7 done, Slice 8 (PayMongo payment, shared
+  activation, and signage) next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -194,6 +195,42 @@ see prior verification records in git history if needed.
   D13):** see the Current phase section above for the full mechanism description
   (`guest_session_cap`/`guest_session_count` on `events`, `join_guest_session()`, the calm
   "event is full" state, and the trust-cue copy on the join screen).
+- **Operator identity model and read-only Operator Console (Slice 7, decision D15, architecture
+  §5a/§8b):** migration `20260922010000_operators.sql` adds `operators` (`user_id` references
+  `auth.users`, RLS deny-all — same insurance-only rationale as every other table, D4). Operators
+  authenticate through the same Supabase Auth as hosts; a row's mere existence is the
+  authorization, always read fresh — never a session claim. `lib/dal/operators.ts` holds
+  `isOperator`/`grantOperator` with no Next.js import, so it stays callable from
+  `pnpm ops:grant-operator` outside a Next.js request; `lib/auth/operator-session.ts` holds the
+  request-facing `requireOperator()`/`getAuthenticatedOperator()` (next/navigation, next/headers),
+  mirroring the existing split between `lib/dal/events.ts` and `lib/auth/host-session.ts`.
+  `requireOperator()` redirects an unauthenticated visitor to `/login?next=/operator` and 404s an
+  authenticated non-operator, rather than revealing the Console exists.
+  `pnpm ops:grant-operator <email>` (`scripts/grant-operator.ts`) is the only way to grant
+  operator status — looks up the Supabase Auth user by email (refuses if none exists; it never
+  creates accounts), prints which Supabase project it resolved, requires an interactive "yes"
+  (the same confirmation step distinguishes dev from production, since it shows the real target
+  URL — pointing it at production means exporting the production service-role key in the shell
+  first, not a separate flag), then calls the idempotent `grantOperator`.
+  `lib/dal/operator-events.ts` (`listEventsForOperator`, `getOperatorEventDetail`) is a DAL module
+  deliberately separate from `lib/dal/events.ts` — no host-ownership predicate, since operator
+  visibility is explicitly cross-host — and never selects a capture's `storage_path`/
+  `display_path`/`thumbnail_path` or calls anything in `lib/media/storage.ts`: aggregate
+  `count(*)`-shaped queries only, so there is no code path that can mint a capture's signed media
+  URL from the Console (product.md §5.1.2). `app/(operator)/` (`/operator` list+search,
+  `/operator/events/[eventId]` detail) is read-only this slice — no mutation, matching the
+  roadmap's scope boundary (manual payment confirmation/refund is Slice 9). Payment state on the
+  detail page reads only from `events.activated_at` and says so plainly ("payment records land in
+  Slice 8/9") since the `payments` table doesn't exist yet.
+  **Regression fix, not new for this slice:** `pnpm dev:activate-event` (Slice 2) and the new
+  `pnpm ops:grant-operator` both import modules marked `import "server-only"`; under plain
+  `tsx`/`node` (no bundler) that marker package throws on import instead of no-op'ing the way it
+  does inside Next's webpack build. Both `package.json` script entries now run
+  `tsx --conditions=react-server`, which makes Node's conditional exports resolution pick
+  `server-only`'s no-op `react-server` build instead of its default (throwing) one — the same
+  condition Next's own server bundle effectively selects. This was a pre-existing defect in
+  `dev:activate-event` (it would have thrown on any real invocation), caught while building the
+  new script on the identical pattern, not introduced by this slice.
 - **Testing:** `lib/dal/captures.integration.test.ts` against the real linked dev Postgres and
   Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
   reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
@@ -206,7 +243,15 @@ see prior verification records in git history if needed.
   `getEventCaptureStats` counting sessions and non-deleted committed photos, and capture
   open/close transitions including the "cannot reopen once the safety-net close has passed" rule,
   and (Slice 5) the gallery viewer excluding hidden/deleted captures while still showing a
-  favorited one. `lib/dal/events.integration.test.ts` adds: rotating either token immediately
+  favorited one. `lib/dal/operators.integration.test.ts` (Slice 7) adds: an account with no
+  `operators` row is not an operator; granting makes `isOperator` true for that account only;
+  granting twice leaves exactly one row (idempotent). `lib/dal/operator-events.integration.test.ts`
+  (Slice 7) adds: the event list spans multiple different hosts in one call, not just one; search
+  matches by event name, host email, and event id; aggregate guest-session/capture counts are
+  correct and scoped to the right event; the detail result never contains a storage path or
+  signed-URL-shaped field, and `operator-events.ts` itself has no import of `lib/media/storage`;
+  and an operator identity never satisfies the host-ownership predicate on another host's event.
+  `lib/dal/events.integration.test.ts` adds: rotating either token immediately
   invalidates the old one and a lookup by it returns null; revoking clears the column so no token
   resolves; rotate/revoke on another host's event is refused and leaves the real tokens
   unchanged; rotate/revoke before activation is refused; and (Slice 6) a concurrent-join storm
@@ -222,10 +267,11 @@ see prior verification records in git history if needed.
 
 - `pnpm typecheck` — passing.
 - `pnpm lint` — passing, no errors or warnings.
-- `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, and `/g/[token]` register as dynamic
-  routes.
-- `pnpm test` (Vitest) — 53/53 passing, including the Slice 5 gallery-viewer/link-rotation and
-  Slice 6 join-capacity integration tests above against the real dev database and storage bucket.
+- `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`, and
+  `/operator/events/[eventId]` register as dynamic routes.
+- `pnpm test` (Vitest) — 62/62 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
+  join-capacity, and Slice 7 operator-authorization integration tests above against the real dev
+  database.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -245,6 +291,13 @@ see prior verification records in git history if needed.
   refusal, unaffected existing sessions), and the join-screen calm state and trust-cue copy are
   ordinary server-rendered text with no device-specific behavior. Not clicked through in a
   browser for the same reason as Slice 4.
+- **Slice 7 likewise has no device-dependent acceptance criteria** — it is a desktop/browser
+  internal tool with no camera, upload, or in-app-browser surface. The authorization boundary
+  (the part that actually matters — an unauthorized account must not reach the Console) is proven
+  by the integration tests above against the real database, not by UI interaction. Not clicked
+  through in a browser for the same reason as Slice 4; if convenient, a human sanity check is to
+  sign in as a granted operator and confirm `/operator` lists events from more than one host, then
+  sign in as an ordinary host and confirm `/operator` 404s.
 
 ## Regression protection added for human-found defects
 
@@ -316,8 +369,9 @@ acceptance criteria. If convenient, click through once in a browser as a sanity 
 
 ## Next slice
 
-**Slice 7 — Operator identity model and a read-only Operator Console** ([roadmap](./roadmap.md)).
-Not started. No external dependency — unlike Slice 8/9, it does not need PayMongo.
+**Slice 8 — Provider payment, shared activation, and event signage** ([roadmap](./roadmap.md)).
+Not started. Needs a PayMongo account with KYC completed (see blockers below) before the
+webhook-driven activation path can be exercised against anything but the dev stand-in.
 
 ## Blockers and open items
 
@@ -326,7 +380,7 @@ Not started. No external dependency — unlike Slice 8/9, it does not need PayMo
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 8+ production work |
 | PayMongo account with KYC completed | External prerequisite | Slice 8 (not Slice 7 or 9 — manual payment doesn't need it) |
-| Who holds the service-role credential needed to run `pnpm ops:grant-operator` in production, and which account(s) get the first operator grant | Operational, from product.md §19 ("which individual(s) hold operator accounts at launch") | Slice 7 |
+| Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |
 | No git remote configured | Setup | Any push/CI work |
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
 | Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 12 |

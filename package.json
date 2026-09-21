@@ -11,7 +11,8 @@
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "dev:activate-event": "tsx scripts/activate-event-dev.ts"
+    "dev:activate-event": "tsx --conditions=react-server scripts/activate-event-dev.ts",
+    "ops:grant-operator": "tsx --conditions=react-server scripts/grant-operator.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

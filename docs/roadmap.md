@@ -190,6 +190,8 @@ own correctness risk (host/operator authority must not be conflated) independent
 authorized operator sees events across multiple hosts, not just one. The Console shows aggregate
 counts only — no query path in this slice can resolve an individual capture's signed media URL.
 
+**Status: complete.** See [progress.md](./progress.md) for verification results.
+
 ---
 
 ## Slice 8 — Provider payment, shared activation, and event signage
