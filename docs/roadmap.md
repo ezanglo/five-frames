@@ -3,11 +3,19 @@
 Vertical slices, each delivering observable capability. Acceptance criteria numbers refer to
 [docs/product.md §20](./product.md) as renumbered for the five-photo, no-video MVP.
 
-> **Reconciled 2026-09-22** against the product-spec update covering the pre-purchase demo,
-> launch pricing, event capacity, signage, and guest trust cues. Slices 1–5 are unchanged and
-> complete. Slices 6–10 below are renumbered to 6–12 to make room for two new slices (capacity
-> enforcement, and the public demo); none of them had started, so this is not a reopening of
+> **Reconciled 2026-09-22 (first pass)** against the product-spec update covering the pre-purchase
+> demo, launch pricing, event capacity, signage, and guest trust cues. Slices 1–5 are unchanged and
+> complete. Slices 6–10 were renumbered to 6–12 to make room for two new slices (capacity
+> enforcement, and the public demo); none of them had started, so that was not a reopening of
 > completed work.
+>
+> **Reconciled 2026-09-22 (second pass)** against the internal Operator role, supplier-assisted/
+> manual payment, and the Operator Console (see decisions D15–D17). The former Slice 7 ("Payment,
+> activation, and event signage") is split into three: **Slice 7** (operator identity model plus a
+> read-only Console shell), **Slice 8** (provider payment through the now-shared activation path,
+> plus signage), and **Slice 9** (manual payment confirmation and refund recording through the
+> Console, reusing Slice 8's activation path). Former Slices 8–12 are renumbered to 10–14. None of
+> them had started, so this is not a reopening of completed work; Slices 1–6 are unaffected.
 
 Ordering logic: the frame-limit mechanism and upload reliability carry the most technical risk,
 so they are built and proven early — before payment, using an event activated directly in the
@@ -155,22 +163,57 @@ past `guest_session_cap`; a join attempted exactly at capacity is refused and cr
 
 ---
 
-## Slice 7 — Payment, activation, and event signage
+## Slice 7 — Operator identity model and a read-only Operator Console
 
-**Objective:** Payment activates the event, issues the link and printable QR, and the host can
-obtain the event's signage set.
+**Objective:** An authorized FiveFrames operator can sign in and inspect operational state across
+all events; no one else can, and the Console has no mutations yet.
 
+- `operators` grant table (decision D15); `requireOperator()` in the DAL, checked on every Console
+  route — never inferred from a session claim.
+- `pnpm ops:grant-operator <email>` script — the sanctioned way to grant operator status,
+  runnable only with the service-role credential (architecture §5a).
+- `app/(operator)/` route group: event list/search across all hosts, and a per-event detail view
+  showing host identity, lifecycle state, payment state/source (payments don't exist yet this
+  slice, so this reads as "none" until Slice 8/9 land), activation status, guest-session
+  count/capacity, aggregate capture/moderation counts (counts only, no media — architecture §8b),
+  capture open/closed state, and gallery reveal/visibility state.
+- No mutations in this slice. Nothing here can edit an event, moderate a capture, or touch
+  payment state — those land with their own slices below.
+
+**Why this is its own slice, before payment work:** the operator identity/authorization model is
+a prerequisite for both Slice 9 (manual payment) and any future Console mutation, and it has its
+own correctness risk (host/operator authority must not be conflated) independent of payment logic
+— landing and proving it separately keeps Slice 9 focused on the payment-specific pieces.
+
+**Criteria:** 20, 22 (read-only portion), 23
+**Verification:** An account with no `operators` row cannot reach any `(operator)` route. An
+authorized operator sees events across multiple hosts, not just one. The Console shows aggregate
+counts only — no query path in this slice can resolve an individual capture's signed media URL.
+
+---
+
+## Slice 8 — Provider payment, shared activation, and event signage
+
+**Objective:** Self-service payment activates the event, issues the link and printable QR, and
+the host can obtain the event's signage set.
+
+- `payments` table, designed from the start to also carry manual payment (architecture §4) even
+  though only the provider path is wired up this slice.
 - PayMongo Checkout Session with GCash, Maya, cards.
 - Price breakdown — event price, fees, total, refundability — shown before redirect. Uses the
   launch price hypothesis (₱999; product.md §15) as the current event price; not hardcoded in a
   way that blocks moving toward the ₱1,490 post-validation target later.
-- Webhook-driven activation: `checkout_session.payment.paid`, `Paymongo-Signature` verified,
-  idempotent by provider event id.
+- Webhook-driven confirmation: `checkout_session.payment.paid`, `Paymongo-Signature` verified,
+  delivery recorded idempotently by provider event id.
+- The shared `activateEvent(eventId, paymentId)` DAL function (decision D16) — a single atomic
+  `WHERE activated_at IS NULL` guard, built once here and reused unchanged by Slice 9's manual
+  confirmation path rather than being provider-specific.
 - Separate test-mode and live-mode webhook endpoints and secrets.
-- `event_token` and `gallery_token` issued on activation; printable QR output.
+- `event_token` and `gallery_token` issued on activation, minted only inside `activateEvent`;
+  printable QR output.
 - Event signage (product.md §11.3): printable QR, table card, poster, and digital/phone-screen
-  formats, rendered from the same `event_token` issued on activation — each carrying event name,
-  a short guest instruction, and "No app. No account." (architecture §8).
+  formats, rendered from the same `event_token` — each carrying event name, a short guest
+  instruction, and "No app. No account." (architecture §8).
 
 **Criteria:** 10, 13, 14, 28
 **Dependencies:** PayMongo account with KYC completed.
@@ -180,7 +223,37 @@ formats render for an activated event and show the required copy.
 
 ---
 
-## Slice 8 — Sharing and share cards
+## Slice 9 — Manual payment confirmation and refunds through the Operator Console
+
+**Objective:** An authorized operator can confirm a supplier-assisted/manual payment or record a
+manual refund through the Console — and only through the Console — with the same activation and
+refund outcomes a provider payment produces, and a host has no way to self-activate.
+
+- Manual payment fields on `payments` (method/category, amount/currency, paid-at, confirmed-at,
+  confirming operator, optional reference/note — product.md §7.2.1), populated only by this
+  slice's Console mutation.
+- Confirm-manual-payment Console server action: `requireOperator()`, the ownership-conflict check
+  (operator cannot confirm for an event they own — architecture §5a), writes the manual payment
+  row, then calls the **same** `activateEvent` from Slice 8 — no separate manual activation code
+  path.
+- Manual-refund Console server action: same authorization and ownership-conflict checks, writes
+  `refunded_at`/`refunded_by`/`refund_note`, and returns the event to unpaid with its links
+  disabled — the same outcome a provider refund already produces (product.md §15.1).
+- No host-facing route, generic admin endpoint, or script performs either mutation in production —
+  the Console is the only sanctioned path (product.md, this reconciliation's §5).
+
+**Criteria:** 17, 18, 19, 21, 36
+**Dependencies:** Slice 7 (operator model, Console shell) and Slice 8 (shared `activateEvent`).
+**Verification:** A host has no available action to mark their own event paid, regardless of
+payment path. An operator cannot confirm or refund for an event they own — a different authorized
+operator can. Confirming activates the event and issues its link/QR exactly as a provider payment
+would. A double-submitted confirm (or a confirm racing a replayed provider webhook, if the event
+somehow has both in flight) activates exactly once. A manual refund produces an auditable record
+(who, when) and disables the event's links.
+
+---
+
+## Slice 10 — Sharing and share cards
 
 **Objective:** A guest shares a branded card of their own photo, subject to the host's setting.
 
@@ -194,7 +267,7 @@ Original media unmodified.
 
 ---
 
-## Slice 9 — Downloads
+## Slice 11 — Downloads
 
 **Objective:** The host can retrieve their media.
 
@@ -207,7 +280,7 @@ has expired but is within the grace period.
 
 ---
 
-## Slice 10 — Lifecycle automation and retention
+## Slice 12 — Lifecycle automation and retention
 
 **Objective:** The event closes, expires, and is deleted on schedule without manual work.
 
@@ -222,7 +295,7 @@ Deletion removes originals and all derivatives from Supabase Storage.
 
 ---
 
-## Slice 11 — Public pre-purchase demo
+## Slice 13 — Public pre-purchase demo
 
 **Objective:** A prospective host can try the five-frame capture mechanic and see a resulting
 sample gallery without paying, without an account, and without creating anything real.
@@ -245,7 +318,7 @@ distributed as or mistaken for a working event or gallery link.
 
 ---
 
-## Slice 12 — Full-flow device and venue-network validation
+## Slice 14 — Full-flow device and venue-network validation
 
 **Objective:** The complete guest and host flow is proven end to end on real hardware under
 realistic conditions.

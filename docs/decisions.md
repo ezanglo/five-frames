@@ -321,3 +321,87 @@ be an upload-abuse vector because there is no upload.
 persisted data — only the capture interaction and a locally-rendered sample gallery. That matches
 what §7.1 actually asks the demo to demonstrate ("the core mechanic ... and the resulting gallery
 experience"), not a corner cut to get the simpler design.
+
+---
+
+## D15 — Operators are Supabase Auth users gated by an explicit grant table, not a role platform
+
+**Status:** Accepted (2026-09-22)
+**Context:** product.md §5/§5.1 adds an internal Operator role, distinct from host privileges,
+that must be enforced server-side, must not be confused with host authority merely because both
+may use the same auth provider, and must have a production-safe way to be granted without
+normalizing direct database editing as the ordinary privilege-management workflow. The spec is
+explicit that a general org/RBAC platform is not required.
+**Decision:** Operators authenticate through the same Supabase Auth already used for hosts. What
+makes an account an operator is a row in a new `operators` table (`user_id` references
+`auth.users`), checked server-side by `requireOperator()` on every Console route and mutation —
+never a client-supplied claim. Granting operator status is a small authenticated script
+(`pnpm ops:grant-operator <email>`), checked into the repo and runnable only by whoever already
+holds the service-role credential — the same trust boundary as running a migration — not a
+database edit performed ad hoc through a dashboard, and not a self-service admin UI.
+**Reasoning:** Reusing Supabase Auth instead of a second identity system is "preserve the existing
+host-auth model where practical" taken literally — there is no product or security reason for
+operators to need a different login mechanism. Keeping operator status in its own table, rather
+than a flag on `hosts` or a Supabase Auth custom claim, keeps host and operator authority
+structurally separate even when the same person holds both (product.md is explicit this must be
+possible: a host who is separately authorized as an operator still cannot confirm their own
+event's payment — see the ownership-conflict check in architecture §5a). A checked-in grant script
+satisfies "don't normalize direct DB editing as the workflow" without building the admin UI
+product.md explicitly excludes, and matches the launch expectation of one or a very small number
+of operators (product.md §19).
+**Alternatives considered:** A `role` column on `hosts` (rejected — conflates two authority models
+product.md explicitly separates, and would make "a host who is also an operator" awkward to
+express); a fully separate auth provider for operators (rejected — no requirement calls for it,
+and it would violate "preserve the existing host-auth model where practical" for no benefit); an
+in-app operator-management UI (rejected as premature — the RBAC-platform non-goal, and headcount
+of ~1 doesn't justify it; revisit only if headcount grows materially post-launch).
+
+---
+
+## D16 — Provider and manual payment converge on one idempotent activation function
+
+**Status:** Accepted (2026-09-22)
+**Context:** product.md §7.2 requires provider-confirmed and operator-confirmed manual payments to
+both preserve the payment-before-activation invariant (§12.7) and to never double-activate,
+regenerate inconsistent links, duplicate payment state, or corrupt lifecycle state under repeated
+notifications or repeated confirmation attempts — for either source.
+**Decision:** A single `activateEvent(eventId, paymentId)` DAL function, called only after each
+caller has independently verified its own trust boundary (webhook signature for provider payments;
+`requireOperator()` plus the ownership-conflict check for manual payments — architecture §5a/§8a).
+It performs one atomic guarded `UPDATE events ... WHERE activated_at IS NULL RETURNING *`, the
+same pattern already accepted for the frame slot mechanism (D5/D6) and event-join capacity (D13).
+**Reasoning:** This is the identical class of concurrency problem D13's log already describes,
+applied to activation instead of capacity or slots: two independent triggers (a replayed webhook,
+a double-clicked Console confirm button, or one of each arriving close together) racing to
+activate the same event. A single atomic statement as both the lock and the guard means only one
+of them can ever win, regardless of which source triggered it, and the loser's caller sees an
+idempotent no-op rather than a corrupted or duplicated state. Two separate activation
+implementations — one for PayMongo, one for manual — would each need to reinvent this guard
+correctly, and any future third payment source would need a third reimplementation; one shared
+function makes drift between paths structurally impossible rather than a matter of code review
+discipline.
+**Consequence:** `event_token`/`gallery_token` are minted in exactly one place in the codebase,
+inside this guarded statement — never anywhere else, for either payment source.
+
+---
+
+## D17 — Manual payment and refund audit trail lives on the payment row itself, not a separate audit log
+
+**Status:** Accepted (2026-09-22)
+**Context:** product.md §7.2.1 requires manual payment confirmation and manual refunds to be
+auditable (event, amount/currency, method/category, paid-at, confirmed-at, confirming operator,
+optional reference/note, refund facts). product.md §5.1 separately states that **view-level**
+audit logging (who looked at what) is not required for MVP.
+**Decision:** The `payments` table (architecture §4/§8a) carries `source`, the manual fields, and
+`confirmed_at`/`confirmed_by`/`refunded_at`/`refunded_by`/notes directly on the row. No separate
+`audit_log` table is introduced.
+**Reasoning:** The product requirement is specifically about **mutation** auditability (who
+confirmed or refunded a payment, and when) — not a general activity log of every read. The
+payment row already is a durable, timestamped, attributed record of exactly those mutations; a
+parallel audit-log table would duplicate the same facts in a second place for no requirement it
+additionally satisfies. This keeps the manual payment model close to "the minimum persistent model
+needed," per the scope of this reconciliation, and avoids building accounting-software-shaped
+infrastructure the spec explicitly does not ask for.
+**Reopen note:** if a future, separately-decided change requires view-level audit logging (who
+looked at which event's payment detail), that is new scope requiring its own decision — this one
+covers mutation auditability only.

@@ -44,6 +44,9 @@ change, not a refactor.
 10. Original media is never modified. Derivatives are additional files.
 11. The host can download their media at any point before permanent deletion.
 12. The frame count (5 photos) is a constant. Never configurable, purchasable, or extendable.
+13. Privileged operator mutations (confirming a manual payment, recording a manual refund) are
+    server-authoritative and auditable, and happen only through the Operator Console — never a
+    host-declared, ad hoc, or undocumented action.
 
 ## Engineering constraints
 
@@ -81,6 +84,20 @@ change, not a refactor.
 - **Photo uploads go directly to storage** via signed upload URLs, never proxied through the app
   server, and must be resumable or safely restartable.
 - **Signed URLs are the result of an access check, never a substitute for one.**
+- **Operator status is a DAL check (`requireOperator()`), never a client-supplied claim.** Grant it
+  only via the checked-in `pnpm ops:grant-operator` script — never a direct database edit as the
+  ordinary workflow, and never an in-app self-service flow (decision D15).
+- **An operator cannot confirm a manual payment or refund for an event they own.** Enforce this as
+  a DAL equality check (`event.host_id !== operatorUserId`) on those two mutations, not a UI-only
+  restriction (architecture §5a).
+- **Provider and manual payment activate through one shared `activateEvent` function**, guarded by
+  a single atomic `WHERE activated_at IS NULL` update (decision D16) — the same pattern as the
+  frame slot mechanism and event-join capacity. Never write a second, payment-source-specific
+  activation code path.
+- **Manual-payment mutations (confirm, refund) happen only through the Operator Console.** Do not
+  add a host-facing route, generic admin endpoint, or script that performs them in production.
+- **The Operator Console shows aggregate counts, never individual guest media.** Do not add a DAL
+  function an operator route could use to obtain a capture's signed image URL.
 - Schema changes are forward migrations in `supabase/migrations/`. No dashboard edits.
 
 ## Recurring implementation gotchas in this stack
@@ -119,8 +136,10 @@ pnpm lint
 ```
 
 Frame-mechanism changes additionally require integration tests against a real Postgres covering
-concurrency, duplicate reserves sharing one key, retries, and reservation expiry. Real-device and
-in-app-browser testing is human-run (roadmap slices 2 and 10) — do not attempt browser automation
+concurrency, duplicate reserves sharing one key, retries, and reservation expiry. The same applies
+to changes touching event-join capacity (D13) or event activation (D16) — both use the identical
+atomic-guard pattern and need a concurrency test proving the guard actually holds. Real-device and
+in-app-browser testing is human-run (roadmap slices 2 and 14) — do not attempt browser automation
 for it.
 
 ## Authority boundaries

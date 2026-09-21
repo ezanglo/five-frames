@@ -9,6 +9,34 @@ appending narrative.
 
 ## Current phase
 
+**Slices 1–6: complete.** No implementation has started on Slice 7 (operator model) or later —
+see the reconciliation note immediately below for what changed in the plan since Slice 6 landed.
+
+**Reconciliation pass (2026-09-22, second pass — operator role, manual payment, Operator
+Console).** product.md was updated with the internal Operator role, supplier-assisted/manual
+payment, and the MVP Operator Console (§5/§5.1). Architecture, decisions, and roadmap were
+reconciled against those changes without touching Slices 1–6 or any accepted decision before D15:
+- **decisions.md** gained D15 (operators are Supabase Auth users gated by an explicit grant
+  table, not a role platform), D16 (provider and manual payment converge on one idempotent
+  `activateEvent` function, same atomic-guard pattern as D5/D6/D13), and D17 (the manual
+  payment/refund audit trail lives on the `payments` row itself, no separate audit-log table).
+- **architecture.md** gained §5a (Operators — identity, `requireOperator()`, the
+  `ops:grant-operator` script, the ownership-conflict check), §8a (manual payment and the shared
+  activation path), and §8b (Operator Console shape and privilege boundaries), plus an
+  `operators` table and a from-scratch `payments` table design (§4) that carries both payment
+  sources from the start — the `payments` table had not been built yet, so this is a first
+  design, not a retrofit of shipped schema.
+- **roadmap.md** split the former Slice 7 ("Payment, activation, and event signage") into three:
+  **Slice 7** (operator identity model + read-only Console shell, no mutations), **Slice 8**
+  (provider payment through the new shared `activateEvent`, plus signage — functionally the old
+  Slice 7 minus manual payment), and **Slice 9** (manual payment confirmation and refunds through
+  the Console, reusing Slice 8's activation path). Former Slices 8–12 renumbered to 10–14. None
+  of them had started, so this is not a reopening of completed work.
+- No change to product.md's §12 invariants 1–12, or to any of the frame-limit (§6), event-capacity
+  (§6a), or demo-isolation (§6b) mechanisms — those are untouched by this pass.
+
+**Former current-phase entry (Slice 6), preserved below:**
+
 **Slice 6 — Event join capacity enforcement and guest trust cues: complete.**
 
 `guest_session_cap` (default 250) and `guest_session_count` columns were added to `events`
@@ -51,12 +79,13 @@ see prior verification records in git history if needed.
 
 ## What exists
 
-- **Decisions D1–D14** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
-  D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 (new in
-  this reconciliation pass, not yet implemented) record the event-capacity counter mechanism and
-  the client-only public demo.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–6 done, Slice 7 (payment, activation, and
-  event signage) next.
+- **Decisions D1–D17** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
+  D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 record
+  the event-capacity counter mechanism and the client-only public demo (implemented, Slice 6).
+  D15–D17 (new in this reconciliation pass, not yet implemented) record the operator grant model,
+  the shared provider/manual activation function, and the payment-row-as-audit-trail decision.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–6 done, Slice 7 (operator identity model and
+  a read-only Operator Console) next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -153,7 +182,7 @@ see prior verification records in git history if needed.
   (`lib/dal/captures.ts`) run, minting signed display-resolution URLs for committed,
   non-hidden, non-deleted captures only (the query is the access check, the signed URL is its
   result — same rule as every other media surface). The viewer shows images only, no download
-  affordance — bulk/individual download is host-only and is Slice 8. Host dashboard link
+  affordance — bulk/individual download is host-only and is Slice 11. Host dashboard link
   rotation/revocation (`rotateEventToken`/`revokeEventToken`/`rotateGalleryToken`/
   `revokeGalleryToken` in `lib/dal/events.ts`, `LinkRow` client component) is gated on
   `activated_at` — an unactivated (unpaid) event has nothing to rotate into existence (invariant
@@ -287,20 +316,21 @@ acceptance criteria. If convenient, click through once in a browser as a sanity 
 
 ## Next slice
 
-**Slice 7 — Payment, activation, and event signage** ([roadmap](./roadmap.md)). Not started.
-Depends on a PayMongo account with KYC completed (see blockers below).
+**Slice 7 — Operator identity model and a read-only Operator Console** ([roadmap](./roadmap.md)).
+Not started. No external dependency — unlike Slice 8/9, it does not need PayMongo.
 
 ## Blockers and open items
 
 | Item | Type | Affects |
 |---|---|---|
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
-| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 7+ production work |
-| PayMongo account with KYC completed | External prerequisite | Slice 7 |
+| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 8+ production work |
+| PayMongo account with KYC completed | External prerequisite | Slice 8 (not Slice 7 or 9 — manual payment doesn't need it) |
+| Who holds the service-role credential needed to run `pnpm ops:grant-operator` in production, and which account(s) get the first operator grant | Operational, from product.md §19 ("which individual(s) hold operator accounts at launch") | Slice 7 |
 | No git remote configured | Setup | Any push/CI work |
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
-| Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 10 |
+| Safety-net close duration (48–72h) and expiry grace period (~30d) | Launch policy, from spec §19 | Slice 12 |
 | Refund/retention/deletion legal copy | Business decision, from spec §19 | Pre-launch |
 | 250-session / 1,250-capture launch capacity (`guest_session_cap`, now enforced) is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; decision D13) | Launch policy, to revisit with real data | Beyond launch |
-| Exact demo content/mechanism (bundled sample images vs. visitor's own device photo) | Open, left to design/implementation (product.md §19) | Slice 11 |
-| Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch, not a Slice 7 blocker |
+| Exact demo content/mechanism (bundled sample images vs. visitor's own device photo) | Open, left to design/implementation (product.md §19) | Slice 13 |
+| Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch, not a Slice 8 blocker |

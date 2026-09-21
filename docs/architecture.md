@@ -4,8 +4,9 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-09-22 (reconciliation pass: event-capacity enforcement, public demo isolation —
-see D13/D14. No change to the rest of the baseline.)
+Last updated: 2026-09-22 (reconciliation pass: the internal Operator role, the Operator Console,
+supplier-assisted/manual payment, and the shared provider/manual activation path — see D15–D17.
+No change to the rest of the baseline; §6/D5/D6/D13's frame and capacity mechanisms are untouched.)
 
 ---
 
@@ -74,6 +75,7 @@ Remaining rows not yet built are provisioned/installed in the slice that first n
 ```
 app/
   (host)/                 Host dashboard — Supabase Auth session required
+  (operator)/             Operator Console — Supabase Auth session + operator grant required (§5a)
   (guest)/e/[token]/      Guest capture — event token in path, guest cookie for session
   (gallery)/g/[token]/    Gallery viewer — gallery token in path
   (demo)/demo/            Public pre-purchase demo — client-only, no DAL calls (§6b, D14)
@@ -83,7 +85,7 @@ app/
 lib/
   db/                     Schema types, query helpers
   dal/                    Data Access Layer — the ONLY place that touches the database
-  auth/                   Host session, guest session, token verification
+  auth/                   Host session, guest session, operator authorization, token verification
   media/                  Storage paths, signed URLs, derivative generation, share cards
 proxy.ts                  (if needed) — Next 16 renamed middleware to Proxy
 supabase/migrations/      SQL migrations, source of truth for schema
@@ -117,6 +119,9 @@ if they justify it.
 Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 
 - **`hosts`** — mirrors Supabase Auth users.
+- **`operators`** — internal grant table, not a role platform (§5a, D15). `user_id` references
+  the same `auth.users` a host session is issued against; a row's mere existence is the
+  authorization.
 - **`events`** — owner, name, date, timezone, host message, lifecycle timestamps, config
   (reveal mode, visibility, sharing enabled, hashtag), `event_token`, `gallery_token`,
   `activated_at`, `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`,
@@ -126,8 +131,22 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
   `message`, storage keys, moderation flags (`hidden_at`, `deleted_at`, `favorited_at`),
   `committed_at`. There is no `kind` column: every capture is a photo.
-- **`payments`** — PayMongo checkout session id, amounts, fee breakdown, status. Webhook
-  deliveries recorded idempotently by provider event id.
+- **`payments`** — one row per event, source-agnostic (§8, D16). Not yet built (Slice 7/8 land
+  it), so it is designed to carry provider and manual payment together from the start rather than
+  retrofitted:
+  - `source` — `'provider' | 'manual'`.
+  - Provider fields (nullable, `source = 'provider'` only): PayMongo checkout session id,
+    amounts, fee breakdown, provider status, webhook delivery id (idempotency).
+  - Manual fields (nullable, `source = 'manual'` only): `manual_method`
+    (`'cash' | 'bank_transfer' | 'other'`), `amount`, `currency`, `paid_at`, `confirmed_at`,
+    `confirmed_by` (references `operators.user_id`), `reference_note` (product.md §7.2.1).
+  - Refund fields (either source): `refunded_at`, `refunded_by` (references `operators.user_id`
+    for a manual refund; null for a provider refund executed through PayMongo's own dashboard),
+    `refund_note`.
+  - The row itself **is** the audit record product.md §7.2.1 and invariant 13 require — no
+    separate audit-log table. product.md §5.1 is explicit that view-level audit logging is not
+    required for MVP; only the mutations (confirm, refund) need a durable trace, and
+    `confirmed_by`/`refunded_by` plus their timestamps already provide it.
 
 ### Lifecycle state is derived, not stored as a mutable enum
 
@@ -167,6 +186,44 @@ honest answer matters, and it is narrower than "RLS is our backstop".
 Rotation replaces the token, which immediately invalidates the old URL. Possession of the gallery
 token is the credential for "anyone with the link" visibility; it grants nothing when visibility
 is "only me" or the gallery is unrevealed.
+
+### 5a. Operators
+
+product.md §5/§5.1 adds a third identity: an internal FiveFrames operator, authorized to inspect
+operational state across all events and confirm manual payments/refunds through the Operator
+Console. See decision D15 for the full reasoning; this section states the resulting shape.
+
+**Operators authenticate through the same Supabase Auth used for hosts** — there is no separate
+credential system. What makes an account an operator is a row in a small `operators` table
+(`user_id` referencing `auth.users`), checked server-side; nothing about signing in as a host
+implies operator status, and nothing about being an operator implies a `hosts` row exists for
+that account. A single person can hold both roles (e.g. the founder), but the two are checked
+independently — `lib/dal/operators.ts` exposes a `requireOperator()` used by every Console route
+and mutation, structurally parallel to how `lib/dal/events.ts` already scopes every host query by
+ownership. There is no session claim, JWT custom claim, or client-supplied flag that asserts
+operator status — it is always a fresh DAL read of the `operators` table for the authenticated
+user id, the same discipline §5/§10 already apply to host ownership.
+
+**Becoming an operator is an explicit, out-of-band grant, not a workflow inside the product.**
+FiveFrames expects one or a very small number of operators at launch (product.md §19). Rather than
+building operator management UI — which would be exactly the "general RBAC/organization-management
+product" product.md explicitly excludes — granting operator status is a small authenticated script
+(`pnpm ops:grant-operator <email>`), parallel to the existing `scripts/activate-event-dev.ts`
+pattern: checked into the repo, reviewable, and runnable only by whoever already holds the
+service-role credential (the same trust boundary as running a migration). This satisfies "don't
+normalize direct database editing as the ordinary privilege-management workflow" without building
+an admin UI that MVP does not need. If operator headcount grows materially post-launch, a real
+management UI is a future, separately-decided addition — not something this architecture reserves
+space for now.
+
+**Ownership-conflict check.** product.md is explicit that an operator cannot confirm a manual
+payment or refund for an event they themselves own. Because operators and hosts share the same
+underlying `auth.users` identity, this is a single equality check in the DAL mutation:
+`event.host_id !== operatorUserId`, refused otherwise. No separate "conflict of interest" table or
+flag is needed — the check is structural, not a policy that must be remembered.
+
+**RLS treatment matches hosts and guests:** deny-all, bypassed entirely by the service-role key the
+DAL uses (§10). The `operators` table carries no data an anon key should ever reach either way.
 
 ---
 
@@ -425,8 +482,78 @@ sets `activated_at`, and issues `event_token` and `gallery_token`. A host who cl
 mid-redirect still gets an activated event; a forged redirect activates nothing (invariant 7).
 
 PayMongo webhook endpoints are scoped to test or live mode, so preview and production register
-separate endpoints with separate secrets. Refunds are handled manually through the PayMongo
-dashboard for MVP; the application exposes the request and reflects the resulting state (spec §15.1).
+separate endpoints with separate secrets. Provider refunds are handled manually through the
+PayMongo dashboard for MVP; the application exposes the request and reflects the resulting state
+(spec §15.1).
+
+### 8a. Manual payment and the shared activation path
+
+product.md §7.2 adds a second path to the same activated state: an authorized operator confirming
+a supplier-assisted/manual payment through the Operator Console, instead of PayMongo's webhook.
+Both paths must converge on identical activation behavior (decision D16) — no separate "manual
+activation" code path that could drift from the provider one.
+
+**One idempotent `activateEvent(eventId, paymentId)` DAL function, called from two trust
+boundaries:**
+
+- The PayMongo webhook handler calls it after verifying the `Paymongo-Signature` header and
+  recording the delivery idempotently by provider event id (unchanged from §8 above).
+- An Operator Console server action calls it after `requireOperator()` succeeds and the
+  ownership-conflict check (§5a) passes, immediately after writing the manual payment's
+  `confirmed_at`/`confirmed_by` onto the `payments` row.
+
+Both call sites hand `activateEvent` a `payments.id` — it never activates on its own inference of
+"payment looks confirmed," only on an explicit, already-authorized caller telling it a specific
+payment row is confirmed.
+
+**The atomic guard is the same pattern as D13, applied to activation instead of capacity:**
+
+```sql
+UPDATE events
+  SET activated_at = now(), event_token = $token, gallery_token = $gallery_token
+  WHERE id = $event_id AND activated_at IS NULL
+  RETURNING *;
+-- zero rows returned ⇒ already activated; treat as an idempotent success, not an error.
+```
+
+A replayed PayMongo webhook and a double-clicked "confirm" button in the Console both hit this
+same `WHERE activated_at IS NULL` guard, so neither can double-activate, regenerate tokens, or
+corrupt lifecycle state — the exact property invariant 7 and product.md's shared-activation
+requirement ask for. Because `event_token`/`gallery_token` are only ever minted inside this one
+guarded statement, there is no path — provider or manual — that issues a second, inconsistent
+pair of links for the same event.
+
+**Manual refunds** follow the mirror shape: an operator-authorized server action (again gated by
+`requireOperator()` and the ownership-conflict check) writes `refunded_at`/`refunded_by` on the
+`payments` row and clears `activated_at`-derived link availability the same way a provider refund
+already does (spec §15.1) — both refund paths converge on the same "return the event to unpaid,
+disable its links" behavior, not two separate implementations.
+
+### 8b. Operator Console
+
+product.md §5.1 requires a small internal tool for read-mostly operational visibility plus the two
+privileged mutations above. It lives at `app/(operator)/`, gated by `requireOperator()` on every
+route and every server action — never by page-level UI hiding alone.
+
+- **Event list/search and detail** read the same `events`/`payments`/`guest_sessions`/`captures`
+  rows the host dashboard already reads, but **without a host-ownership predicate** — operator
+  visibility is explicitly cross-host (product.md §5.1). This is a separate DAL module
+  (`lib/dal/operator-events.ts`) rather than reusing the host-scoped queries, so the "no ownership
+  predicate" case is never accidentally reachable from a host-facing code path, and vice versa.
+- **Aggregate counts only, never guest media.** The Console queries `count(*)`-shaped aggregates
+  over `captures` (per product.md §5.1.2) and never selects or signs a URL for an individual
+  capture's storage object. There is no DAL function an operator route could call to obtain a
+  capture's signed image URL — the capability simply does not exist on that code path, rather than
+  being hidden by the UI.
+  - This is a good-faith design boundary, not a claim of technical exfiltration-proofing: the
+    Console runs on the same service-role-keyed DAL as everything else, so the boundary is "this
+    module never mints media URLs," not a separate credential that literally cannot. That is the
+    same honest framing §10 already applies to RLS.
+- **Confirm manual payment / record manual refund** are the only mutations the Console exposes
+  (§8a). Every other field the Console displays is read-only from this surface — editing an
+  event's configuration, moderating captures, or changing ownership all remain host-only or
+  unavailable entirely (product.md §5.1.2), so the Console cannot become the "god mode" admin tool
+  product.md explicitly excludes.
 
 **Event signage (product.md §11.3).** Once `event_token` exists, the four signage formats
 (printable QR, table card, poster, digital/phone-screen) are rendered from the same token — no
@@ -471,6 +598,8 @@ by the DAL) keeps the current boundary intact and should be weighed first.
 | Control | Where it lives |
 |---|---|
 | Host owns event | DAL ownership predicate on every event query |
+| Operator authorization | `requireOperator()` reads the `operators` table for the authenticated Supabase Auth user on every Console route/action (§5a); never a client-asserted role |
+| Operator/host conflict of interest | DAL equality check (`event.host_id !== operatorUserId`) on manual-payment confirm and manual-refund mutations (§5a) |
 | Guest scoped to one event | Signed cookie bound to `guest_session_id` + `event_id` |
 | Capture gate | Server-side re-check of paid/active/open on **reserve and commit**, not just page render |
 | Media privacy | Short-lived signed URLs minted after an access check; private buckets |

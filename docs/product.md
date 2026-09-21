@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-22 (added supplier-assisted/manual payment path alongside self-service online payment, ahead of Slice 7)
+Last updated: 2026-09-22 (added the internal Operator Console, §5.1, ahead of the pending payment/operator architecture reconciliation)
 Initial market: Philippines
 
 ---
@@ -60,11 +60,59 @@ These principles constrain feature decisions and UI copy. They are product requi
 | **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures, share own captures when the host allows, view the revealed gallery if the host shared the gallery link and visibility permits |
 | **Gallery viewer** | Possession of the gallery link (no session required) | View the revealed gallery when visibility is "anyone with the link" |
 | **Demo visitor** | No identity, no session, nothing persisted | Try the five-frame capture interaction and a resulting sample gallery using sample/demo or non-persistent local content only (see §7.1). Cannot create, pay for, or distribute a real event. |
-| **Operator** | Authorized FiveFrames staff member; internal, not tied to a single event or host account | Confirm a supplier-assisted/manual payment (§7.2, §7.2.1) only after actually receiving and verifying funds; execute and record manual refunds for manually collected payments (§15.1). Cannot be the host of the event being confirmed. |
+| **Operator** | An internal FiveFrames administrator or staff account, explicitly authorized by FiveFrames; not tied to a single event or host account | Via the Operator Console (§5.1): list/search events and inspect operational state across all events for support purposes; confirm a supplier-assisted/manual payment (§7.2, §7.2.1) only after actually receiving and verifying funds; execute and record manual refunds for manually collected payments (§15.1). Cannot confirm payment or refund for an event they themselves own. |
 
-The operator role is internal to FiveFrames, not a customer-facing account type, and is not part of the host/guest permission model — it exists solely to keep payment confirmation for manual sales outside the host's own control.
+The operator role is internal to FiveFrames, not a customer-facing account type, and is not part of the host/guest permission model — it exists solely to keep payment confirmation for manual sales outside the host's own control. Operator status is granted explicitly by FiveFrames; it is never acquired automatically. Being a paying customer or an event host never grants manual-payment confirmation authority on its own — a host who is separately and explicitly authorized as an operator still cannot confirm or refund payment for an event they themselves own. At launch, FiveFrames expects to have only one or a very small number of operator accounts (see Open Questions).
 
 **Co-hosts are out of scope for MVP.** One owning host account per event. Shared logins are not an intended workflow; the "my partner and our coordinator both need access" case is a known post-MVP gap (see Future Ideas).
+
+### 5.1 Operator Console
+
+FiveFrames requires a small internal tool — the **Operator Console** — so authorized operators (§5) can understand and support real events without directly querying production databases or relying on several provider dashboards (payment provider, Supabase, hosting platform) for ordinary customer-support questions.
+
+**What it is:** an internal operations tool for FiveFrames staff.
+
+**What it is not:** a customer-facing host dashboard, and not a general-purpose admin/BI platform. It is not CRM software, accounting software, a POS/cash-drawer system, a marketing dashboard, a general BI/analytics suite, infrastructure monitoring, a replacement for the payment provider's, Supabase's, or Vercel's own operational dashboards, or a general RBAC/organization-management product. It must not accumulate speculative charts or metrics merely because it is shaped like a dashboard.
+
+**The Console is the required interface for privileged operator actions.** Confirming a supplier-assisted/manual payment (§7.2, §7.2.1) and recording a manual refund (§15.1) happen through the Operator Console — there is no other sanctioned, undocumented way to perform them. This keeps those mutations server-authoritative and auditable (Invariant §12.13), consistent with how activation and payment confirmation already work.
+
+**Operator visibility spans all events, all hosts.** Ordinary customer-support questions ("what's the status of this guest's event", "did this payment go through", "is capture still open") are not limited to events on the manual-payment path, so operator list/search and detail visibility is not restricted to a payment-related subset.
+
+#### 5.1.1 MVP capabilities
+
+Prefer read-only visibility except for the explicitly authorized mutations below. An authorized operator can:
+
+- List and search events, across all hosts.
+- Identify the host and the basic event information needed for support (event name, date, owning host).
+- See the event's lifecycle state (§7).
+- See payment state and payment source — self-service (provider) vs. supplier-assisted/manual (§7.2) — and the payment/reference information already captured in the auditable manual payment record (§7.2.1).
+- See whether event activation succeeded.
+- See joined guest-session count and the event's configured capacity (§9.5).
+- See aggregate capture and moderation counts (counts only — see privilege boundaries below on guest media).
+- See capture open/closed state (§7.3).
+- See gallery reveal/visibility state (§7.4, §8.2).
+- See relevant retention/expiry state (§15.2), as those lifecycle capabilities are implemented.
+- Confirm a supplier-assisted/manual payment (mutation; unchanged rule that an operator cannot confirm for an event they own).
+- Record a manually executed refund (mutation; same ownership restriction).
+
+This list is expected to grow incrementally as later MVP capabilities (e.g. retention/expiry) are implemented, rather than the Console being designed as a complete future back office up front (see Roadmap, out of scope for this document).
+
+#### 5.1.2 Privilege boundaries
+
+The Operator Console must not become a general "god mode" over customer events. Being an authorized operator, and having access to the Console, does not by itself grant the ability to:
+
+- impersonate a host;
+- change event ownership;
+- grant a guest additional frames, or otherwise change the five-frame invariant (§12.12);
+- bypass payment confirmation — the existing rule that a host can never self-declare payment (§7.2) is unchanged;
+- arbitrarily force an event active outside the confirmed-payment paths already defined in §7.2;
+- edit a customer's event configuration merely because the actor is an operator;
+- delete customer media as an ordinary support action — this differs from the host's own moderation capability (§11.2), which remains host-only;
+- browse private guest photography by default. The Console shows aggregate capture/moderation counts and operational metadata, not guest media.
+
+**Operator access to actual guest media is explicitly out of scope for this addition.** If staff access to private media is ever needed for customer support, that is a separate, consequential privacy/product decision requiring its own explicit authorization and audit requirements — it is not something this change, or a future incremental Console update, introduces on its own.
+
+The existing rule that an operator cannot confirm a manual payment or execute a refund for an event they themselves own is unchanged (§5, §15.1).
 
 ---
 
@@ -315,6 +363,7 @@ These must hold regardless of architecture. How they are enforced is an engineer
 10. Original media is never modified. Derived assets are additional files.
 11. The host can download their media at any point before permanent deletion.
 12. The frame count (5 photos) is a product constant and is not configurable per event.
+13. Privileged operator mutations (confirming a supplier-assisted/manual payment, recording a manual refund) are server-authoritative and auditable, and occur only through the Operator Console (§5.1) — never as a host-declared, ad hoc, or undocumented action.
 
 ---
 
@@ -404,6 +453,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Direct-to-storage upload for large media.
 - Private, access-checked media delivery.
 - Support for GCash, Maya and cards in the Philippines (self-service path), plus an auditable manual payment record and operator-only confirmation for the supplier-assisted path (§7.2.1).
+- An internal Operator Console (§5.1) as the sole, server-authoritative and auditable path for operator mutations (manual payment confirmation, manual refund recording), with read-only operational visibility into events across all hosts for support purposes.
 
 **Technical recommendations (preferred, replaceable)**
 - Next.js, React, TypeScript, Tailwind, shadcn/ui, Vercel.
@@ -448,6 +498,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Event capacity fair-use boundary (§9.5): launch hypothesis of up to 250 guest sessions per event, with a calm at-capacity state for new joins once reached.
 - Event signage (§11.3): printable QR, table card, poster, and digital/phone-screen formats, each carrying event name, guest instruction, and "No app. No account." reassurance.
 - Guest trust cues on the join screen (§4 principle 9): no app required, no account required, captures follow this event's access rules.
+- Operator Console (§5.1): event list/search and per-event operational detail view across all events, plus the two existing operator mutations — confirm a supplier-assisted/manual payment, record a manual refund — each performed only through the Console rather than an ad hoc or undocumented process.
 
 ### MVP optional (ship if cheap, not launch-blocking)
 - Realtime dashboard updates (fallback to refresh/polling is acceptable).
@@ -465,7 +516,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Live photo wall / slideshow at the venue: not in MVP unless later customer evidence justifies it.
 
 ### Explicitly excluded
-Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · multiple pricing tiers.
+Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · multiple pricing tiers · operator impersonation of hosts · operator-initiated event ownership changes · operators granting extra guest frames · operators bypassing payment confirmation or forcing an event active · operators editing customer event configuration merely by virtue of being operators · operator deletion of customer media as a routine support action · operator (staff) access to actual guest media by default · a general CRM, accounting, POS, marketing-analytics, or infrastructure-monitoring product · a general RBAC/organization-management product.
 
 **On competitor feature creep:** none of the items above — nor guest video capture, co-host accounts, or a live photo wall/slideshow (all three already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, co-host accounts, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
 
@@ -492,7 +543,7 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - Whether the branded share card design is fixed by FiveFrames or partially host-customizable beyond name/date/hashtag/message.
 - Exact timing and criteria for moving launch price from ₱999 toward the ₱1,490 target (needs a business decision once early paid-event data exists).
 - Exact demo content/mechanism (sample media vs. fully local/non-persistent demonstration) — left to architecture and design.
-- Exactly who holds the "authorized FiveFrames operator" capability at launch (expected: the founder only) and whether/when that needs to expand to additional staff.
+- Which specific individual(s) hold operator accounts at launch (expected: the founder only, or a very small number of staff) and when/how that expands to additional staff — the qualification rule itself (§5) is decided, only headcount and timing remain open.
 - Which additional Philippine payment rails (e.g., QR Ph, specific online banking integrations) the self-service path exposes beyond GCash, Maya and cards, and when — left to the provider/technical layer (§15).
 
 **Accepted risks (decided, not open)**
@@ -527,27 +578,34 @@ Observable behavior that defines launch readiness.
 16. A prospective host can experience the pre-purchase demo (§7.1) without paying and without creating any real event, link, or QR; nothing produced by the demo functions as a real capture or gallery link.
 17. A host offered supplier-assisted/manual payment has no action available to mark their own event as paid; the event stays unactivated, with no link or QR, until an authorized FiveFrames operator confirms it.
 18. Confirming a manual payment records an auditable payment record identifying the event, amount/currency, method/category, payment date, confirmation date, and confirming operator (§7.2.1); confirmation activates the event and issues its link and QR exactly as a successful self-service payment would.
+19. Being a host or a paying customer never by itself grants the ability to confirm or refund a manual payment; that ability exists only for accounts FiveFrames has explicitly authorized as operators (§5). An operator who also owns an event cannot confirm payment or a refund for that event — a different authorized operator must do so.
+
+**Operator Console**
+20. An authorized operator can list and search events across all hosts, and open an event's detail to see its lifecycle state, payment state and source, activation status, joined guest-session count and configured capacity, aggregate capture/moderation counts, capture open/closed state, and gallery reveal/visibility state — without directly querying the database or an external provider dashboard.
+21. Confirming a supplier-assisted/manual payment and recording a manual refund happen only through the Operator Console; there is no other sanctioned path for these actions.
+22. The Operator Console grants no ability to impersonate a host, change event ownership, grant a guest extra frames, bypass payment confirmation, force an event active outside the defined payment paths, edit a customer's event configuration, or delete customer media as a routine action.
+23. The Operator Console does not expose guest media/photography by default; only aggregate counts and operational metadata are visible.
 
 **Gallery, privacy and sharing**
-19. Before reveal, the gallery is not viewable by anyone holding the gallery link.
-20. With visibility "only me", the gallery link does not grant access to anyone but the host.
-21. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
-22. Media cannot be retrieved from a guessable URL without an access check.
-23. A host cannot view, moderate, or download another host's event.
-24. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
-25. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
-26. Share-card generation leaves the original media unmodified.
+24. Before reveal, the gallery is not viewable by anyone holding the gallery link.
+25. With visibility "only me", the gallery link does not grant access to anyone but the host.
+26. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
+27. Media cannot be retrieved from a guessable URL without an access check.
+28. A host cannot view, moderate, or download another host's event.
+29. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
+30. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
+31. Share-card generation leaves the original media unmodified.
 
 **Host operations**
-27. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
-28. Host can download individual captures and all originals in bulk.
-29. Dashboard counts remain correct when realtime updates are unavailable.
-30. For an activated event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance.
-31. A manually collected payment that is refunded shows an auditable record that the refund was manually executed, including who executed it and when, and the event returns to an unpaid state with its links disabled — identical in outcome to a provider refund.
+32. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
+33. Host can download individual captures and all originals in bulk.
+34. Dashboard counts remain correct when realtime updates are unavailable.
+35. For an activated event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance.
+36. A manually collected payment that is refunded shows an auditable record that the refund was manually executed, including who executed it and when, and the event returns to an unpaid state with its links disabled — identical in outcome to a provider refund.
 
 **Platform**
-32. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
-33. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
+37. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
+38. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
 
 ---
 
