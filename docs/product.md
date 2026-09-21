@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-22 (competitive/MVP review: pre-purchase demo, launch pricing strategy, event capacity boundary, signage deliverables, guest trust cues, explicit non-goals)
+Last updated: 2026-09-22 (added supplier-assisted/manual payment path alongside self-service online payment, ahead of Slice 7)
 Initial market: Philippines
 
 ---
@@ -60,6 +60,9 @@ These principles constrain feature decisions and UI copy. They are product requi
 | **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures, share own captures when the host allows, view the revealed gallery if the host shared the gallery link and visibility permits |
 | **Gallery viewer** | Possession of the gallery link (no session required) | View the revealed gallery when visibility is "anyone with the link" |
 | **Demo visitor** | No identity, no session, nothing persisted | Try the five-frame capture interaction and a resulting sample gallery using sample/demo or non-persistent local content only (see §7.1). Cannot create, pay for, or distribute a real event. |
+| **Operator** | Authorized FiveFrames staff member; internal, not tied to a single event or host account | Confirm a supplier-assisted/manual payment (§7.2, §7.2.1) only after actually receiving and verifying funds; execute and record manual refunds for manually collected payments (§15.1). Cannot be the host of the event being confirmed. |
+
+The operator role is internal to FiveFrames, not a customer-facing account type, and is not part of the host/guest permission model — it exists solely to keep payment confirmation for manual sales outside the host's own control.
 
 **Co-hosts are out of scope for MVP.** One owning host account per event. Shared logins are not an intended workflow; the "my partner and our coordinator both need access" case is a known post-MVP gap (see Future Ideas).
 
@@ -110,9 +113,29 @@ States are meaningful product concepts and drive what each role can do.
 
 - A host may **create and fully configure a draft event before paying**.
 - There is **no guest-experience preview before payment** in MVP.
-- The **event link and printable QR are issued only after payment succeeds.** An unpaid event can never be distributed to guests.
-- Payment failure leaves the event in draft/pending-payment. Nothing is activated and no links are issued.
-- Before payment, the host must be shown a clear price breakdown: the FiveFrames event price, any processing/service fees, the total charged, and which amounts are refundable versus non-refundable.
+- FiveFrames supports two paths to activation, both reaching the same paid/active state:
+  1. **Self-service online payment** — the host pays directly through the configured payment provider ("Pay online"). Activation is triggered by the provider's own trusted confirmation of a successful payment.
+  2. **Supplier-assisted / manual payment** — used when FiveFrames has arranged the sale directly with the host through a direct conversation (host, couple, coordinator, family, or organizer) and accepts cash or another explicitly agreed offline payment. The host sees a simple "payment arranged with FiveFrames" state instead of "Pay online." Activation is triggered **only** when an authorized FiveFrames operator confirms — after actually receiving and verifying the payment — that it was received (§7.2.1).
+- **The host can never self-declare payment and activate an event.** Under both paths, activation always originates from a source external to and independent of the host: the payment provider (path 1), or an authorized FiveFrames operator (path 2). A host cannot mark their own event as paid.
+- The **event link and printable QR are issued only after payment is confirmed**, through either path. An unpaid or unconfirmed event can never be distributed to guests.
+- Payment failure (path 1) or payment not yet confirmed (path 2) leaves the event in draft/pending-payment. Nothing is activated and no links are issued.
+- Before payment, the host must be shown a clear breakdown: the FiveFrames event price, any processing/service fees (path 1) or the agreed amount (path 2), the total, and which amounts are refundable versus non-refundable.
+
+### 7.2.1 Manual payment record
+
+For supplier-assisted/manual payments, FiveFrames keeps an auditable payment record with enough information to identify:
+
+- the event the payment is for,
+- the amount and currency,
+- the payment method/category (e.g., cash, manually verified bank transfer, another explicitly accepted offline arrangement),
+- the date the payment was made,
+- the date the payment was confirmed,
+- which authorized FiveFrames operator confirmed it,
+- an optional transaction/reference/note (e.g., a bank reference or receipt note), where appropriate.
+
+This is internal operational data that makes manual confirmation auditable — it is not an invoice, receipt-generation feature, or accounting record for the host. How it is stored is an architecture decision (§17); the product requirement is that this information exists and is auditable per manual payment, not how it is persisted.
+
+Manual payment may include cash, a manually verified bank transfer, or another explicitly accepted offline arrangement. Personal-wallet-to-personal-wallet transfers (e.g., paying into a personal GCash/Maya account) are **not the primary or default payment method** — the default customer-facing path is "Pay online" through the provider. Manual payment is a deliberate, FiveFrames-initiated exception for specific early sales, not a general alternative that hosts can request or choose for themselves.
 
 ### 7.3 Capture window
 
@@ -286,7 +309,7 @@ These must hold regardless of architecture. How they are enforced is an engineer
 4. A committed capture is final for the guest — no guest-side delete or replace — and host-side removal never restores a frame. A frame returns only when the system never safely accepted the media, meaning no capture was ever committed.
 5. Limits are enforced **server-side and authoritatively**. Client state is never the source of truth for remaining frames.
 6. Guest capture is possible **only** while the event is paid, active, and capture has been explicitly opened by the host and not yet closed.
-7. Payment must succeed before an event link or QR exists. Unpaid events are not distributable.
+7. Payment must be confirmed before an event link or QR exists. Unpaid or unconfirmed events are not distributable. Confirmation comes from the payment provider's own trusted flow for self-service payments, or from an authorized FiveFrames operator verifying actual receipt for manual payments — **never from the host self-declaring payment** (§7.2).
 8. Media is never served from guessable public URLs, and a hidden or unrevealed gallery is never viewable by an unauthorized party.
 9. A host can only access, moderate or download events they own.
 10. Original media is never modified. Derived assets are additional files.
@@ -309,7 +332,8 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 | Guest opens link before capture opens | Calm "not open yet" state, not an error. |
 | Guest opens capture link after capture closed | Calm "capture has ended" state, plus their own captures if their session still exists. The full gallery is reached only through the gallery link. |
 | Event is at its guest-session capacity (§9.5) and a new guest tries to join | Calm "this event is currently full" state, not an error. Guests already joined are unaffected and keep their full remaining allowance. |
-| Payment fails | Event stays unpaid; nothing is activated; host can retry. |
+| Self-service payment fails | Event stays unpaid; nothing is activated; host can retry. |
+| A manual payment is arranged but not yet confirmed | Event stays unconfirmed/unpaid; no link or QR exists; host cannot self-activate; host can be told confirmation is pending. |
 | Realtime updates unavailable | Dashboard still correct via refresh; no data loss, no incorrect counts. |
 | Host tries to reveal a gallery with no captures | Allowed; empty-state gallery, no error. |
 
@@ -333,15 +357,18 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
   - **Post-validation target price hypothesis: ₱1,490 per event.** Not a fake "regular price" shown crossed out at launch — FiveFrames must not present ₱1,490 as a reference/anchor price unless it has actually sold at that price. The move from ₱999 toward ₱1,490 happens once early paid events validate demand at the lower price.
   - One event remains a one-time purchase; guests never pay, at either price point.
 - **Renewal hypothesis:** approximately **₱499/year** to extend hosted access. Unaffected by the launch pricing strategy above unless later evidence creates a real contradiction.
-- **Payment methods:** **GCash, Maya, and cards** must be supported for the Philippine launch.
-- **Provider:** PayMongo is a plausible candidate. **The provider is not a product requirement**; architecture may choose differently as long as the three payment methods are supported.
-- **Pre-payment disclosure:** clear breakdown of event price, processing/service fees, total charged, and refundable versus non-refundable amounts.
+- **Two payment paths, one commercial outcome (§7.2):** self-service online payment through the configured provider, or supplier-assisted/manual payment for sales FiveFrames arranges and confirms directly (§7.2.1). Both purchase the same one event / one-time price; manual payment is not a discount tier or a different product.
+- **Self-service online payment methods:** **GCash, Maya, and cards** must be supported for the Philippine launch. The provider/technical layer may expose additional appropriate Philippine rails as they become available (e.g., QR Ph, supported online banking) — this is left to architecture and is not a requirement to launch with more than the three named methods.
+- **Supplier-assisted/manual payment:** cash, a manually verified bank transfer, or another explicitly accepted offline arrangement (§7.2.1). Not customer self-service, not the default or primary payment method, and never available for a host to select on their own — FiveFrames initiates it as part of a direct sales conversation.
+- **Provider:** PayMongo is a plausible candidate for the self-service online path. **The provider is not a product requirement**; architecture may choose differently as long as the three named self-service methods are supported.
+- **Pre-payment disclosure:** clear breakdown of event price, processing/service fees (self-service) or the agreed amount (manual), total, and refundable versus non-refundable amounts.
 
 ### 15.1 Cancellation and refunds
 
-- **Before the host first opens guest capture:** the event charge is refundable on request, **excluding clearly disclosed non-refundable fees already incurred** (payment-processing or other third-party fees FiveFrames cannot recover), where permitted and disclosed.
-- **Once capture has been opened:** the event is considered started and the event charge is **non-refundable by default**. Exceptional refunds are handled manually.
-- A refund returns the event to an unpaid state and disables its links.
+- **Eligibility is unchanged by payment path:** before the host first opens guest capture, the event charge is refundable on request, **excluding clearly disclosed non-refundable fees already incurred** (payment-processing or other third-party fees FiveFrames cannot recover), where permitted and disclosed. Once capture has been opened, the event is considered started and the event charge is **non-refundable by default**; exceptional refunds are handled manually. These eligibility rules apply identically to self-service and manually collected payments.
+- **Provider payments** may be refunded through the payment provider's own refund mechanism.
+- **Manually collected payments have no provider to refund through.** A refund requires a **manually executed refund** (e.g., a manual bank transfer or cash return) performed by an authorized FiveFrames operator, plus an auditable record that the refund was completed — at minimum the event, amount, who executed it, and when.
+- A refund, however executed, returns the event to an unpaid state and disables its links.
 - Exact fee treatment must follow the payment provider's rules and applicable local requirements.
 
 ### 15.2 Retention and expiry
@@ -376,7 +403,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Server-authoritative frame limits with strong consistency guarantees.
 - Direct-to-storage upload for large media.
 - Private, access-checked media delivery.
-- Support for GCash, Maya and cards in the Philippines.
+- Support for GCash, Maya and cards in the Philippines (self-service path), plus an auditable manual payment record and operator-only confirmation for the supplier-assisted path (§7.2.1).
 
 **Technical recommendations (preferred, replaceable)**
 - Next.js, React, TypeScript, Tailwind, shadcn/ui, Vercel.
@@ -398,9 +425,11 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 
 ### Required for MVP
 - Host account, event creation and configuration (name, date, timezone, message).
-- Draft → payment → active lifecycle, with price breakdown at checkout.
-- Payment via GCash, Maya and cards; activation on success.
-- Event link + printable QR issued on payment.
+- Draft → payment → active lifecycle, with price breakdown before payment.
+- Self-service online payment via GCash, Maya and cards; activation on provider-confirmed success.
+- Supplier-assisted/manual payment path for FiveFrames-arranged sales, with a manual payment record (§7.2.1: event, amount/currency, method/category, payment date, confirmation date, confirming operator, optional reference/note) and activation only on authorized-operator confirmation — never host self-declaration.
+- Simple customer-facing payment states: "Pay online," or a supplier-assisted payment state when FiveFrames has arranged payment directly with that host.
+- Event link + printable QR issued only once payment is confirmed, through either path.
 - Host-controlled capture open/close, with automatic safety-net close.
 - Guest join via QR/link with display name and anonymous session; no accounts.
 - 5 photo frames per guest session, enforced server-side.
@@ -436,7 +465,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Live photo wall / slideshow at the venue: not in MVP unless later customer evidence justifies it.
 
 ### Explicitly excluded
-Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier.
+Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · multiple pricing tiers.
 
 **On competitor feature creep:** none of the items above — nor guest video capture, co-host accounts, or a live photo wall/slideshow (all three already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, co-host accounts, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
 
@@ -463,6 +492,8 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - Whether the branded share card design is fixed by FiveFrames or partially host-customizable beyond name/date/hashtag/message.
 - Exact timing and criteria for moving launch price from ₱999 toward the ₱1,490 target (needs a business decision once early paid-event data exists).
 - Exact demo content/mechanism (sample media vs. fully local/non-persistent demonstration) — left to architecture and design.
+- Exactly who holds the "authorized FiveFrames operator" capability at launch (expected: the founder only) and whether/when that needs to expand to additional staff.
+- Which additional Philippine payment rails (e.g., QR Ph, specific online banking integrations) the self-service path exposes beyond GCash, Maya and cards, and when — left to the provider/technical layer (§15).
 
 **Accepted risks (decided, not open)**
 - Session loss grants a fresh allowance; frame limits are per session, not per person.
@@ -487,33 +518,36 @@ Observable behavior that defines launch readiness.
 9. The guest join screen states, briefly, that no app is required, no account is required, and that captures follow this event's own access rules.
 
 **Lifecycle and payment**
-10. An unpaid event has no working event link or QR.
+10. An unpaid or unconfirmed event has no working event link or QR, regardless of payment path.
 11. Guests cannot capture until the host has explicitly opened capture, even on the event date.
 12. Capture stops when the host closes it, and stops automatically after the safety-net period if the host does not.
-13. A failed payment leaves the event unactivated and retryable.
-14. The host sees price, fees, total and refundability before paying.
+13. A failed self-service payment leaves the event unactivated and retryable.
+14. The host sees price (or agreed amount), fees, total and refundability before paying, for either payment path.
 15. Once an event reaches its guest-session capacity (§9.5), a new guest attempting to join sees a calm "event is full" state; guests already joined are unaffected and keep capturing normally.
 16. A prospective host can experience the pre-purchase demo (§7.1) without paying and without creating any real event, link, or QR; nothing produced by the demo functions as a real capture or gallery link.
+17. A host offered supplier-assisted/manual payment has no action available to mark their own event as paid; the event stays unactivated, with no link or QR, until an authorized FiveFrames operator confirms it.
+18. Confirming a manual payment records an auditable payment record identifying the event, amount/currency, method/category, payment date, confirmation date, and confirming operator (§7.2.1); confirmation activates the event and issues its link and QR exactly as a successful self-service payment would.
 
 **Gallery, privacy and sharing**
-17. Before reveal, the gallery is not viewable by anyone holding the gallery link.
-18. With visibility "only me", the gallery link does not grant access to anyone but the host.
-19. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
-20. Media cannot be retrieved from a guessable URL without an access check.
-21. A host cannot view, moderate, or download another host's event.
-22. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
-23. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
-24. Share-card generation leaves the original media unmodified.
+19. Before reveal, the gallery is not viewable by anyone holding the gallery link.
+20. With visibility "only me", the gallery link does not grant access to anyone but the host.
+21. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
+22. Media cannot be retrieved from a guessable URL without an access check.
+23. A host cannot view, moderate, or download another host's event.
+24. With sharing enabled, a guest can generate and share a branded share card for their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
+25. With sharing disabled by the host, the FiveFrames sharing flow is unavailable to guests.
+26. Share-card generation leaves the original media unmodified.
 
 **Host operations**
-25. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
-26. Host can download individual captures and all originals in bulk.
-27. Dashboard counts remain correct when realtime updates are unavailable.
-28. For an activated event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance.
+27. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
+28. Host can download individual captures and all originals in bulk.
+29. Dashboard counts remain correct when realtime updates are unavailable.
+30. For an activated event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance.
+31. A manually collected payment that is refunded shows an auditable record that the refund was manually executed, including who executed it and when, and the event returns to an unpaid state with its links disabled — identical in outcome to a provider refund.
 
 **Platform**
-29. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
-30. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
+32. Full guest flow works on current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
+33. The full flow has been tested on real iPhone and Android devices under realistic venue network conditions (weak Wi-Fi, congested mobile data, interrupted uploads).
 
 ---
 
