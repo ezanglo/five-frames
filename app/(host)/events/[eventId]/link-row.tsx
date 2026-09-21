@@ -13,12 +13,14 @@ import { Button } from "@/components/ui/button";
  */
 export function LinkRow({
   label,
+  icon,
   helpText,
   path,
   rotateAction,
   revokeAction,
 }: {
   label: string;
+  icon: React.ReactNode;
   helpText: string;
   path: string | null;
   rotateAction: () => Promise<void>;
@@ -53,7 +55,12 @@ export function LinkRow({
   return (
     <div className="flex flex-col gap-2 rounded-lg bg-(--host-surface-quiet) p-3">
       <div className="flex items-center justify-between gap-2">
-        <Label>{label}</Label>
+        <div className="flex items-center gap-1.5">
+          <span className="text-(--host-ink-muted)" aria-hidden>
+            {icon}
+          </span>
+          <Label>{label}</Label>
+        </div>
         {path ? (
           <span className="text-xs text-(--host-ink-muted)">{copied ? "Copied" : ""}</span>
         ) : null}

@@ -296,3 +296,150 @@ scope.
   surface first.
 - Implying or building Slice 5 gallery-link/reveal delivery behavior — only existing
   configuration fields were restyled in this pass.
+
+---
+
+# Public gallery
+
+**Status: awaiting human visual verification.** Full Redesign Mode pass through Slice 5,
+implemented 2026-09-22. Extends this direction rather than replacing either scope above — the
+guest and host sections are unchanged. A further identity shift to this surface would need a new
+foundational pass with its own anchor-selection gate.
+
+## Scope
+
+The public gallery viewer at `/g/[token]` (`app/(gallery)/`) — the revealed-collection overview,
+the immersive full-screen photo viewer, and the three access-denial calm states (not found,
+private/"only me", not yet revealed) — plus clarity-only polish to the existing host-side
+capture-link/gallery-link controls (`link-row.tsx`, the "Links" section of
+`app/(host)/events/[eventId]/page.tsx`). Gallery reveal-timing and visibility *logic* (Slice 5,
+decision D12) is unchanged; this pass is presentation only.
+
+## Product character
+
+The payoff, not an operator tool and not the capture mechanic. Someone opening the gallery link
+is looking at a finished record of the event — calm, intentional, photography-dominant — never a
+feed to scroll for engagement. Suitable for any event type; nothing here is wedding-specific.
+
+## Primary anchor
+
+- **A24 gallery (film catalog)** — https://a24.raviklaassens.com
+- Source/type: real production site, inspiration-only (no code/asset reuse)
+- Why chosen: the only reference found with a genuinely *archival* composition — a vertical,
+  equal-weight record rather than a grid, a feed, or an operator dashboard — which fits "this is
+  the payoff record of the event" better than a browsing or feed metaphor. Its restrained,
+  quiet-metadata-under-a-prominent-element hierarchy is what the gallery's event-name/message
+  treatment and the calm-state panels are built on.
+- What was explicitly **not** taken from it: its literal one-full-width-item-per-row structure.
+  FiveFrames galleries can hold far more photos than a film catalog holds titles, so a literal
+  read would produce an unbounded page. The implementation preserves A24's *rhythm and equal
+  weight* while grouping photos into small repeating "spread" units (see Structural signature).
+
+## Secondary references
+
+- **RemyShoots** — https://www.remyshoots.co.za — contributed the immersive full-screen,
+  swipe-through single-photo viewing mode as a first-class second level of the gallery, distinct
+  from the overview. Inspiration-only.
+- **Ethan W Photography** — http://ethanwong.photography — informed restraint and whitespace
+  discipline (sparse typography, generous breathing room) but was not used as a structural
+  anchor.
+
+## Structural signature
+
+- The revealed gallery is **not** a uniform grid, a masonry/Pinterest wall, the guest scope's
+  fixed five-frame board, or the host scope's contact-sheet moderation grid. It's a vertical
+  sequence of "spread" units of up to three photos each (`gallery-archive.tsx`), alternating
+  between two asymmetric templates (a wide hero + two squares; a tall portrait + two stacked
+  landscapes) — a photobook-spread rhythm that varies as you scroll, structurally distinct from
+  the guest board's *fixed* five-position layout because it's an open-ended repeating pattern
+  over an arbitrary photo count, not five specific slots.
+- Overview tiles render `object-cover` inside their spread's fixed aspect ratio — the same
+  "settled photo object" treatment (rounded mat, soft shadow) already established for filled
+  guest frames and host moderation tiles, kept for visual continuity across all three scopes.
+- Tapping any tile opens a **full-screen immersive viewer** (`photo-viewer.tsx`) — a native
+  horizontal `scroll-snap` track, not a gesture-library carousel, so touch swipe and momentum come
+  from the browser. Every image renders `object-contain` against a dark, warm-neutral matting
+  surface (`--guest-ink`) so an arbitrary aspect ratio — portrait, landscape, square — is shown
+  complete, never cropped; the opposite tradeoff from the overview, which crops deliberately for
+  spread rhythm. Desktop also gets arrow-key paging; a quiet "n / total" indicator and a single
+  always-visible close control are the only chrome. No hover-only affordances.
+- Large collections stay bounded without a real pagination subsystem: all committed, signed
+  captures are fetched once server-side as today; the client reveals them in batches of four
+  spreads with an explicit "Show more" control, and off-screen images carry `loading="lazy"`. This
+  is bounded progressive presentation of already-loaded data, not a data-loading subsystem — the
+  immersive viewer always has the full list, so swiping isn't limited by what's been revealed in
+  the overview.
+- All three access-denial states (not found, private, not yet revealed) share one abstract
+  "held archive" panel — a plate sized and rhythmed like the archive's own tiles (rounded,
+  dashed-border, quiet surface) with a small icon (`ImageOff` / `Lock` / `Clock`) and the
+  existing per-reason copy. It deliberately shows **no** thumbnail, silhouette, or count — nothing
+  that would hint at content the viewer isn't authorized to see — while still reading as "the same
+  gallery, just not open to you" rather than a generic error page. The existing per-reason copy
+  differentiation (today's product behavior) is unchanged.
+- Host-side: `link-row.tsx` gained a small leading icon per link (`Camera` for the capture link,
+  `Images` for the gallery link) and tightened helper copy, entirely inside the existing
+  `.host-scope` tokens and layout — no structural change, per the constraint that this pass must
+  not make the host dashboard imitate the gallery's composition.
+
+## Typography
+
+Unchanged: `font-guest-display` (Bricolage Grotesque) for the event name and calm-state headings,
+Inter for body copy — the gallery route already sits under `.guest-scope` for this reason.
+
+## Color/material
+
+Reuses the existing `--guest-*` token family for continuity with the rest of the warm/tactile
+identity — no new palette. The immersive viewer's dark matting surface is the one deliberate
+exception: `--guest-ink` at full opacity, chosen because it's already a warm dark brown rather
+than true black, so full-screen photo viewing stays inside the product's warm identity instead of
+switching to a generic "dark mode."
+
+## Layout and rhythm
+
+Inherits the guest-scope shell (`max-w-2xl` column). Spread units stack with generous `gap-8`
+vertical rhythm between them; tiles within a spread use `gap-2`, consistent with the tight,
+tactile spacing already established for filled photo objects elsewhere in the product.
+
+## Media treatment
+
+Overview: `object-cover` inside per-template fixed aspect ratios (16/10 hero, 4/3 single, 3/4
+portrait, 3/2 landscape, 1/1 square) — cropped deliberately for spread rhythm, consistent with the
+existing precedent that *settled* captures (guest's own view, host moderation grid) crop, while
+*in-progress* composition doesn't. Immersive viewer: `object-contain`, complete image always
+visible regardless of orientation — the guest's actual composition is never forced into the
+viewport's aspect ratio.
+
+## Controls and forms
+
+"Show more" is a quiet text-link action, not a button — it's pacing, not a primary action. The
+immersive viewer's close control is a single always-visible circular icon button (no hover-only
+affordance); position is communicated by an unobtrusive text indicator, never a progress bar or
+gamified counter.
+
+## Motion
+
+Minimal: the immersive viewer's paging comes from native scroll-snap momentum, not custom
+animation. No celebratory motion, no auto-advancing slideshow.
+
+## Accessibility
+
+Immersive viewer: `role="dialog"` `aria-modal="true"`, focus moves to the close control on open
+and is restored to the tapped tile on close, `Escape` closes, arrow keys page on desktop, and the
+underlying archive is marked `inert` while the viewer is open so background content is excluded
+from focus/tab order without a custom focus-trap implementation. Every archive tile is a real
+`<button>` with an `aria-label`. Status/denial states are communicated by heading and body text,
+never by icon or color alone. Contrast against the warm canvas has not yet been measured
+numerically — flagged for human verification, same as the guest and host scopes.
+
+## Avoid
+
+- Reusing the guest scope's five-frame board or the host scope's contact-sheet moderation grid as
+  the gallery's composition — both were explicitly ruled out as anchors for this surface.
+- A literal one-full-bleed-photo-per-row read of the A24 anchor for the overview — that doesn't
+  scale to FiveFrames' arbitrary, potentially large photo counts.
+- Any social-feed mechanic (likes, comments, avatars, infinite auto-scroll) — "Show more" is an
+  explicit, quiet action, never automatic.
+- A download or sharing affordance in the gallery viewer — both are out of scope (Slice 8 and
+  existing product-controlled sharing elsewhere), not part of this pass.
+- Letting a calm/denial state hint at what's behind it (thumbnail, silhouette, count) — the held-
+  archive panel must stay abstract regardless of how tempting a preview would look.

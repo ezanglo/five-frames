@@ -247,6 +247,7 @@ acceptance criteria. If convenient, click through once in a browser as a sanity 
 
 | Item | Type | Affects |
 |---|---|---|
+| Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 6+ production work |
 | PayMongo account with KYC completed | External prerequisite | Slice 6 |
 | No git remote configured | Setup | Any push/CI work |

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Camera, Images } from "lucide-react";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { getEventCaptureStats, listCapturesForEventHost } from "@/lib/dal/captures";
@@ -161,7 +162,8 @@ export default async function EventEditPage({
             <div className="flex-1">
               <LinkRow
                 label="Capture link"
-                helpText="What guests scan or open at the venue to join and capture."
+                icon={<Camera className="size-3.5" />}
+                helpText="For guests at the venue — lets them join and capture while capture is open."
                 path={event.event_token ? `/e/${event.event_token}` : null}
                 rotateAction={boundRotateEventToken}
                 revokeAction={boundRevokeEventToken}
@@ -170,12 +172,13 @@ export default async function EventEditPage({
             <div className="flex-1">
               <LinkRow
                 label="Gallery link"
+                icon={<Images className="size-3.5" />}
                 helpText={
                   !isGalleryRevealed(event)
-                    ? "View-only. Grants nothing until the gallery is revealed."
+                    ? "For anyone you share it with, view-only — grants nothing until the gallery is revealed."
                     : event.visibility === "only_me"
-                      ? "View-only. Visibility is set to only me, so this link grants nothing to anyone else."
-                      : "View-only. Anyone you share it with can see the gallery now."
+                      ? "For anyone you share it with, view-only — but visibility is set to only me, so it grants nothing to anyone else."
+                      : "For anyone you share it with, view-only — they can see the gallery now."
                 }
                 path={event.gallery_token ? `/g/${event.gallery_token}` : null}
                 rotateAction={boundRotateGalleryToken}

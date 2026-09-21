@@ -1,6 +1,8 @@
+import { ImageOff, Lock, Clock } from "lucide-react";
 import { getEventByGalleryToken } from "@/lib/dal/events";
 import { listCapturesForGalleryViewer } from "@/lib/dal/captures";
 import { isGalleryRevealed } from "@/lib/events/lifecycle";
+import { GalleryArchive } from "./gallery-archive";
 
 /**
  * The public gallery viewer (product.md §7.3/§8.2, roadmap Slice 5, criteria 14/15).
@@ -21,7 +23,8 @@ export default async function GalleryPage({
 
   if (!event) {
     return (
-      <CalmState
+      <HeldArchivePanel
+        icon={ImageOff}
         title="We can't find this gallery"
         body="Double-check the link with your host."
       />
@@ -30,7 +33,8 @@ export default async function GalleryPage({
 
   if (event.visibility === "only_me") {
     return (
-      <CalmState
+      <HeldArchivePanel
+        icon={Lock}
         title="This gallery is private"
         body="The host has kept this gallery visible to themselves only."
       />
@@ -39,7 +43,8 @@ export default async function GalleryPage({
 
   if (!isGalleryRevealed(event)) {
     return (
-      <CalmState
+      <HeldArchivePanel
+        icon={Clock}
         title="Not revealed yet"
         body="The host hasn't opened this gallery to viewers yet. Check back later."
       />
@@ -64,31 +69,37 @@ export default async function GalleryPage({
           No photos yet.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {captures.map((capture) => (
-            <div
-              key={capture.id}
-              className="aspect-square overflow-hidden rounded-xl bg-(--guest-surface)"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url, not a static asset */}
-              <img
-                src={capture.imageUrl}
-                alt=""
-                className="size-full object-cover"
-              />
-            </div>
-          ))}
-        </div>
+        <GalleryArchive captures={captures} />
       )}
     </div>
   );
 }
 
-function CalmState({ title, body }: { title: string; body: string }) {
+/**
+ * The calm state shared by all three access denials (not found, private, not revealed). Its
+ * shape deliberately echoes the archive spread's own tiles (rounded plate, generous aspect
+ * ratio) so a denied visitor still reads it as "this is the same gallery," not an error page —
+ * but it stays abstract on purpose: no thumbnail, silhouette, or count, since that would leak
+ * something about content the viewer isn't authorized to see.
+ */
+function HeldArchivePanel({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  body: string;
+}) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2 py-16 text-center">
-      <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">{title}</h1>
-      <p className="max-w-xs text-sm text-(--guest-ink-muted)">{body}</p>
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 py-12">
+      <div className="flex aspect-4/3 w-full max-w-xs flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-(--guest-border) bg-(--guest-surface-quiet) text-(--guest-ink-muted)">
+        <Icon className="size-6" />
+      </div>
+      <div className="flex flex-col items-center gap-2 text-center">
+        <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">{title}</h1>
+        <p className="max-w-xs text-sm text-(--guest-ink-muted)">{body}</p>
+      </div>
     </div>
   );
 }
