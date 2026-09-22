@@ -1,13 +1,17 @@
 # FiveFrames — Progress
 
 Last updated: 2026-09-23 (Slice 14 — full-flow real-device and venue-condition validation — in
-progress: `awaiting human verification`. Everything automatable for this slice is done and
-passing (see "Slice 14 — automated verification" below); the slice is human-device-bound by its
-own definition (roadmap: "Human-run on real devices. Not automated") and cannot be completed
-further from this environment, which does not run browser automation or drive real devices. See
-"Slice 14 — human verification checklist" for the exact steps and expected results, and "Slice
-14 — deployed environment check" for what was and wasn't confirmable without exposing secrets.
-Slice 10's Web Share checklist is folded into Slice 14 §7 below rather than tracked separately.)
+progress: `awaiting human verification`. A subsequent focused `/e2e-validate` pass found two real,
+project-specific defects (host downloads navigating instead of saving; a refunded payment
+misclassified as an unresolved duplicate) — both are now repaired and reverified, see "Regression
+protection added for human-found defects" → "Slice 14" below. Everything else automatable for
+this slice is done and passing (see "Slice 14 — automated verification" below); the slice remains
+human-device-bound by its own definition (roadmap: "Human-run on real devices. Not automated")
+for camera behavior, real in-app browsers, physical QR scans, and venue network conditions, which
+still cannot be completed from this environment. See "Slice 14 — human verification checklist"
+for the exact steps and expected results, and "Slice 14 — deployed environment check" for what
+was and wasn't confirmable without exposing secrets. Slice 10's Web Share checklist is folded
+into Slice 14 §7 below rather than tracked separately.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -21,17 +25,20 @@ product.md, roadmap criteria 29/30) is `awaiting human verification` — status 
 
 Slice 14 is defined by the roadmap itself as human-run, not automated ("Human-run on real
 devices. Not automated. ... this is a regression and end-to-end pass, not the first look at
-device behavior — slice 2 already validated the capture flow on the same browsers"). Per this
-project's own global instruction, this environment does not run end-to-end/browser-driven
-testing (no Playwright, no screenshots, no driving a real device, no curling routes to eyeball
-output) — that testing is always human-run here. Accordingly, this slice's implementation work
-was: (1) run every automatable check, (2) inspect deployed environment configuration for health
-and presence without ever reading or printing a secret value, (3) assemble the full validation
-matrix and checklist the roadmap's 14 sections require, so a human can execute it directly
-against the real deployment without needing to reconstruct scope from conversation history, and
-(4) stop and hand off, per this slice's own manual-verification boundary.
+device behavior — slice 2 already validated the capture flow on the same browsers") for the
+device/in-app-browser/network scope. A separate, explicitly invoked `/e2e-validate` pass (and,
+for this repair, a bounded, explicitly authorized Playwright verification against the real dev
+deployment — see the "Slice 14" entry under "Regression protection added for human-found defects"
+below) is a different, narrower kind of check: proving these two specific code defects are fixed
+against a real browser and the real dev database, not a substitute for the human-device checklist
+below. Accordingly, this slice's implementation work was: (1) run every automatable check, (2)
+inspect deployed environment configuration for health and presence without ever reading or
+printing a secret value, (3) assemble the full validation matrix and checklist the roadmap's 14
+sections require, so a human can execute it directly against the real deployment without needing
+to reconstruct scope from conversation history, (4) repair the two defects `/e2e-validate` found
+and reverify them, and (5) stop and hand off, per this slice's own manual-verification boundary.
 
-**Slice 14 — automated verification (2026-09-23):**
+**Slice 14 — automated verification (2026-09-23, reverified after the defect repair):**
 
 - `pnpm typecheck` — passing, no errors.
 - `pnpm lint` — passing, no errors or warnings.
@@ -39,18 +46,18 @@ against the real deployment without needing to reconstruct scope from conversati
   `/events/[eventId]`, `/g/[token]`, `/operator`, `/operator/events/[eventId]`,
   `/api/cron/lifecycle`, `/api/webhooks/paymongo` all still register as dynamic; `/demo` still
   prerenders static).
-- `pnpm test` — 157/157 passing on a clean rerun. One run showed a single timeout in
-  `lib/dal/captures.integration.test.ts`'s moderation test (a real-dev-database-under-load
-  timeout, the same pre-existing flakiness class already recorded under "Verification status"
-  below); an immediate rerun passed 157/157, confirming it is not a regression from this slice
-  (this slice made no code changes — see below).
-- **No code changes were made in this slice.** Validation found no launch-blocking defect that
-  automated inspection could catch: no failing type/lint/build/test result, no missing
-  server-side gate, no exposed secret. Everything else this slice's scope covers (camera
-  behavior, real browser share sheets, physical QR scans, real PayMongo test-mode payment UX,
-  venue network conditions) is only observable on real hardware, which is why the defect-to-
-  regression workflow (build-app §32) has nothing to act on yet — it applies once the human
-  checklist below returns a result.
+- `pnpm test` — 162/162 passing on a clean rerun (157 pre-existing + 5 new regression tests for
+  the two repaired defects, see below). One run showed a single timeout in
+  `lib/dal/lifecycle.integration.test.ts`'s deletion-failure-isolation test (a real-dev-database-
+  under-load timeout, the same pre-existing flakiness class already recorded under "Verification
+  status" below); an immediate rerun passed 162/162, confirming it is not a regression from this
+  repair.
+- Two real, project-specific defects were found by a focused `/e2e-validate` run and fixed in
+  this pass — see the "Slice 14" entry under "Regression protection added for human-found
+  defects" below for root cause, fix, and regression coverage for each. Everything else this
+  slice's scope covers (camera behavior, real in-app-browser share sheets, physical QR scans,
+  real PayMongo test-mode payment UX, venue network conditions) remains observable only on real
+  hardware — the human checklist below is unaffected by this repair.
 
 **Slice 14 — deployed environment check (2026-09-23, via `vercel` CLI metadata only — no secret
 value was read or printed):**
@@ -1084,6 +1091,83 @@ were found during human verification for Slices 1–7.
    **Confirmed fixed against a real PayMongo delivery** after redeploying — see "Verification
    status" above for the fresh real checkout observed directly in the database (one payment row,
    `provider_status = "paid"`, `activating_payment_id` pointing at that same payment).
+
+**Slice 14, found by a focused `/e2e-validate` run, repaired 2026-09-23 (two real defects):**
+
+1. **Host "Download original" navigated the tab instead of downloading, and bulk download died
+   after the first item.** `createSignedReadUrl` (`lib/media/storage.ts`) minted ordinary inline
+   signed URLs for every caller. The `<a href download>` HTML attribute is silently ignored by
+   browsers for a cross-origin URL — which a Supabase Storage signed URL always is — so clicking
+   it just navigated the current tab to the image. For "Download all originals"
+   (`bulk-download-button.tsx`, decision D11's client-driven sequential loop), the first
+   navigated-away tab destroyed the page's JS execution context before the loop could reach items
+   2–6.
+   **Root cause / fix:** Supabase Storage's `createSignedUrl` accepts a `download` option that
+   sets `response-content-disposition: attachment` on the signed response itself — a
+   server-header-driven download, not something the anchor tag has to request. `createSignedReadUrl`
+   now takes an optional `downloadFilename` parameter that sets this option; only the two
+   host-only call sites that mint download links (`listCapturesForEventHost`'s per-tile
+   `downloadUrl`, `listOriginalDownloadUrlsForEventHost`'s bulk `url`, both in
+   `lib/dal/captures.ts`) pass a stable filename. Every other `createSignedReadUrl` call
+   (thumbnails, the guest's own downloadUrl, the public gallery viewer's imageUrl) is unchanged —
+   guest/share-card behavior was not touched.
+   **Failure class:** a browser-only HTML attribute (`download`) that silently no-ops for
+   cross-origin URLs is not a substitute for a server-set `Content-Disposition` header when the
+   file being downloaded is served from a different origin than the page — worth watching for in
+   any download affordance built against a signed cloud-storage URL.
+   **Regression coverage:** `lib/dal/captures.integration.test.ts` (against the real dev database
+   and storage) — a new test asserts the host gallery tile's `downloadUrl` carries a `download=`
+   query parameter while its `thumbnailUrl` and the guest's own `downloadUrl` do not; the existing
+   `listOriginalDownloadUrlsForEventHost` test now also asserts every bulk-download url encodes
+   that capture's own filename via `download=`.
+   **Confirmed against a real browser (Playwright, this environment's browser automation)**
+   against the real dev deployment (`E2E Validation Event`, 6 real committed captures): clicking
+   an individual "Download original" produced a genuine browser download event
+   (`Downloaded file 001-guest-e2e-slice14.png`) with the page URL never leaving
+   `/events/[eventId]` — no navigation. Clicking "Download all originals" made real signed
+   `/original?...&download=NNN-*` requests for all 6 captures (confirmed via the network log,
+   proving the loop no longer dies after item 1 — the page's JS context survived the whole run).
+   Chromium's own "block multiple automatic downloads without a user gesture" policy aborted 5 of
+   the 6 file saves in this headless run (`net::ERR_ABORTED`) — a Chrome download-permission
+   behavior orthogonal to this fix and already the reason the component staggers requests 300ms
+   apart (D11); it is not evidence the bulk loop stopped early, since all 6 requests were made.
+2. **A payment the manual-refund flow had already resolved was shown as a false, unresolved
+   duplicate.** `isDuplicatePayment(payment, event)` (`lib/dal/payments.ts`) flagged any succeeded
+   payment as a duplicate whenever `event.activating_payment_id !== payment.id`. But
+   `recordManualRefund` intentionally clears `activating_payment_id` as part of returning a
+   refunded event to draft (the same atomic-guard pattern as D5/D6/D13/D16) — so the very payment
+   an operator had just correctly refunded read as "succeeded, but isn't the activating payment,"
+   i.e. a false duplicate, sending the operator chasing a payment that was already resolved.
+   **Fix:** `isDuplicatePayment` now also excludes any payment with `refunded_at` set. A genuine
+   duplicate (one that lost the activation race and was never itself refunded) still has
+   `refunded_at = null` and keeps surfacing for operator follow-up exactly as before; refund audit
+   fields, event-deactivation semantics, and the existing provider/manual cross-source duplicate
+   behavior from Slices 8/9 are unchanged — no new payment state or schema was added.
+   **Failure class:** a derived/computed status flag whose inputs are also mutated by a *resolution*
+   action (here, refund clearing the same column the flag reads) needs the resolution's own
+   terminal marker checked directly, not inferred from a side-effect of the resolution — worth
+   watching for in any other "flag stays true until X happens" check where X's own handler
+   incidentally changes the field the flag is computed from.
+   **Regression coverage:** `lib/dal/payments.test.ts` (unit) — the sole activating manual
+   payment reads as not-duplicate after `recordManualRefund` clears `activating_payment_id`; a
+   genuine second successful payment still reads as duplicate both before and after an unrelated
+   refund. `lib/dal/payments.manual.integration.test.ts` (against the real dev database) — a full
+   confirm → refund cycle proves the refunded payment is not flagged; a second event's activating
+   payment, used to model a genuine race-loser, still flags as duplicate after the first event's
+   refund. All pre-existing Slice 8/9 provider/manual duplicate-race tests continue to pass
+   unmodified.
+   **Confirmed against a real browser (Playwright)** against the real dev deployment and operator
+   account: confirmed a manual payment (event activated), recorded a refund (event returned to
+   Draft/Unpaid, payment shows `Status: Refunded`), reloaded the operator event page — no
+   duplicate-payment banner appeared for either the newly refunded payment or an older,
+   previously refunded payment already on the same event.
+
+Both fixes verified with a clean `pnpm typecheck`, `pnpm lint`, `pnpm build`, and full `pnpm test`
+(162/162 passing; one lifecycle-integration timeout on the first run was the same pre-existing
+real-dev-database-under-load flakiness already recorded above, confirmed non-regressive by an
+immediate 162/162 rerun). Slice 14's own human-device-bound scope (camera, real in-app browsers,
+physical QR, venue network) is unaffected by this repair and remains `awaiting human
+verification` — see the checklist below.
 
 ## Manual verification results (Slice 2 exit condition) — all passed, 2026-09-21
 

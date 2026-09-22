@@ -311,7 +311,7 @@ export async function listCapturesForEventHost(
   const { data, error } = await supabase
     .from("captures")
     .select(
-      "id, slot_index, message, hidden_at, favorited_at, thumbnail_path, storage_path, created_at, guest_sessions(display_name)",
+      "id, slot_index, message, hidden_at, favorited_at, thumbnail_path, storage_path, mime_type, created_at, guest_sessions(display_name)",
     )
     .eq("event_id", eventId)
     .eq("status", "committed")
@@ -328,23 +328,29 @@ export async function listCapturesForEventHost(
     favorited_at: string | null;
     thumbnail_path: string | null;
     storage_path: string;
+    mime_type: string | null;
     guest_sessions: { display_name: string } | { display_name: string }[] | null;
   };
 
   return Promise.all(
-    (data as Row[]).map(async (row) => {
-      const [thumbnailUrl, downloadUrl] = await Promise.all([
-        createSignedReadUrl(row.thumbnail_path ?? row.storage_path),
-        createSignedReadUrl(row.storage_path),
-      ]);
+    (data as Row[]).map(async (row, index) => {
       const guestSession = Array.isArray(row.guest_sessions)
         ? row.guest_sessions[0]
         : row.guest_sessions;
+      const guestDisplayName = guestSession?.display_name ?? "Guest";
+      const [thumbnailUrl, downloadUrl] = await Promise.all([
+        createSignedReadUrl(row.thumbnail_path ?? row.storage_path),
+        createSignedReadUrl(
+          row.storage_path,
+          60 * 10,
+          filenameForOriginal(index, guestDisplayName, row.mime_type),
+        ),
+      ]);
 
       return {
         id: row.id,
         slotIndex: row.slot_index,
-        guestDisplayName: guestSession?.display_name ?? "Guest",
+        guestDisplayName,
         message: row.message,
         hidden: row.hidden_at !== null,
         favorited: row.favorited_at !== null,
@@ -473,10 +479,11 @@ export async function listOriginalDownloadUrlsForEventHost(
       const guestSession = Array.isArray(row.guest_sessions)
         ? row.guest_sessions[0]
         : row.guest_sessions;
+      const filename = filenameForOriginal(index, guestSession?.display_name ?? "guest", row.mime_type);
       return {
         id: row.id,
-        filename: filenameForOriginal(index, guestSession?.display_name ?? "guest", row.mime_type),
-        url: await createSignedReadUrl(row.storage_path),
+        filename,
+        url: await createSignedReadUrl(row.storage_path, 60 * 10, filename),
       };
     }),
   );

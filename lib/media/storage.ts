@@ -143,15 +143,24 @@ export async function deleteObjects(paths: string[]): Promise<void> {
   if (error) throw error;
 }
 
-/** Signed read URL, minted only after the caller has already done its own access check. */
+/**
+ * Signed read URL, minted only after the caller has already done its own access check.
+ * Pass `downloadFilename` for a URL that must actually save a file rather than navigate
+ * the browser to it (Supabase's `response-content-disposition: attachment` header on the
+ * signed response itself, not the HTML `download` attribute — the latter is silently
+ * ignored by browsers for a cross-origin URL like a Supabase Storage signed URL).
+ */
 export async function createSignedReadUrl(
   path: string,
   expiresInSeconds = 60 * 10,
+  downloadFilename?: string,
 ): Promise<string> {
   const supabase = createServiceClient();
   const { data, error } = await supabase.storage
     .from(BUCKET)
-    .createSignedUrl(path, expiresInSeconds);
+    .createSignedUrl(path, expiresInSeconds, {
+      download: downloadFilename ?? false,
+    });
 
   if (error) throw error;
   return data.signedUrl;

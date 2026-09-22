@@ -331,6 +331,28 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(gallery?.find((c) => c.id === capture.id)).toBeUndefined();
   });
 
+  it("listCapturesForEventHost mints an attachment-disposition download url, unlike the guest's own inline signed urls", async () => {
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+    const capture = await commitTinyCapture(event.id, session.id);
+
+    const gallery = await listCapturesForEventHost(hostId, event.id);
+    const tile = gallery?.find((c) => c.id === capture.id);
+    expect(tile).toBeDefined();
+    // Supabase Storage only turns a signed URL into a real download (rather than an
+    // inline same-tab navigation) when it carries a `download` query param set at
+    // signing time — the anchor tag's own `download` attribute is silently ignored for
+    // a cross-origin URL like this one, which is exactly what made host downloads
+    // navigate instead of saving a file.
+    expect(tile!.downloadUrl).toMatch(/[?&]download=/);
+    expect(tile!.thumbnailUrl).not.toMatch(/[?&]download=/);
+
+    const guestView = await listCapturesForGuestSessionWithUrls(event.id, session.id);
+    const guestCapture = guestView.find((c) => c.id === capture.id);
+    // Guest-facing download behavior is unchanged by this fix.
+    expect(guestCapture?.downloadUrl).not.toMatch(/[?&]download=/);
+  });
+
   it("moderation is scoped to the owning host — a different host can neither read nor moderate", async () => {
     const event = await createOpenEvent();
     const session = await newGuestSession(event.id);
@@ -380,6 +402,13 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     }
     expect(downloads!.every((d) => d.url.startsWith("http"))).toBe(true);
     expect(new Set(downloads!.map((d) => d.filename)).size).toBe(downloads!.length);
+    // Each bulk-download url must be attachment-capable (see the dedicated
+    // listCapturesForEventHost test above for why), and must encode that specific
+    // capture's stable filename so a real browser saves it under a sensible name
+    // rather than the raw storage path.
+    for (const download of downloads!) {
+      expect(download.url).toContain(`download=${encodeURIComponent(download.filename)}`);
+    }
 
     const { data: otherHost, error } = await supabase.auth.admin.createUser({
       email: `other-host-${crypto.randomUUID()}@example.test`,

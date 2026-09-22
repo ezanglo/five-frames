@@ -578,11 +578,18 @@ export async function recordManualRefund(
  * activated the event — a genuinely distinct payment surfaced for operator follow-up
  * (product.md §15.1). Computed from `events.activating_payment_id` rather than a second
  * stored flag, so it reads correctly for either payment source without new schema.
+ *
+ * A payment the trusted manual-refund flow already resolved (`refunded_at` set) is
+ * excluded even though `recordManualRefund` clears `activating_payment_id` as part of
+ * returning the event to draft — that clearing is what makes the refund's own event-state
+ * transition atomic (D16-style guard), not evidence of a second, unresolved payment. A
+ * payment that lost the activation race and was never refunded still has no `refunded_at`,
+ * so it keeps surfacing for operator follow-up exactly as before.
  */
 export function isDuplicatePayment(payment: PaymentRow, event: EventRow): boolean {
   const succeeded =
     payment.source === "provider"
       ? payment.provider_status === "paid" || payment.provider_status === "paid_duplicate"
       : payment.confirmed_at !== null;
-  return succeeded && event.activating_payment_id !== payment.id;
+  return succeeded && payment.refunded_at === null && event.activating_payment_id !== payment.id;
 }

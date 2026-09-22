@@ -99,4 +99,37 @@ describe("isDuplicatePayment", () => {
     };
     expect(isDuplicatePayment(payment, baseEvent)).toBe(true);
   });
+
+  it("is false for the sole activating manual payment after recordManualRefund clears activating_payment_id", () => {
+    // recordManualRefund (lib/dal/payments.ts) intentionally clears
+    // event.activating_payment_id as part of returning the event to draft, and stamps
+    // refunded_at on the payment it just refunded. Without also checking refunded_at,
+    // that state read as "succeeded, but isn't the activating payment" — i.e. a false
+    // duplicate — even though nothing else was ever paid.
+    const refundedEvent: EventRow = { ...baseEvent, activated_at: null, activating_payment_id: null };
+    const payment: PaymentRow = {
+      ...basePayment,
+      id: "payment-winner",
+      source: "manual",
+      confirmed_at: new Date().toISOString(),
+      refunded_at: new Date().toISOString(),
+      refunded_by: "operator-1",
+    };
+    expect(isDuplicatePayment(payment, refundedEvent)).toBe(false);
+  });
+
+  it("is still true for a genuine second successful payment after another payment activated the event, even once the event is later refunded", () => {
+    // A real duplicate (never refunded itself) must keep surfacing for operator
+    // follow-up regardless of what happens to the activating payment.
+    const refundedEvent: EventRow = { ...baseEvent, activated_at: null, activating_payment_id: null };
+    const genuineDuplicate: PaymentRow = {
+      ...basePayment,
+      id: "payment-loser",
+      source: "manual",
+      confirmed_at: new Date().toISOString(),
+      refunded_at: null,
+    };
+    expect(isDuplicatePayment(genuineDuplicate, refundedEvent)).toBe(true);
+    expect(isDuplicatePayment(genuineDuplicate, baseEvent)).toBe(true);
+  });
 });

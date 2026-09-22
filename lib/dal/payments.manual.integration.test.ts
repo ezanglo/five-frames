@@ -258,6 +258,49 @@ describe("manual payment confirmation and refund", () => {
     expect(deriveEventLifecycleState(result.event)).toBe("draft");
   });
 
+  it("the sole activating manual payment is not flagged a duplicate after a valid refund", async () => {
+    const event = await createDraftEvent(hostAId, "Refund not duplicate");
+    const confirmed = await confirmManualPayment(operatorBId, event.id, manualInput());
+    expect(confirmed.outcome).toBe("activated");
+    const payment = (confirmed as Extract<ConfirmManualPaymentResult, { outcome: "activated" }>)
+      .payment;
+
+    const result = await recordManualRefund(operatorBId, event.id, { note: null });
+    expect(result.outcome).toBe("refunded");
+    if (result.outcome !== "refunded") throw new Error("unreachable");
+    expect(result.payment?.id).toBe(payment.id);
+
+    // The refund clears event.activating_payment_id as part of returning the event to
+    // draft — that must never be misread as "this payment isn't the activating one, so
+    // it's an unresolved duplicate" (the defect this test guards against).
+    expect(result.event.activating_payment_id).toBeNull();
+    expect(isDuplicatePayment(result.payment!, result.event)).toBe(false);
+  });
+
+  it("a genuine second successful payment still surfaces as a duplicate after the activating payment is refunded", async () => {
+    const event = await createDraftEvent(hostAId, "Refund keeps real duplicates visible");
+    const confirmed = await confirmManualPayment(operatorBId, event.id, manualInput());
+    expect(confirmed.outcome).toBe("activated");
+
+    // A second, genuinely distinct manual confirmation attempt after the event is
+    // already active is refused outright by confirmManualPayment's own atomic guard —
+    // so to model "a second payment that lost the activation race," confirm against a
+    // second event and then treat that payment as if it belonged to the first event's
+    // now-refunded state, exactly like isDuplicatePayment's own race-loser tests above.
+    const otherEvent = await createDraftEvent(hostAId, "Other event for race-loser payment");
+    const otherConfirmed = await confirmManualPayment(operatorBId, otherEvent.id, manualInput());
+    expect(otherConfirmed.outcome).toBe("activated");
+    const raceLoserPayment = (
+      otherConfirmed as Extract<ConfirmManualPaymentResult, { outcome: "activated" }>
+    ).payment;
+
+    const result = await recordManualRefund(operatorBId, event.id, { note: null });
+    expect(result.outcome).toBe("refunded");
+    if (result.outcome !== "refunded") throw new Error("unreachable");
+
+    expect(isDuplicatePayment(raceLoserPayment, result.event)).toBe(true);
+  });
+
   it("repeated refund submissions are safe", async () => {
     const event = await createDraftEvent(hostAId, "Repeated refund");
     await confirmManualPayment(operatorBId, event.id, manualInput());
