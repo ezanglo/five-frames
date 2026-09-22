@@ -1,6 +1,9 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-23 (Slice 8 complete; payment/activation/signage design pass awaiting human visual verification)
+Last updated: 2026-09-23 (Slice 9 complete: manual payment confirmation and refunds through
+the Operator Console, plus a follow-on correction resolving product.md's supplier-assisted
+payment ambiguity on the host checkout page. Payment/activation/signage design pass still
+awaiting human visual verification from Slice 8, unaffected by this slice.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -9,7 +12,96 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–8: complete.** Slice 8 (provider payment, shared activation, event signage) finished
+**Slices 1–9: complete.** Slice 9 (manual payment confirmation and refunds through the Operator
+Console, product.md §7.2/§7.2.1/§15.1) landed 2026-09-23. It reuses the Slice 8 `activateEvent`
+function unchanged for activation and adds no new schema — the `payments` table's manual and
+refund fields were already designed in from Slice 8/9's original migration (decision D17), and
+`events.activating_payment_id` (added for the Slice 8 double-payment fix) already carries
+everything needed to tell "this payment activated the event" apart from "a different payment
+already did," so that same mechanism now works identically for a manual/provider cross-source
+race, not just a provider/provider one.
+- `lib/dal/payments.ts` gained `confirmManualPayment(operatorId, eventId, input)` and
+  `recordManualRefund(operatorId, eventId, input)`. Both take a pre-verified operator id — the
+  caller (`app/(operator)/actions.ts`) calls `requireOperator()` first, the same trust split
+  `startProviderCheckout` already has with `requireHost()` — and both enforce the
+  ownership-conflict rule (architecture §5a: `event.host_id === operatorId` refuses) before
+  touching anything.
+  - `confirmManualPayment` refuses outright (rather than inserting a second manual payment row)
+    once the event is already activated — a repeated/duplicated confirm submission for the same
+    event is a clean no-op, not a spurious extra payment row that would always lose the
+    activation race. It writes the new `payments` row (`source = 'manual'`, method, amount,
+    `paid_at`, `confirmed_at = now()`, `confirmed_by`, optional note) then calls the *same*
+    `activateEvent` the provider webhook uses — no separate manual activation code path, per
+    decision D16. A genuine concurrent race (two operators, or an operator confirming while a
+    PayMongo webhook lands) can still both pass the pre-check before either commits;
+    `activateEvent`'s atomic `WHERE activated_at IS NULL` guard is what actually guarantees
+    exactly-once activation there, and the loser's payment row is left as a genuinely recorded,
+    non-activating payment.
+  - `recordManualRefund` returns the event to unpaid and disables its links — `activated_at`,
+    `event_token`, `gallery_token`, `activating_payment_id` all cleared in one guarded
+    `WHERE activated_at IS NOT NULL` update — while separately, atomically marking the activating
+    payment row `refunded_at`/`refunded_by`/`refund_note` via its own `WHERE refunded_at IS NULL`
+    guard. Two independent single-table atomic guards, not a cross-table transaction, but each is
+    individually idempotent (same style as `activateEvent` + `supersedeSiblingPendingCheckouts`
+    in Slice 8), so a repeated or concurrent refund submission is safe: a second call sees
+    `not_activated` and does nothing further.
+  - `isDuplicatePayment(payment, event)` is a small derived helper — no new "duplicate" column —
+    computing "this payment succeeded but isn't the one that activated the event" by comparing
+    the payment id against `events.activating_payment_id`, working identically for a provider
+    payment (already explicitly flagged `provider_status = 'paid_duplicate'` since Slice 8) and a
+    manual one (no separate status column exists or is needed — confirmed-but-not-activating is
+    sufficient). This is what makes the provider/manual cross-source race resolve into the
+    existing duplicate-payment display path instead of a second, parallel mechanism.
+- `app/(operator)/actions.ts` (new) holds the two Server Actions, each calling `requireOperator()`
+  before any DAL work — the only invocation path into `confirmManualPayment`/`recordManualRefund`
+  in the codebase, so a host session has no route or affordance that reaches them regardless of
+  payment path (product.md §7.2: "the host can never self-declare payment"). The manual-payment
+  form's "paid at" datetime is interpreted in the event's own configured timezone via the existing
+  `zonedDateTimeLocalToUtcIso` helper (same convention as the reveal-time field), not the server
+  process's timezone.
+- `app/(operator)/operator/events/[eventId]/manual-payment-form.tsx` and `manual-refund-form.tsx`
+  (new, client) fill the "Manual payment actions" zone the Slice 8 design pass reserved but left
+  inert — a confirm form (method, amount, paid-at, optional note) shown for a draft event, or a
+  refund form (optional note) shown for an activated one, both behind a `window.confirm(...)`
+  guard before submitting (explicit confirmation for a consequential mutation, same pattern
+  `LinkRow`'s rotate/revoke already uses). The event detail page's payment list now shows every
+  payment's status generically for either source (including a manual payment's method and any
+  reference note), and the existing "needs manual refund" duplicate banner now covers a manual
+  duplicate the same way it already covered a provider one.
+**Follow-on correction (2026-09-23): host checkout copy for supplier-assisted payment.**
+product.md §7.2 was updated to resolve an ambiguity this slice had left open (see the superseded
+note below): there is **no persisted "payment arranged" lifecycle state** — an unpaid event stays
+in the same unpaid/pending-payment state regardless of path, until an operator actually confirms
+receipt. The checkout page (`app/(host)/events/[eventId]/checkout/page.tsx`) now carries one line
+of secondary, purely informational copy beneath the existing "Continue to payment" action:
+"Already arranged payment directly with FiveFrames? Your event will activate once we confirm
+receipt." "Pay online" remains the primary, only-clickable action; this line has no control behind
+it — no button, no form, no way for a host to declare their own payment, create a manual-payment
+record, or disable online payment. No schema, state, or activation logic changed; Operator Console
+behavior is untouched.
+
+**Regression found and fixed during this correction's verification pass (not caused by the copy
+change — a pre-existing Slice 9 concurrency defect the test suite happened to catch under
+repeated runs):** `activateEvent`'s `supersedeSiblingPendingCheckouts` step (Slice 8) used to
+update a sidelined sibling provider payment's `provider_status` to `"superseded"`
+unconditionally by id, guarded only by the *read* that selected it as still `pending` — not by
+the *write*. Under the real provider/manual cross-source race the "a provider payment and a
+manual confirmation racing the same event" test exercises, the losing provider payment's own
+webhook can concurrently claim it `paid_duplicate` in the gap between that read and write; the
+unconditional update then silently clobbered the claim back to `superseded`, which
+`isDuplicatePayment` doesn't treat as a flagged payment — hiding a genuinely distinct second
+payment from the Operator Console entirely (roadmap Slice 9's own requirement: "never silently
+treated as ordinary success"). Fixed by guarding that update on `provider_status = "pending"` at
+write time too (`lib/dal/payments.ts`), the same atomic-guard discipline as everywhere else in
+this codebase — a stale write becomes a harmless no-op instead of an overwrite. The existing
+cross-source race test in `lib/dal/payments.manual.integration.test.ts` reproduced this reliably
+before the fix (failed roughly 2 of 3 runs) and now passes consistently (verified 8/8 consecutive
+runs plus 3 full-suite runs); no new test file was needed since that test already covers the
+exact interleaving.
+
+**Former current-phase entry (Slice 8), preserved below:**
+
+Slice 8 (provider payment, shared activation, event signage) finished
 end-to-end verification 2026-09-22, across two passes. First pass: the user completed real
 PayMongo test-mode checkouts against the deployed app, and the real webhook deliveries, payment
 records, and activation were inspected directly in the dev database — a wrong webhook signature
@@ -97,9 +189,10 @@ see prior verification records in git history if needed.
   D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 record
   the event-capacity counter mechanism and the client-only public demo (implemented, Slice 6).
   D15–D17 record the operator grant model, the shared provider/manual activation function
-  (implemented, Slice 8), and the payment-row-as-audit-trail decision (manual fields land Slice 9).
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–8 complete; Slice 9 (manual payment/refunds
-  through the Operator Console) is next.
+  (implemented, Slice 8, exercised by both payment sources since Slice 9), and the
+  payment-row-as-audit-trail decision (manual fields populated since Slice 9).
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–9 complete; Slice 10 (sharing and share
+  cards) is next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -407,6 +500,21 @@ see prior verification records in git history if needed.
   the required product.md §11.3 copy, the QR embeds the real per-event capture link (not a
   placeholder), XML-unsafe characters in the event name are escaped, and each format has a
   distinct layout.
+  `lib/dal/payments.manual.integration.test.ts` (Slice 9) adds, against the real dev database: a
+  successful manual confirm activates the event through `activateEvent` with
+  `capture_opened_at` still null; an operator cannot confirm for an event they own, but a
+  different authorized operator can; a repeated confirmation attempt for an already-activated
+  event is refused rather than creating a second payment row; two operators confirming the same
+  fresh event concurrently activate it exactly once, with the loser correctly read as a duplicate
+  via `isDuplicatePayment`; a provider webhook and a manual confirmation racing the same event
+  concurrently also activate exactly once, with the loser (whichever source it is) flagged rather
+  than silently accepted; a manual refund clears `activated_at`/`event_token`/`gallery_token`/
+  `activating_payment_id` and marks the payment row `refunded_at`/`refunded_by`/`refund_note`;
+  repeated refund submissions are safe (second sees `not_activated`); a refund is refused for an
+  event that was never activated; and an operator cannot record a refund for an event they own.
+  `lib/dal/payments.test.ts` (Slice 9, unit) — `isDuplicatePayment` across a winning/losing
+  provider payment, a still-pending provider payment (never flagged), and a winning/losing manual
+  payment.
 
 ## Verification status
 
@@ -414,9 +522,9 @@ see prior verification records in git history if needed.
 - `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`, and
   `/operator/events/[eventId]` register as dynamic routes.
-- `pnpm test` (Vitest) — 95/95 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
-  join-capacity, Slice 7 operator-authorization, and Slice 8 payment/activation/signage integration
-  and unit tests above against the real dev database.
+- `pnpm test` (Vitest) — 110/110 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
+  join-capacity, Slice 7 operator-authorization, Slice 8 payment/activation/signage, and Slice 9
+  manual-payment/refund integration and unit tests above against the real dev database.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -678,20 +786,22 @@ second real checkout after the root-cause fix specifically to re-verify it.
 
 ## Next slice
 
-**Slice 8 — Provider payment, shared activation, and event signage: complete.** Automated checks
-passing (`pnpm typecheck`/`lint`/`build`/`test` all green, 95/95 tests) and real end-to-end
-verification passed 2026-09-22 (see "Verification status" and the exit-condition section above).
+**Slice 9 — Manual payment confirmation and refunds through the Operator Console: complete**,
+including the 2026-09-23 host checkout copy correction once product.md resolved the
+supplier-assisted payment ambiguity (see "Current phase" above). Automated checks passing
+(`pnpm typecheck`/`lint`/`build`/`test` all green, 110/110 tests, stable across repeated runs;
+includes real concurrency/cross-source-race coverage against the dev database, which also caught
+and fixed a genuine `supersedeSiblingPendingCheckouts` clobbering defect — see "Current phase"
+above). No manual device checks apply (internal desktop/browser tool, same tier as Slices 4/6/7).
 
-**Slice 9 — Manual payment confirmation and refunds through the Operator Console**
-([roadmap](./roadmap.md)) is next; it reuses `activateEvent` unchanged and adds the two Operator
-Console mutations the current read-only Console reserves space for. Not started.
+**Slice 10 — Sharing and share cards** ([roadmap](./roadmap.md)) is next. Not started.
 
 ## Blockers and open items
 
 | Item | Type | Affects |
 |---|---|---|
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
-| Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens, reserved-but-inert manual-payment/refund zone) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. No mutation was implemented; Slice 9 still builds the real actions inside the reserved zone. | Design pass pending approval | `/operator`, `/operator/events/[eventId]`; see checklist in session handoff |
+| Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. Slice 9 has since filled the manual-payment/refund zone with real actions on top of this visual pass; the zone's own visuals were not redesigned in Slice 9. | Design pass pending approval | `/operator`, `/operator/events/[eventId]`; see checklist in session handoff |
 | Payment/activation/signage visual redesign (checkout "what you get" panel, state-differentiated payment banners, post-activation "capture stays closed" reassurance, signage rebuilt with the host palette and a viewfinder-corner photo-object motif) implemented 2026-09-23, automated checks passing (`typecheck`/`lint`/`test`/`build` all green) — **awaiting human visual verification**, not yet accepted in design-direction.md. No payment semantics, pricing, or activation logic changed. | Design pass pending approval | `/events/[eventId]/checkout`, `/events/[eventId]`, `/events/[eventId]/signage/[format]`; see checklist in session handoff |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |
 | Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |

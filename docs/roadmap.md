@@ -253,6 +253,8 @@ would. A double-submitted confirm (or a confirm racing a replayed provider webho
 somehow has both in flight) activates exactly once. A manual refund produces an auditable record
 (who, when) and disables the event's links.
 
+**Status: complete.** See [progress.md](./progress.md) for verification results.
+
 ---
 
 ## Slice 10 — Sharing and share cards

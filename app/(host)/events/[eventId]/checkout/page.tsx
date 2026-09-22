@@ -112,6 +112,13 @@ export default async function EventCheckoutPage({
           automatically once it&rsquo;s done.
         </p>
       </form>
+
+      {/* Informational only (product.md §7.2) — not a new state, and never a way for the
+          host to declare their own payment. Always secondary to "Pay online" above. */}
+      <p className="text-xs text-(--host-ink-muted)">
+        Already arranged payment directly with FiveFrames? Your event will activate once we
+        confirm receipt.
+      </p>
     </div>
   );
 }

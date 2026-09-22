@@ -66,6 +66,26 @@ export type OperatorEventDetail = {
   payments: PaymentRow[];
 };
 
+/**
+ * Lightweight event lookup for an operator-authorized mutation (confirm manual payment,
+ * record a manual refund — architecture §8a). No host-ownership predicate, same as every
+ * other function in this module; the caller (lib/dal/payments.ts) reads the returned
+ * `host_id` only to run the ownership-conflict check, never to grant host access.
+ */
+export async function getEventForOperatorMutation(
+  eventId: string,
+): Promise<EventRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .select()
+    .eq("id", eventId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
 export async function getOperatorEventDetail(
   eventId: string,
 ): Promise<OperatorEventDetail | null> {

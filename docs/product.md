@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-22 (added the internal Operator Console, §5.1, ahead of the pending payment/operator architecture reconciliation)
+Last updated: 2026-09-23 (resolved the pre-confirmation host-facing state for supplier-assisted/manual payment, §7.2; no separate persisted "arranged" lifecycle state)
 Initial market: Philippines
 
 ---
@@ -163,11 +163,16 @@ States are meaningful product concepts and drive what each role can do.
 - There is **no guest-experience preview before payment** in MVP.
 - FiveFrames supports two paths to activation, both reaching the same paid/active state:
   1. **Self-service online payment** — the host pays directly through the configured payment provider ("Pay online"). Activation is triggered by the provider's own trusted confirmation of a successful payment.
-  2. **Supplier-assisted / manual payment** — used when FiveFrames has arranged the sale directly with the host through a direct conversation (host, couple, coordinator, family, or organizer) and accepts cash or another explicitly agreed offline payment. The host sees a simple "payment arranged with FiveFrames" state instead of "Pay online." Activation is triggered **only** when an authorized FiveFrames operator confirms — after actually receiving and verifying the payment — that it was received (§7.2.1).
+  2. **Supplier-assisted / manual payment** — used when FiveFrames has arranged the sale directly with the host through a direct conversation (host, couple, coordinator, family, or organizer) and accepts cash or another explicitly agreed offline payment. Activation is triggered **only** when an authorized FiveFrames operator confirms — after actually receiving and verifying the payment — that it was received (§7.2.1).
 - **The host can never self-declare payment and activate an event.** Under both paths, activation always originates from a source external to and independent of the host: the payment provider (path 1), or an authorized FiveFrames operator (path 2). A host cannot mark their own event as paid.
 - The **event link and printable QR are issued only after payment is confirmed**, through either path. An unpaid or unconfirmed event can never be distributed to guests.
 - Payment failure (path 1) or payment not yet confirmed (path 2) leaves the event in draft/pending-payment. Nothing is activated and no links are issued.
 - Before payment, the host must be shown a clear breakdown: the FiveFrames event price, any processing/service fees (path 1) or the agreed amount (path 2), the total, and which amounts are refundable versus non-refundable.
+
+**What the host sees before a manual payment is confirmed.** Supplier-assisted/manual payment is an off-platform commercial arrangement between FiveFrames and the host — it does not create a separate persisted "arranged" or "pending confirmation" lifecycle state merely to represent that a conversation or arrangement took place. An unpaid event remains in the same unpaid/pending-payment state (§7 lifecycle table) regardless of which path the host may pursue, until an operator actually confirms receipt (§7.2.1). The ordinary unpaid checkout screen shows one lifecycle state, communicated as:
+
+- **Primary action: "Pay online."** Self-service checkout remains available to every unpaid host, including one who has separately arranged payment directly with FiveFrames — arranging manual payment never disables or hides online payment.
+- **Secondary explanatory copy**, for hosts who already arranged payment directly with FiveFrames, to the effect of: "Already arranged payment directly with FiveFrames? Your event will activate once we confirm receipt." This copy is informational only. It must not let the host declare or mark their own payment as made, must not create or update any manual-payment record, must not notify anyone or trigger activation by itself, must not reserve or flag the event as paid, and must not become a self-service "request manual payment" workflow. It is calm, factual wording layered on the existing unpaid state — not a new state, status value, or workflow.
 
 ### 7.2.1 Manual payment record
 
@@ -382,7 +387,7 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 | Guest opens capture link after capture closed | Calm "capture has ended" state, plus their own captures if their session still exists. The full gallery is reached only through the gallery link. |
 | Event is at its guest-session capacity (§9.5) and a new guest tries to join | Calm "this event is currently full" state, not an error. Guests already joined are unaffected and keep their full remaining allowance. |
 | Self-service payment fails | Event stays unpaid; nothing is activated; host can retry. |
-| A manual payment is arranged but not yet confirmed | Event stays unconfirmed/unpaid; no link or QR exists; host cannot self-activate; host can be told confirmation is pending. |
+| A host has arranged supplier-assisted/manual payment but an operator has not yet confirmed receipt | Event stays in the ordinary unpaid/pending-payment state (no separate "arranged" state, §7.2); no link or QR exists; host cannot self-activate; "Pay online" remains available; calm secondary copy tells the host confirmation is pending. |
 | Realtime updates unavailable | Dashboard still correct via refresh; no data loss, no incorrect counts. |
 | Host tries to reveal a gallery with no captures | Allowed; empty-state gallery, no error. |
 
@@ -478,7 +483,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Draft → payment → active lifecycle, with price breakdown before payment.
 - Self-service online payment via GCash, Maya and cards; activation on provider-confirmed success.
 - Supplier-assisted/manual payment path for FiveFrames-arranged sales, with a manual payment record (§7.2.1: event, amount/currency, method/category, payment date, confirmation date, confirming operator, optional reference/note) and activation only on authorized-operator confirmation — never host self-declaration.
-- Simple customer-facing payment states: "Pay online," or a supplier-assisted payment state when FiveFrames has arranged payment directly with that host.
+- One unpaid customer-facing state with "Pay online" as the primary action, plus calm secondary copy for hosts who already arranged payment directly with FiveFrames (§7.2) — no separate persisted "arranged" payment state.
 - Event link + printable QR issued only once payment is confirmed, through either path.
 - Host-controlled capture open/close, with automatic safety-net close.
 - Guest join via QR/link with display name and anonymous session; no accounts.
@@ -576,7 +581,7 @@ Observable behavior that defines launch readiness.
 14. The host sees price (or agreed amount), fees, total and refundability before paying, for either payment path.
 15. Once an event reaches its guest-session capacity (§9.5), a new guest attempting to join sees a calm "event is full" state; guests already joined are unaffected and keep capturing normally.
 16. A prospective host can experience the pre-purchase demo (§7.1) without paying and without creating any real event, link, or QR; nothing produced by the demo functions as a real capture or gallery link.
-17. A host offered supplier-assisted/manual payment has no action available to mark their own event as paid; the event stays unactivated, with no link or QR, until an authorized FiveFrames operator confirms it.
+17. A host offered supplier-assisted/manual payment has no action available to mark their own event as paid; the event stays unactivated, with no link or QR, until an authorized FiveFrames operator confirms it. Before confirmation, the host's checkout still shows "Pay online" as the primary action, plus calm secondary copy explaining that confirmation activates the event; online payment is never disabled by the existence of a manual arrangement (§7.2).
 18. Confirming a manual payment records an auditable payment record identifying the event, amount/currency, method/category, payment date, confirmation date, and confirming operator (§7.2.1); confirmation activates the event and issues its link and QR exactly as a successful self-service payment would.
 19. Being a host or a paying customer never by itself grants the ability to confirm or refund a manual payment; that ability exists only for accounts FiveFrames has explicitly authorized as operators (§5). An operator who also owns an event cannot confirm payment or a refund for that event — a different authorized operator must do so.
 

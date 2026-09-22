@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Lock } from "lucide-react";
 import { getOperatorEventDetail } from "@/lib/dal/operator-events";
+import { isDuplicatePayment } from "@/lib/dal/payments";
 import { deriveEventLifecycleState, isGalleryRevealed } from "@/lib/events/lifecycle";
 import { StatePill } from "@/app/(operator)/state-indicator";
+import { ManualPaymentForm } from "@/app/(operator)/operator/events/[eventId]/manual-payment-form";
+import { ManualRefundForm } from "@/app/(operator)/operator/events/[eventId]/manual-refund-form";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -35,26 +37,6 @@ function formatDate(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString() : "—";
 }
 
-function ReservedAction({
-  label,
-  note,
-}: {
-  label: string;
-  note: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 rounded-lg border border-dashed border-(--operator-privileged)/35 px-3 py-2.5">
-      <Lock aria-hidden className="size-3.5 shrink-0 text-(--operator-privileged)/60" />
-      <div className="flex min-w-0 flex-col">
-        <span className="text-sm font-medium text-(--operator-privileged)/80">
-          {label}
-        </span>
-        <span className="text-xs text-(--operator-ink-muted)">{note}</span>
-      </div>
-    </div>
-  );
-}
-
 export default async function OperatorEventDetailPage({
   params,
 }: {
@@ -65,7 +47,7 @@ export default async function OperatorEventDetailPage({
   if (!detail) notFound();
 
   const { event, hostEmail, captureCounts, payments } = detail;
-  const duplicatePayments = payments.filter((p) => p.provider_status === "paid_duplicate");
+  const duplicatePayments = payments.filter((p) => isDuplicatePayment(p, event));
   const state = deriveEventLifecycleState(event);
   const revealed = isGalleryRevealed(event);
 
@@ -142,47 +124,69 @@ export default async function OperatorEventDetailPage({
             {payments.length === 0 ? (
               <Row label="Attempts" value="No payment attempt yet" />
             ) : (
-              payments.map((payment, index) => (
-                <div
-                  key={payment.id}
-                  className={index > 0 ? "mt-2 border-t border-(--operator-border) pt-2" : undefined}
-                >
-                  <Row
-                    label="Source"
-                    value={
-                      payment.source === "provider" ? "PayMongo (self-service)" : "Manual"
+              payments.map((payment, index) => {
+                const duplicate = isDuplicatePayment(payment, event);
+                const amount = payment.amount ?? payment.manual_amount;
+                const currency = payment.currency ?? payment.manual_currency;
+                return (
+                  <div
+                    key={payment.id}
+                    className={
+                      index > 0 ? "mt-2 border-t border-(--operator-border) pt-2" : undefined
                     }
-                  />
-                  <Row
-                    label="Status"
-                    value={
-                      payment.provider_status === "paid_duplicate" ? (
-                        <span className="font-medium text-(--operator-privileged)">
-                          paid_duplicate — needs manual refund
-                        </span>
-                      ) : (
-                        (payment.provider_status ?? "—")
-                      )
-                    }
-                  />
-                  <Row
-                    label="Amount"
-                    value={
-                      payment.amount != null
-                        ? `₱${(payment.amount / 100).toLocaleString()} ${payment.currency ?? ""}`
-                        : "—"
-                    }
-                  />
-                </div>
-              ))
+                  >
+                    <Row
+                      label="Source"
+                      value={
+                        payment.source === "provider"
+                          ? "PayMongo (self-service)"
+                          : `Manual (${payment.manual_method ?? "—"})`
+                      }
+                    />
+                    <Row
+                      label="Status"
+                      value={
+                        payment.refunded_at ? (
+                          <span className="font-medium">Refunded</span>
+                        ) : duplicate ? (
+                          <span className="font-medium text-(--operator-privileged)">
+                            duplicate — needs manual refund
+                          </span>
+                        ) : payment.source === "provider" ? (
+                          (payment.provider_status ?? "—")
+                        ) : payment.confirmed_at ? (
+                          "Confirmed"
+                        ) : (
+                          "—"
+                        )
+                      }
+                    />
+                    <Row
+                      label="Amount"
+                      value={
+                        amount != null
+                          ? `₱${(amount / 100).toLocaleString()} ${currency ?? ""}`
+                          : "—"
+                      }
+                    />
+                    {payment.source === "manual" && payment.reference_note && (
+                      <Row label="Note" value={payment.reference_note} />
+                    )}
+                    {payment.refunded_at && (
+                      <Row label="Refunded at" value={formatDate(payment.refunded_at)} />
+                    )}
+                  </div>
+                );
+              })
             )}
             {duplicatePayments.length > 0 && (
               <p className="mt-2 rounded-lg bg-(--operator-privileged)/10 px-2.5 py-2 text-xs text-(--operator-privileged)">
                 {duplicatePayments.length} duplicate payment
                 {duplicatePayments.length === 1 ? "" : "s"} recorded for this event — the
-                event activated from a different payment. Refund the duplicate
-                {duplicatePayments.length === 1 ? "" : "s"} manually through the PayMongo
-                dashboard (product.md §15.1); no automatic refund is issued.
+                event activated from a different payment, so this one never activated
+                anything. Follow up manually (provider: PayMongo&rsquo;s own dashboard;
+                manual: return the funds outside FiveFrames) per product.md §15.1 — no
+                automatic refund is issued.
               </p>
             )}
           </div>
@@ -191,14 +195,11 @@ export default async function OperatorEventDetailPage({
             <h2 className="text-xs font-medium tracking-wide text-(--operator-privileged)/70 uppercase">
               Manual payment actions
             </h2>
-            <ReservedAction
-              label="Confirm manual payment"
-              note="Reserved for Slice 9 — not yet available"
-            />
-            <ReservedAction
-              label="Record a refund"
-              note="Reserved for Slice 9 — not yet available"
-            />
+            {event.activated_at ? (
+              <ManualRefundForm eventId={event.id} />
+            ) : (
+              <ManualPaymentForm eventId={event.id} />
+            )}
           </div>
         </aside>
       </div>

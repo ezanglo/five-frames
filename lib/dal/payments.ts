@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventForHost } from "@/lib/dal/events";
+import { getEventForOperatorMutation } from "@/lib/dal/operator-events";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import {
   createCheckoutSession,
@@ -10,7 +11,7 @@ import {
   type PaymongoWebhookEvent,
 } from "@/lib/payments/paymongo-client";
 import { CURRENCY, EVENT_PRICE_CENTAVOS } from "@/lib/payments/pricing";
-import type { EventRow, PaymentRow } from "@/lib/db/types";
+import type { EventRow, ManualPaymentMethod, PaymentRow } from "@/lib/db/types";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -307,10 +308,19 @@ async function supersedeSiblingPendingCheckouts(
       }
     }
 
+    // Re-guarded on `provider_status = "pending"` at write time, not just at the read
+    // above (Slice 9 regression — see docs/progress.md): a sibling can stop being merely
+    // "pending" between that read and this write, e.g. its own webhook lands concurrently
+    // and claims it as `paid`/`paid_duplicate` while this call still thinks it's pending.
+    // Without this guard, an unconditional update-by-id here would silently clobber that
+    // outcome back to `superseded`, hiding a genuine second payment. If the row already
+    // moved on, this becomes a harmless no-op — the concurrent write already recorded
+    // whatever actually happened to it, which is the correct terminal state.
     const { error: updateError } = await supabase
       .from("payments")
       .update({ provider_status: "superseded", updated_at: new Date().toISOString() })
-      .eq("id", sibling.id);
+      .eq("id", sibling.id)
+      .eq("provider_status", "pending");
     if (updateError) throw updateError;
   }
 }
@@ -393,4 +403,165 @@ export async function recordProviderWebhookAndActivate(
   if (statusError) throw statusError;
 
   return { handled: true, duplicate: isDuplicate };
+}
+
+export type ManualPaymentInput = {
+  method: ManualPaymentMethod;
+  amountCentavos: number;
+  currency: string;
+  /** UTC instant the payment was actually received, already converted from the
+   *  operator's local input (product.md §7.2.1's "the date the payment was made"). */
+  paidAtIso: string;
+  referenceNote: string | null;
+};
+
+export type ConfirmManualPaymentResult =
+  | { outcome: "not_found" }
+  | { outcome: "owns_event" }
+  | { outcome: "already_activated" }
+  | { outcome: "activated"; event: EventRow; payment: PaymentRow }
+  | { outcome: "duplicate"; event: EventRow; payment: PaymentRow };
+
+/**
+ * Confirms a supplier-assisted/manual payment (product.md §7.2/§7.2.1) and activates the
+ * event through the same `activateEvent` the provider path uses (decision D16) — no
+ * separate manual activation implementation. The caller must already be a verified
+ * operator (`requireOperator()`, checked by the server action, not here); this function
+ * only enforces the ownership-conflict rule (architecture §5a) — the same trust split
+ * `startProviderCheckout` already has with `requireHost()`.
+ *
+ * Refuses outright (rather than inserting a second manual payment row) once the event is
+ * already activated, so a repeated/duplicated confirm submission for the same event is a
+ * clean no-op instead of creating a spurious extra payment row that would always lose the
+ * activation race. A genuine concurrent race — two different confirmations, or an
+ * operator confirming while a PayMongo webhook lands — can still both pass this pre-check
+ * before either commits: `activateEvent`'s atomic guard is what actually guarantees
+ * exactly-once activation there, and the loser is reported as "duplicate" so the Console
+ * can surface it for follow-up rather than silently treating it as ordinary success.
+ */
+export async function confirmManualPayment(
+  operatorId: string,
+  eventId: string,
+  input: ManualPaymentInput,
+): Promise<ConfirmManualPaymentResult> {
+  const event = await getEventForOperatorMutation(eventId);
+  if (!event) return { outcome: "not_found" };
+  if (event.host_id === operatorId) return { outcome: "owns_event" };
+  if (event.activated_at) return { outcome: "already_activated" };
+
+  const supabase = createServiceClient();
+  const { data: payment, error } = await supabase
+    .from("payments")
+    .insert({
+      event_id: eventId,
+      source: "manual",
+      manual_method: input.method,
+      manual_amount: input.amountCentavos,
+      manual_currency: input.currency,
+      paid_at: input.paidAtIso,
+      confirmed_at: new Date().toISOString(),
+      confirmed_by: operatorId,
+      reference_note: input.referenceNote,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+
+  const { event: activatedEvent, activatedByThisCall } = await activateEvent(
+    eventId,
+    payment.id as string,
+  );
+
+  return {
+    outcome: activatedByThisCall ? "activated" : "duplicate",
+    event: activatedEvent,
+    payment: payment as PaymentRow,
+  };
+}
+
+export type ManualRefundInput = { note: string | null };
+
+export type RecordManualRefundResult =
+  | { outcome: "not_found" }
+  | { outcome: "owns_event" }
+  | { outcome: "not_activated" }
+  | { outcome: "refunded"; event: EventRow; payment: PaymentRow | null };
+
+/**
+ * Records a manually executed refund (product.md §15.1) and returns the event to unpaid,
+ * disabling its links — the same outcome a provider refund produces (architecture §8a).
+ * Mirrors `confirmManualPayment`'s trust boundary: the caller must already be a verified
+ * operator; this only enforces the ownership-conflict rule.
+ *
+ * Two independent atomic guards make repeated or concurrent refund submissions safe
+ * without a cross-table transaction: the payment row only ever claims `refunded_at` once
+ * (`WHERE refunded_at IS NULL`), and the event only ever clears its activation once
+ * (`WHERE activated_at IS NOT NULL`) — a second call for an already-refunded event sees
+ * `not_activated` and does nothing further, the same idempotent-under-replay shape as
+ * every other guarded mutation in this codebase (D5/D6/D13/D16).
+ */
+export async function recordManualRefund(
+  operatorId: string,
+  eventId: string,
+  input: ManualRefundInput,
+): Promise<RecordManualRefundResult> {
+  const event = await getEventForOperatorMutation(eventId);
+  if (!event) return { outcome: "not_found" };
+  if (event.host_id === operatorId) return { outcome: "owns_event" };
+  if (!event.activated_at) return { outcome: "not_activated" };
+
+  const supabase = createServiceClient();
+
+  let refundedPayment: PaymentRow | null = null;
+  if (event.activating_payment_id) {
+    const { data, error } = await supabase
+      .from("payments")
+      .update({
+        refunded_at: new Date().toISOString(),
+        refunded_by: operatorId,
+        refund_note: input.note,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", event.activating_payment_id)
+      .is("refunded_at", null)
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    refundedPayment = data as PaymentRow | null;
+  }
+
+  const { data: clearedEvent, error: clearError } = await supabase
+    .from("events")
+    .update({
+      activated_at: null,
+      event_token: null,
+      gallery_token: null,
+      activating_payment_id: null,
+    })
+    .eq("id", eventId)
+    .not("activated_at", "is", null)
+    .select()
+    .maybeSingle();
+  if (clearError) throw clearError;
+
+  return {
+    outcome: "refunded",
+    event: (clearedEvent as EventRow | null) ?? event,
+    payment: refundedPayment,
+  };
+}
+
+/**
+ * True when this payment reached a successful terminal state (provider `paid`/
+ * `paid_duplicate`, or a confirmed manual payment) but is not the payment that actually
+ * activated the event — a genuinely distinct payment surfaced for operator follow-up
+ * (product.md §15.1). Computed from `events.activating_payment_id` rather than a second
+ * stored flag, so it reads correctly for either payment source without new schema.
+ */
+export function isDuplicatePayment(payment: PaymentRow, event: EventRow): boolean {
+  const succeeded =
+    payment.source === "provider"
+      ? payment.provider_status === "paid" || payment.provider_status === "paid_duplicate"
+      : payment.confirmed_at !== null;
+  return succeeded && event.activating_payment_id !== payment.id;
 }
