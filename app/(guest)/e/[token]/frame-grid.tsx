@@ -1,4 +1,4 @@
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
@@ -27,7 +27,7 @@ export type FrameState =
   /** A file is selected and the reserve/upload/commit attempt is in flight (or failed). */
   | { kind: "composing"; previewUrl: string; busy: boolean; error: boolean }
   /** Permanently committed — this frame is done. */
-  | { kind: "filled"; thumbnailUrl: string | null; downloadUrl: string | null };
+  | { kind: "filled"; captureId: string; thumbnailUrl: string | null; downloadUrl: string | null };
 
 /**
  * The five frames as one irregular photo board (docs/design-direction.md). Position is fixed
@@ -37,15 +37,28 @@ export type FrameState =
 export function FrameGrid({
   frames,
   onActivate,
+  onShare,
+  sharingCaptureId,
 }: {
   frames: [FrameState, FrameState, FrameState, FrameState, FrameState];
   /** Called when the guest taps the active or resuming frame to open the picker. */
   onActivate?: () => void;
+  /** Present only when the host has sharing enabled for this event (product.md §10). */
+  onShare?: (captureId: string) => void;
+  /** The capture id currently generating/sharing its card, so its button can show progress. */
+  sharingCaptureId?: string | null;
 }) {
   return (
     <div className="frame-board gap-3">
       {frames.map((frame, index) => (
-        <PhotoFrame key={index} index={index} state={frame} onActivate={onActivate} />
+        <PhotoFrame
+          key={index}
+          index={index}
+          state={frame}
+          onActivate={onActivate}
+          onShare={onShare}
+          sharingCaptureId={sharingCaptureId}
+        />
       ))}
     </div>
   );
@@ -55,10 +68,14 @@ function PhotoFrame({
   index,
   state,
   onActivate,
+  onShare,
+  sharingCaptureId,
 }: {
   index: number;
   state: FrameState;
   onActivate?: () => void;
+  onShare?: (captureId: string) => void;
+  sharingCaptureId?: string | null;
 }) {
   const numeral = ROMAN[index];
   const shape = cn("relative overflow-hidden rounded-[1.5rem]", FRAME_POSITION[index]);
@@ -81,17 +98,37 @@ function PhotoFrame({
         <FrameNumeral numeral={numeral} tone="onPhoto" />
       </>
     );
-    return state.downloadUrl ? (
-      <a
-        href={state.downloadUrl}
-        download
-        className={cn(shape, "block shadow-[0_6px_20px_-8px_oklch(0.27_0.025_50_/_0.45)]")}
+    const sharing = sharingCaptureId === state.captureId;
+    const shareButton = onShare && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onShare(state.captureId);
+        }}
+        disabled={sharing}
+        aria-label="Share this photo"
+        className="absolute top-2 right-2 z-10 flex size-8 items-center justify-center rounded-full bg-(--guest-ink)/45 text-(--guest-accent-foreground) backdrop-blur-sm disabled:opacity-70"
       >
-        {content}
-      </a>
-    ) : (
+        {sharing ? (
+          <RefreshCw className="size-4 animate-spin" />
+        ) : (
+          <Share2 className="size-4" />
+        )}
+      </button>
+    );
+
+    return (
       <div className={cn(shape, "shadow-[0_6px_20px_-8px_oklch(0.27_0.025_50_/_0.45)]")}>
-        {content}
+        {state.downloadUrl ? (
+          <a href={state.downloadUrl} download className="absolute inset-0 block">
+            {content}
+          </a>
+        ) : (
+          content
+        )}
+        {shareButton}
       </div>
     );
   }

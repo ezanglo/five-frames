@@ -1,9 +1,9 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-23 (Slice 9 complete: manual payment confirmation and refunds through
-the Operator Console, plus a follow-on correction resolving product.md's supplier-assisted
-payment ambiguity on the host checkout page. Payment/activation/signage design pass still
-awaiting human visual verification from Slice 8, unaffected by this slice.)
+Last updated: 2026-09-23 (Slice 10 complete: guest sharing flow and branded share-card
+generation. Automated checks passing; real Web Share behavior on Safari/Android/in-app
+browsers is unverifiable here and is a pending human-verification checklist below. Design
+passes from Slices 5/7/8 remain awaiting human visual verification, unaffected by this slice.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -12,7 +12,80 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–9: complete.** Slice 9 (manual payment confirmation and refunds through the Operator
+**Slices 1–10: complete.** Slice 10 (guest sharing flow and branded share-card generation,
+product.md §10, roadmap criteria 29–31) landed 2026-09-23. The host-facing sharing toggle and
+hashtag field already existed since Slice 1's original event form (`events.sharing_enabled`
+default `true`, `events.hashtag`) — this slice's work was entirely the guest-facing half: an
+eligible guest generates/retrieves a branded card of their own committed capture and shares it
+via the Web Share API or a download fallback, gated on that existing host setting.
+- **Schema:** migration `20260923000000_capture_share_cards.sql` adds `captures.share_path`
+  (nullable), the same caching role `display_path`/`thumbnail_path` already play — no new
+  access-control surface, since every read of it goes through the existing guest-session-scoped
+  queries.
+- **Rendering (`lib/media/share-card.tsx`):** uses `next/og`'s `ImageResponse` (Satori + resvg),
+  not `sharp` compositing text or an SVG string rasterized by `sharp` — both of those would
+  depend on system fonts being installed in the serverless runtime, the exact risk
+  `lib/media/signage.ts` already documents avoiding for the same reason. `ImageResponse` ships
+  its own embedded fallback typeface and needs no font bytes supplied, no new dependency (it
+  ships inside the `next` package already in use), and no network fetch — the guest's own photo
+  is inlined as a base64 data URI, not fetched by URL. The photo is placed with
+  `object-fit: contain` inside a fixed photo area (never `cover`), so an arbitrary source
+  orientation or aspect ratio is always shown in full, letterboxed rather than cropped. The
+  branded footer carries only product-approved fields already on the event/capture: event name,
+  formatted date, hashtag, and the guest's own optional capture message — colors reused verbatim
+  from `signage.ts`'s hex-converted host/guest palette (the accepted visual identity, not a new
+  theme). Known simplification: `ImageResponse`'s embedded fallback font is used throughout
+  rather than the product's Bricolage Grotesque/Inter faces, since supplying those would require
+  fetching font bytes at render time (reintroducing a dependency this design deliberately avoids)
+  — visually adequate for MVP, not pixel-matched to the rest of the guest UI.
+- **Authorization (`lib/dal/share-cards.ts`):** `getShareCardForGuestCapture(event,
+  guestSessionId, captureId)` is server-authoritative — checks `event.sharing_enabled` first,
+  then loads the capture scoped by `id` + `guest_session_id` + `event_id` (the same three-column
+  predicate `commitCapture` already uses), and requires `status === "committed"` with no
+  `hidden_at`/`deleted_at`. Every disqualifying reason (wrong guest session, hidden, deleted,
+  still pending, no such capture) collapses to the same generic `not_found` outcome, so a guest
+  holding another guest's capture id cannot distinguish "not yours" from "doesn't exist" from
+  "host hid it." The function never reads gallery visibility or reveal state at all, which is
+  what makes pre-reveal sharing structurally incapable of leaking the gallery (architecture §10
+  "pre-reveal share isolation," extended here to cross-guest access too) rather than relying on
+  a caller to remember not to check it. Generation is idempotent: the share asset lives at a
+  deterministic sibling path next to the original (`.../share`), so a cache hit reuses it and a
+  concurrent double-generation overwrites the same path with an equivalent render rather than
+  creating a second, divergent derivative — proven under real concurrent calls in the test suite.
+  Bytes are served directly by the calling Server Action, not through a minted signed URL — the
+  same reasoning `lib/media/signage.ts`'s route already applies (synthesized content is
+  access-gated at the point of generation, not at a separate storage credential).
+- **Guest UI:** a small share-icon button now overlays every filled frame in
+  `frame-grid.tsx` (both during active capture in `capture-slots.tsx` and in the post-capture-
+  close "your captures" view in `own-captures.tsx`), rendered only when `event.sharing_enabled`
+  is true. Tapping it calls the new `getShareCard` Server Action
+  (`app/(guest)/e/[token]/actions.ts`), then hands the returned PNG to
+  `lib/share/web-share.ts`'s `shareOrDownload` — the Web Share API when
+  `navigator.canShare({ files })` reports it can, an automatic download fallback otherwise or on
+  any native-share failure, with a user-cancelled share sheet treated as a quiet no-op rather
+  than an error. A share failure never touches the underlying capture; it only ever reads
+  already-generated bytes.
+- **Testing:** `lib/media/share-card.test.ts` (unit) proves `renderShareCardPng` produces a
+  valid PNG at the fixed canvas size and doesn't throw across landscape/portrait/square source
+  photos or long name/message/hashtag input. `lib/share/web-share.test.ts` (unit) proves the
+  pure share-vs-download decision logic — this project's tooling has no jsdom, so the real
+  `navigator`/`document` calls are behind an injected capability object, and this is the
+  "Web-Share-unavailable falls back to download" coverage requested for this slice; genuine
+  Safari/Android/in-app-browser share-sheet behavior itself is on the human-verification
+  checklist below. `lib/dal/share-cards.integration.test.ts` (against the real dev database)
+  covers every authorization/isolation requirement this slice specified: sharing enabled → ok;
+  sharing disabled → refused regardless of capture eligibility; guest A cannot reach guest B's
+  capture; a capture id alone without the matching guest session is insufficient; a pending
+  (uncommitted) capture is refused; a host-hidden capture is refused; a host-deleted capture is
+  refused; sharing succeeds even with `visibility: "only_me"` and capture still open (proving the
+  function never consults gallery state); the original object's bytes are byte-for-byte
+  unchanged after share-card generation; and two concurrent generation calls for the same
+  capture leave exactly one storage object and one `share_path` value, with a third, later call
+  reusing the identical cached bytes.
+
+**Former current-phase entry (Slice 9), preserved below:**
+
+Slice 9 (manual payment confirmation and refunds through the Operator
 Console, product.md §7.2/§7.2.1/§15.1) landed 2026-09-23. It reuses the Slice 8 `activateEvent`
 function unchanged for activation and adds no new schema — the `payments` table's manual and
 refund fields were already designed in from Slice 8/9's original migration (decision D17), and
@@ -191,8 +264,7 @@ see prior verification records in git history if needed.
   D15–D17 record the operator grant model, the shared provider/manual activation function
   (implemented, Slice 8, exercised by both payment sources since Slice 9), and the
   payment-row-as-audit-trail decision (manual fields populated since Slice 9).
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–9 complete; Slice 10 (sharing and share
-  cards) is next.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–10 complete; Slice 11 (downloads) is next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -522,9 +594,18 @@ see prior verification records in git history if needed.
 - `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`, and
   `/operator/events/[eventId]` register as dynamic routes.
-- `pnpm test` (Vitest) — 110/110 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
-  join-capacity, Slice 7 operator-authorization, Slice 8 payment/activation/signage, and Slice 9
-  manual-payment/refund integration and unit tests above against the real dev database.
+- `pnpm test` (Vitest) — 128/128 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
+  join-capacity, Slice 7 operator-authorization, Slice 8 payment/activation/signage, Slice 9
+  manual-payment/refund, and Slice 10 share-card-generation/authorization integration and unit
+  tests above, all against the real dev database.
+- **Slice 10 — awaiting human verification for real Web Share behavior only.** Everything
+  server-authoritative (the sharing toggle gate, cross-guest isolation, moderation gating,
+  pre-reveal isolation, original-media integrity, idempotent generation) is proven by
+  `lib/dal/share-cards.integration.test.ts` against the real dev database, and the
+  share-vs-download decision logic itself by `lib/share/web-share.test.ts`. What remains
+  unverifiable in this environment (no browser automation) is whether `navigator.share`/
+  `navigator.canShare` actually behave as expected, and whether the download fallback actually
+  produces a usable image, on real Safari/Android/in-app browsers — see the checklist below.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -784,17 +865,40 @@ to it) are recorded under "Regression protection" above, all fixed at the root c
 new automated tests, and confirmed fixed against real subsequent PayMongo deliveries — including a
 second real checkout after the root-cause fix specifically to re-verify it.
 
+## Human verification needed for Slice 10 (Web Share behavior)
+
+Everything server-authoritative about the sharing flow is already proven by automated tests
+(see "Verification status" above). What remains is real Web Share API / share-sheet behavior,
+which this environment cannot exercise (no browser automation). Seed an activated event with
+capture open (`pnpm dev:activate-event <eventId>` then open capture from the host dashboard),
+capture at least one photo as a guest, and check:
+
+1. **iPhone Safari** — tap the share icon on a captured frame. Expected: the native iOS share
+   sheet opens with the branded card image (event name, date/hashtag, your message, "FIVE
+   FRAMES") ready to send to Messages/Photos/etc.
+2. **Android Chrome** — same tap. Expected: the native Android share sheet opens with the same
+   image.
+3. **Facebook/Messenger/Instagram in-app browsers** — same tap. Expected: either the native
+   share sheet opens, or (if that browser doesn't support `navigator.share` with files) the
+   image downloads directly — never a silent failure or a broken image.
+4. **A desktop browser with no Web Share support** (e.g. desktop Chrome/Firefox) — same tap.
+   Expected: the branded PNG downloads directly, no error shown.
+5. **Cancel the native share sheet** partway (where the platform allows it) — expected: no
+   error message appears, and the frame/photo is completely unaffected; tapping share again
+   works normally.
+6. **Sharing disabled** — turn off "Allow guest sharing" on the host's event page, reload the
+   guest page. Expected: no share icon appears on any frame.
+
+Reply with pass/fail for each item and any screenshot/error. Record the outcome in this file
+under this heading once reported, and mark Slice 10 fully verified only once all items pass.
+
 ## Next slice
 
-**Slice 9 — Manual payment confirmation and refunds through the Operator Console: complete**,
-including the 2026-09-23 host checkout copy correction once product.md resolved the
-supplier-assisted payment ambiguity (see "Current phase" above). Automated checks passing
-(`pnpm typecheck`/`lint`/`build`/`test` all green, 110/110 tests, stable across repeated runs;
-includes real concurrency/cross-source-race coverage against the dev database, which also caught
-and fixed a genuine `supersedeSiblingPendingCheckouts` clobbering defect — see "Current phase"
-above). No manual device checks apply (internal desktop/browser tool, same tier as Slices 4/6/7).
+**Slice 10 — Sharing and branded share cards: complete**, pending only the Web Share
+real-device checklist above (server-authoritative behavior is fully proven by automated tests).
+Automated checks passing (`pnpm typecheck`/`lint`/`build`/`test` all green, 128/128 tests).
 
-**Slice 10 — Sharing and share cards** ([roadmap](./roadmap.md)) is next. Not started.
+**Slice 11 — Downloads** ([roadmap](./roadmap.md)) is next. Not started.
 
 ## Blockers and open items
 
@@ -804,6 +908,7 @@ above). No manual device checks apply (internal desktop/browser tool, same tier 
 | Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. Slice 9 has since filled the manual-payment/refund zone with real actions on top of this visual pass; the zone's own visuals were not redesigned in Slice 9. | Design pass pending approval | `/operator`, `/operator/events/[eventId]`; see checklist in session handoff |
 | Payment/activation/signage visual redesign (checkout "what you get" panel, state-differentiated payment banners, post-activation "capture stays closed" reassurance, signage rebuilt with the host palette and a viewfinder-corner photo-object motif) implemented 2026-09-23, automated checks passing (`typecheck`/`lint`/`test`/`build` all green) — **awaiting human visual verification**, not yet accepted in design-direction.md. No payment semantics, pricing, or activation logic changed. | Design pass pending approval | `/events/[eventId]/checkout`, `/events/[eventId]`, `/events/[eventId]/signage/[format]`; see checklist in session handoff |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |
+| Slice 10 Web Share real-device checklist not yet run (server-authoritative behavior fully verified; only native share-sheet behavior itself is untested) | Manual verification pending | `/e/[token]` sharing flow; see checklist above |
 | Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |
 | No git remote configured | Setup | Any push/CI work |
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |

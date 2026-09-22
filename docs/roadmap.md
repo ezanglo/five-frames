@@ -269,6 +269,10 @@ somehow has both in flight) activates exactly once. A manual refund produces an 
 **Verification:** Pre-reveal share exposes neither the gallery nor any other guest's capture.
 Original media unmodified.
 
+**Status: complete.** See [progress.md](./progress.md) for verification results. Automated
+coverage only for Web Share behavior itself (real Safari/Android/in-app-browser share-sheet
+behavior is on the pending human-verification checklist in progress.md).
+
 ---
 
 ## Slice 11 — Downloads

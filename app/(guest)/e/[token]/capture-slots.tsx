@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, TUS_CHUNK_SIZE_BYTES } from "@/lib/media/constants";
 import type { ReserveResponse } from "./actions";
 import { FrameGrid, type FrameState } from "./frame-grid";
+import { useShareCapture } from "./use-share-capture";
 
 type SlotStatus = "committed" | "pending";
 type Slot = {
@@ -94,10 +95,14 @@ async function uploadFile(
 export function CaptureSlots({
   token,
   eventId,
+  eventName,
+  sharingEnabled,
   initialCaptures,
 }: {
   token: string;
   eventId: string;
+  eventName: string;
+  sharingEnabled: boolean;
   initialCaptures: {
     id: string;
     slotIndex: number;
@@ -125,6 +130,7 @@ export function CaptureSlots({
   const [error, setError] = useState<string | null>(null);
   const pendingKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { share, pendingCaptureId, error: shareError } = useShareCapture(token, eventName);
 
   const storageKey = pendingStorageKey(eventId);
 
@@ -300,7 +306,12 @@ export function CaptureSlots({
 
   const frames = slots.map((slot, index): FrameState => {
     if (slot?.status === "committed") {
-      return { kind: "filled", thumbnailUrl: slot.thumbnailUrl, downloadUrl: slot.downloadUrl };
+      return {
+        kind: "filled",
+        captureId: slot.id,
+        thumbnailUrl: slot.thumbnailUrl,
+        downloadUrl: slot.downloadUrl,
+      };
     }
     if (index === activeIndex) {
       if (composing && previewUrl) {
@@ -324,7 +335,13 @@ export function CaptureSlots({
           : "Capture a few moments that matter."}
       </p>
 
-      <FrameGrid frames={frames} onActivate={() => fileInputRef.current?.click()} />
+      <FrameGrid
+        frames={frames}
+        onActivate={() => fileInputRef.current?.click()}
+        onShare={sharingEnabled ? share : undefined}
+        sharingCaptureId={pendingCaptureId}
+      />
+      {shareError && <p className="text-sm text-destructive">{shareError}</p>}
 
       <input
         ref={fileInputRef}

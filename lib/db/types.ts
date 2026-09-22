@@ -58,6 +58,7 @@ export type CaptureRow = {
   storage_path: string;
   display_path: string | null;
   thumbnail_path: string | null;
+  share_path: string | null;
   mime_type: string | null;
 
   hidden_at: string | null;

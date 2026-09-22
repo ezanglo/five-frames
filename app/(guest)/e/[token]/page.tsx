@@ -53,6 +53,9 @@ export default async function GuestEventPage({
         body="Thanks for being part of this. Your host will share the gallery when it's ready."
       >
         <OwnCaptures
+          token={token}
+          eventName={event.name}
+          sharingEnabled={event.sharing_enabled}
           captures={ownCaptures
             .filter((c) => c.thumbnailUrl && c.downloadUrl)
             .map((c) => ({ id: c.id, thumbnailUrl: c.thumbnailUrl!, downloadUrl: c.downloadUrl! }))}
@@ -97,6 +100,8 @@ export default async function GuestEventPage({
       <CaptureSlots
         token={token}
         eventId={event.id}
+        eventName={event.name}
+        sharingEnabled={event.sharing_enabled}
         initialCaptures={captures.map((c) => ({
           id: c.id,
           slotIndex: c.slotIndex,
