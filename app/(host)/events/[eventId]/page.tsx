@@ -11,7 +11,7 @@ import {
   EVENT_LIFECYCLE_STATE_LABEL,
   isGalleryRevealed,
 } from "@/lib/events/lifecycle";
-import { EVENT_PRICE_PHP, isPaymentLikelyStillConfirming } from "@/lib/payments/pricing";
+import { EVENT_PRICE_PHP, hasPendingProviderPayment } from "@/lib/payments/pricing";
 import {
   closeCaptureAction,
   openCaptureAction,
@@ -107,7 +107,7 @@ export default async function EventEditPage({
   const isLive = state === "capture_open";
 
   const latestPayment = state === "draft" ? await getLatestPaymentForEvent(host.id, eventId) : null;
-  const isLikelyStillConfirming = isPaymentLikelyStillConfirming(latestPayment);
+  const isPaymentPending = hasPendingProviderPayment(latestPayment);
 
   return (
     <div className="flex flex-col gap-8">
@@ -159,16 +159,14 @@ export default async function EventEditPage({
             nativeButton={false}
             render={<Link href={`/events/${eventId}/checkout`} />}
             size="lg"
-            variant={isLikelyStillConfirming ? "outline" : "default"}
+            variant={isPaymentPending ? "outline" : "default"}
             className={
-              isLikelyStillConfirming
+              isPaymentPending
                 ? "w-full sm:w-auto"
                 : "w-full bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90 sm:w-auto"
             }
           >
-            {isLikelyStillConfirming
-              ? "Payment pending confirmation"
-              : `Pay ₱${EVENT_PRICE_PHP} to activate`}
+            {isPaymentPending ? "Payment pending confirmation" : `Pay ₱${EVENT_PRICE_PHP} to activate`}
           </Button>
         ) : state === "capture_open" ? (
           <form action={boundCloseCapture}>
@@ -200,12 +198,10 @@ export default async function EventEditPage({
         </p>
       )}
 
-      {(checkout === "pending" || isLikelyStillConfirming) && !event.activated_at && (
+      {(checkout === "pending" || isPaymentPending) && !event.activated_at && (
         <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
           Payment received — confirming with PayMongo. This page updates automatically once
-          it&rsquo;s activated. Avoid paying again while this is showing — PayMongo will charge
-          you separately for each completed checkout, even though only one payment can activate
-          the event.
+          it&rsquo;s activated.
         </p>
       )}
 

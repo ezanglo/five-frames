@@ -10,7 +10,8 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  * dependency isn't justified for two calls.
  */
 
-const PAYMONGO_API_BASE = "https://api.paymongo.com/v2";
+const PAYMONGO_API_BASE_V2 = "https://api.paymongo.com/v2";
+const PAYMONGO_API_BASE_V1 = "https://api.paymongo.com/v1";
 
 function secretKey(): string {
   const key = process.env.PAYMONGO_SECRET_KEY;
@@ -32,6 +33,16 @@ export type CreateCheckoutSessionInput = {
   cancelUrl: string;
   referenceNumber: string;
   metadata: Record<string, string>;
+  /**
+   * A stable id for this logical checkout attempt (the placeholder `payments.id` reserved
+   * by `begin_provider_checkout`), sent as PayMongo's `Idempotency-Key` header
+   * (docs.paymongo.com/reference/idempotent-requests — UUIDv4 or high-entropy string, up
+   * to 255 chars, applies to resource-creation requests, cached 24h). A retried call for
+   * the same payment id — e.g. our own network-error retry — returns the original
+   * checkout session instead of creating a second one, a second independent layer on top
+   * of `begin_provider_checkout`'s own DB-level one-active-session guard.
+   */
+  idempotencyKey: string;
 };
 
 export type CheckoutSession = {
@@ -47,11 +58,12 @@ export type CheckoutSession = {
 export async function createCheckoutSession(
   input: CreateCheckoutSessionInput,
 ): Promise<CheckoutSession> {
-  const response = await fetch(`${PAYMONGO_API_BASE}/checkout_sessions`, {
+  const response = await fetch(`${PAYMONGO_API_BASE_V2}/checkout_sessions`, {
     method: "POST",
     headers: {
       Authorization: authHeader(),
       "Content-Type": "application/json",
+      "Idempotency-Key": input.idempotencyKey,
     },
     body: JSON.stringify({
       data: {
@@ -87,6 +99,54 @@ export async function createCheckoutSession(
     id: body.data.id,
     checkoutUrl: body.data.attributes.checkout_url,
   };
+}
+
+/**
+ * GET /v1/checkout_sessions/{id}. Used only to check whether a session we're about to
+ * reuse is still `active` — PayMongo's docs don't state whether sessions auto-expire
+ * after some fixed time, so rather than assume a reused session is always still payable,
+ * this confirms it directly before handing the URL back to the host.
+ */
+export async function getCheckoutSessionStatus(
+  checkoutSessionId: string,
+): Promise<"active" | "expired" | "unknown"> {
+  const response = await fetch(`${PAYMONGO_API_BASE_V1}/checkout_sessions/${checkoutSessionId}`, {
+    method: "GET",
+    headers: { Authorization: authHeader() },
+  });
+
+  if (!response.ok) return "unknown";
+
+  const body = await response.json();
+  const status = body?.data?.attributes?.status;
+  return status === "active" || status === "expired" ? status : "unknown";
+}
+
+/**
+ * POST /v1/checkout_sessions/{id}/expire. Explicitly invalidates a Checkout Session so it
+ * can no longer be paid — the `cancel_url` a host's browser is redirected to on "Cancel"
+ * is only a browser redirect and never expires the session at PayMongo (product
+ * requirement for this fix), so this is the only way to actually retire an obsolete
+ * session. PayMongo itself refuses to expire a session that already has a paid or
+ * in-flight payment (400), which is the behavior we want — we only ever call this on a
+ * session we believe is still merely `pending` in our own bookkeeping, and a refusal here
+ * is treated as a harmless no-op by the caller (best-effort; our own `payments` row is the
+ * source of truth for whether we still treat the session as active).
+ */
+export async function expireCheckoutSession(checkoutSessionId: string): Promise<void> {
+  const response = await fetch(
+    `${PAYMONGO_API_BASE_V1}/checkout_sessions/${checkoutSessionId}/expire`,
+    {
+      method: "POST",
+      headers: { Authorization: authHeader() },
+    },
+  );
+
+  if (!response.ok && response.status !== 400 && response.status !== 404) {
+    const body = await response.json().catch(() => null);
+    const message = body?.errors?.[0]?.detail ?? response.statusText;
+    throw new Error(`PayMongo checkout session expiry failed: ${message}`);
+  }
 }
 
 /**

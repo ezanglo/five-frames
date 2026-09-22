@@ -20,6 +20,7 @@ export type EventRow = {
   gallery_token: string | null;
 
   activated_at: string | null;
+  activating_payment_id: string | null;
   capture_opened_at: string | null;
   capture_closed_at: string | null;
   safety_net_closes_at: string | null;
@@ -77,6 +78,7 @@ export type PaymentRow = {
   source: PaymentSource;
 
   provider_checkout_session_id: string | null;
+  checkout_url: string | null;
   provider_status: string | null;
   amount: number | null;
   currency: string | null;

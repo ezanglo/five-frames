@@ -40,7 +40,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await recordProviderWebhookAndActivate(event);
+    const result = await recordProviderWebhookAndActivate(event);
+    if (result.duplicate) {
+      // A genuinely distinct payment reached "paid" for an event another payment already
+      // activated — recorded as payments.provider_status = "paid_duplicate", visible in
+      // the Operator Console for manual refund follow-up (product.md §15.1). Not an error
+      // in this route: the webhook itself was handled correctly.
+      console.warn("PayMongo webhook: duplicate payment recorded for an already-active event");
+    }
   } catch (error) {
     console.error("PayMongo webhook: failed to process", error);
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });

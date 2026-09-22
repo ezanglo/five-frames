@@ -23,6 +23,7 @@ function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
     event_token: null,
     gallery_token: null,
     activated_at: null,
+    activating_payment_id: null,
     capture_opened_at: null,
     capture_closed_at: null,
     safety_net_closes_at: null,

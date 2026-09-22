@@ -60,7 +60,10 @@ export type OperatorEventDetail = {
   event: EventRow;
   hostEmail: string;
   captureCounts: OperatorCaptureCounts;
-  latestPayment: PaymentRow | null;
+  /** Every payment row for this event, most recent first — not just the latest one, so a
+   *  `paid_duplicate` payment (product.md §15.1 manual-refund follow-up) stays visible
+   *  even when it isn't the most recently created row. */
+  payments: PaymentRow[];
 };
 
 export async function getOperatorEventDetail(
@@ -117,15 +120,13 @@ export async function getOperatorEventDetail(
     if (result.error) throw result.error;
   }
 
-  const { data: latestPayment, error: paymentError } = await supabase
+  const { data: payments, error: paymentsError } = await supabase
     .from("payments")
     .select()
     .eq("event_id", eventId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .order("created_at", { ascending: false });
 
-  if (paymentError) throw paymentError;
+  if (paymentsError) throw paymentsError;
 
   return {
     event: event as EventRow,
@@ -137,6 +138,6 @@ export async function getOperatorEventDetail(
       favorited: favorited.count ?? 0,
       deleted: deleted.count ?? 0,
     },
-    latestPayment: latestPayment as PaymentRow | null,
+    payments: (payments ?? []) as PaymentRow[],
   };
 }

@@ -20,39 +20,16 @@ export const CURRENCY = "PHP";
 export const PASS_ON_FEES = false;
 
 /**
- * How long a still-`pending` provider payment is treated as "likely still confirming" in
- * the checkout UI (discourage a second real charge) versus "probably abandoned, safe to
- * retry." This is a UI heuristic only — it never gates `startProviderCheckout` itself,
- * which stays retryable at any time; it exists because a second completed checkout is a
- * second real PayMongo charge, not something our idempotent `activateEvent` guard
- * prevents (that guard stops double *activation*, not double *charging*).
+ * Whether the event has a still-`pending` provider payment attempt. `startProviderCheckout`
+ * (lib/dal/payments.ts) reuses that same attempt's PayMongo Checkout Session rather than
+ * creating a second live one, so this is purely informational for the UI ("you already
+ * have a payment in progress") — it never signals a double-charge risk, because there
+ * isn't one: continuing always resolves to the same session, never a new charge.
  */
-export const PENDING_PAYMENT_GRACE_MINUTES = 10;
-
-/**
- * Pure (default-`now`-parameterized, matching the lib/events/lifecycle.ts pattern) so
- * server components can call it without a literal `Date.now()`/`new Date()` in their
- * render body — the React compiler's purity check flags that even in a server component.
- */
-export function isPaymentLikelyStillConfirming(
-  payment: { provider_status: string | null; created_at: string } | null | undefined,
-  now: Date = new Date(),
+export function hasPendingProviderPayment(
+  payment: { provider_status: string | null } | null | undefined,
 ): boolean {
-  return getPendingPaymentState(payment, now).isLikelyStillConfirming;
-}
-
-export function getPendingPaymentState(
-  payment: { provider_status: string | null; created_at: string } | null | undefined,
-  now: Date = new Date(),
-): { isPending: boolean; isLikelyStillConfirming: boolean } {
-  if (payment?.provider_status !== "pending") {
-    return { isPending: false, isLikelyStillConfirming: false };
-  }
-  const minutesSincePending = (now.getTime() - Date.parse(payment.created_at)) / 60_000;
-  return {
-    isPending: true,
-    isLikelyStillConfirming: minutesSincePending < PENDING_PAYMENT_GRACE_MINUTES,
-  };
+  return payment?.provider_status === "pending";
 }
 
 export const REFUND_POLICY_COPY =

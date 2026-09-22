@@ -64,7 +64,8 @@ export default async function OperatorEventDetailPage({
   const detail = await getOperatorEventDetail(eventId);
   if (!detail) notFound();
 
-  const { event, hostEmail, captureCounts, latestPayment } = detail;
+  const { event, hostEmail, captureCounts, payments } = detail;
+  const duplicatePayments = payments.filter((p) => p.provider_status === "paid_duplicate");
   const state = deriveEventLifecycleState(event);
   const revealed = isGalleryRevealed(event);
 
@@ -138,28 +139,51 @@ export default async function OperatorEventDetailPage({
               label="State"
               value={event.activated_at ? "Paid / activated" : "Unpaid"}
             />
-            <Row
-              label="Source"
-              value={
-                latestPayment
-                  ? latestPayment.source === "provider"
-                    ? "PayMongo (self-service)"
-                    : "Manual — reserved for Slice 9"
-                  : "No payment attempt yet"
-              }
-            />
-            {latestPayment?.source === "provider" && (
-              <>
-                <Row label="Provider status" value={latestPayment.provider_status ?? "—"} />
-                <Row
-                  label="Amount"
-                  value={
-                    latestPayment.amount != null
-                      ? `₱${(latestPayment.amount / 100).toLocaleString()} ${latestPayment.currency ?? ""}`
-                      : "—"
-                  }
-                />
-              </>
+            {payments.length === 0 ? (
+              <Row label="Attempts" value="No payment attempt yet" />
+            ) : (
+              payments.map((payment, index) => (
+                <div
+                  key={payment.id}
+                  className={index > 0 ? "mt-2 border-t border-(--operator-border) pt-2" : undefined}
+                >
+                  <Row
+                    label="Source"
+                    value={
+                      payment.source === "provider" ? "PayMongo (self-service)" : "Manual"
+                    }
+                  />
+                  <Row
+                    label="Status"
+                    value={
+                      payment.provider_status === "paid_duplicate" ? (
+                        <span className="font-medium text-(--operator-privileged)">
+                          paid_duplicate — needs manual refund
+                        </span>
+                      ) : (
+                        (payment.provider_status ?? "—")
+                      )
+                    }
+                  />
+                  <Row
+                    label="Amount"
+                    value={
+                      payment.amount != null
+                        ? `₱${(payment.amount / 100).toLocaleString()} ${payment.currency ?? ""}`
+                        : "—"
+                    }
+                  />
+                </div>
+              ))
+            )}
+            {duplicatePayments.length > 0 && (
+              <p className="mt-2 rounded-lg bg-(--operator-privileged)/10 px-2.5 py-2 text-xs text-(--operator-privileged)">
+                {duplicatePayments.length} duplicate payment
+                {duplicatePayments.length === 1 ? "" : "s"} recorded for this event — the
+                event activated from a different payment. Refund the duplicate
+                {duplicatePayments.length === 1 ? "" : "s"} manually through the PayMongo
+                dashboard (product.md §15.1); no automatic refund is issued.
+              </p>
             )}
           </div>
 

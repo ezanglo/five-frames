@@ -47,16 +47,25 @@ describe("payment and shared activation", () => {
     if (hostBId) await supabase.auth.admin.deleteUser(hostBId);
   });
 
-  async function insertProviderPayment(eventId: string, checkoutSessionId: string) {
-    const { error } = await supabase.from("payments").insert({
-      event_id: eventId,
-      source: "provider",
-      provider_checkout_session_id: checkoutSessionId,
-      provider_status: "pending",
-      amount: 99900,
-      currency: "PHP",
-    });
+  async function insertProviderPayment(
+    eventId: string,
+    checkoutSessionId: string,
+  ): Promise<string> {
+    const { data, error } = await supabase
+      .from("payments")
+      .insert({
+        event_id: eventId,
+        source: "provider",
+        provider_checkout_session_id: checkoutSessionId,
+        checkout_url: `https://checkout.paymongo.com/${checkoutSessionId}`,
+        provider_status: "pending",
+        amount: 99900,
+        currency: "PHP",
+      })
+      .select("id")
+      .single();
     if (error) throw error;
+    return data.id as string;
   }
 
   function paidWebhookEvent(
@@ -84,15 +93,18 @@ describe("payment and shared activation", () => {
 
   it("activateEvent is idempotent under a direct double call", async () => {
     const event = await createDraftEvent(hostAId, "Direct activation race");
-    const paymentId = crypto.randomUUID();
+    const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
 
     const first = await activateEvent(event.id, paymentId);
     const second = await activateEvent(event.id, paymentId);
 
-    expect(first.activated_at).not.toBeNull();
-    expect(second.activated_at).toBe(first.activated_at);
-    expect(second.event_token).toBe(first.event_token);
-    expect(second.gallery_token).toBe(first.gallery_token);
+    expect(first.activatedByThisCall).toBe(true);
+    expect(second.activatedByThisCall).toBe(false);
+    expect(first.event.activated_at).not.toBeNull();
+    expect(second.event.activated_at).toBe(first.event.activated_at);
+    expect(second.event.event_token).toBe(first.event.event_token);
+    expect(second.event.gallery_token).toBe(first.event.gallery_token);
+    expect(second.event.activating_payment_id).toBe(paymentId);
   });
 
   it("a duplicate/replayed webhook delivery activates the event exactly once", async () => {
@@ -123,6 +135,173 @@ describe("payment and shared activation", () => {
     if (error) throw error;
     expect(payments).toHaveLength(1);
     expect(payments![0].provider_status).toBe("paid");
+  });
+
+  it("two active pending provider checkouts for the same event are impossible at the DB level", async () => {
+    // Root-cause regression for the real production incident (two separate PayMongo test
+    // checkouts both reaching "paid" for one event): payments_one_active_provider_checkout_idx
+    // now refuses a second `pending` provider payment row for an event outright, the same
+    // DB-enforced-limit philosophy as the frame slot and guest-capacity guards.
+    const event = await createDraftEvent(hostAId, "Two pending checkouts refused");
+    await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
+
+    await expect(
+      insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`),
+    ).rejects.toThrow(/payments_one_active_provider_checkout_idx/);
+  });
+
+  it("a payment that reaches paid after a different payment already activated the event is flagged, not silently accepted", async () => {
+    // The new unique index above makes two live pending sessions impossible going
+    // forward, but a genuinely distinct payment can still reach "paid" after activation
+    // already happened from another payment (e.g. residual pre-fix data, or a
+    // provider/manual cross-source race once Slice 9 exists) — requirement 7: never
+    // silently treat that as a second normal success.
+    const event = await createDraftEvent(hostAId, "Duplicate payment after activation");
+    const checkoutSessionA = `cs_test_${crypto.randomUUID()}`;
+    await insertProviderPayment(event.id, checkoutSessionA);
+
+    const first = await recordProviderWebhookAndActivate(
+      paidWebhookEvent(`evt_test_${crypto.randomUUID()}`, checkoutSessionA),
+    );
+    expect(first.handled).toBe(true);
+    expect(first.duplicate).toBeFalsy();
+
+    const activatedAfterFirst = await getEventForHost(hostAId, event.id);
+    expect(activatedAfterFirst?.activated_at).not.toBeNull();
+
+    // Now that A is no longer `pending`, a second provider payment row can exist for this
+    // event (the partial unique index only restricts concurrently-pending rows) —
+    // representing a payment that lands after activation already happened elsewhere.
+    const checkoutSessionB = `cs_test_${crypto.randomUUID()}`;
+    await insertProviderPayment(event.id, checkoutSessionB);
+
+    const second = await recordProviderWebhookAndActivate(
+      paidWebhookEvent(`evt_test_${crypto.randomUUID()}`, checkoutSessionB),
+    );
+    expect(second.handled).toBe(true);
+    expect(second.duplicate).toBe(true);
+
+    const activatedAfterSecond = await getEventForHost(hostAId, event.id);
+    expect(activatedAfterSecond?.activated_at).toBe(activatedAfterFirst?.activated_at);
+    expect(activatedAfterSecond?.event_token).toBe(activatedAfterFirst?.event_token);
+    expect(activatedAfterSecond?.gallery_token).toBe(activatedAfterFirst?.gallery_token);
+
+    const { data: payments, error } = await supabase
+      .from("payments")
+      .select()
+      .eq("event_id", event.id)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    expect(payments).toHaveLength(2);
+    expect(payments![0].provider_status).toBe("paid");
+    expect(payments![1].provider_status).toBe("paid_duplicate");
+  });
+
+  it("begin_provider_checkout reuses the same pending payment on a repeated call", async () => {
+    const event = await createDraftEvent(hostAId, "Repeated pay click");
+
+    const { data: first, error: firstError } = await supabase
+      .rpc("begin_provider_checkout", { p_event_id: event.id })
+      .single<{ payment_id: string; is_new: boolean; already_activated: boolean }>();
+    if (firstError) throw firstError;
+    expect(first.is_new).toBe(true);
+    expect(first.already_activated).toBe(false);
+
+    const { data: second, error: secondError } = await supabase
+      .rpc("begin_provider_checkout", { p_event_id: event.id })
+      .single<{ payment_id: string; is_new: boolean; already_activated: boolean }>();
+    if (secondError) throw secondError;
+    expect(second.is_new).toBe(false);
+    expect(second.payment_id).toBe(first.payment_id);
+
+    const { data: rows, error: rowsError } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("event_id", event.id)
+      .eq("source", "provider")
+      .eq("provider_status", "pending");
+    if (rowsError) throw rowsError;
+    expect(rows).toHaveLength(1);
+  });
+
+  it("concurrent begin_provider_checkout calls for the same event only let one create a session", async () => {
+    const event = await createDraftEvent(hostAId, "Concurrent checkout start");
+
+    const results = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        supabase
+          .rpc("begin_provider_checkout", { p_event_id: event.id })
+          .single<{ payment_id: string; is_new: boolean; already_activated: boolean }>(),
+      ),
+    );
+    for (const { error } of results) {
+      if (error) throw error;
+    }
+
+    const winners = results.filter((r) => r.data!.is_new);
+    expect(winners).toHaveLength(1);
+
+    const { data: rows, error: rowsError } = await supabase
+      .from("payments")
+      .select("id")
+      .eq("event_id", event.id)
+      .eq("source", "provider")
+      .eq("provider_status", "pending");
+    if (rowsError) throw rowsError;
+    expect(rows).toHaveLength(1);
+
+    const uniquePaymentIds = new Set(results.map((r) => r.data!.payment_id));
+    expect(uniquePaymentIds.size).toBe(1);
+  });
+
+  it("begin_provider_checkout refuses to create a new session once the event is activated", async () => {
+    const event = await createDraftEvent(hostAId, "No checkout after activation");
+    const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
+    await activateEvent(event.id, paymentId);
+
+    const { data, error } = await supabase
+      .rpc("begin_provider_checkout", { p_event_id: event.id })
+      .single<{ payment_id: string | null; is_new: boolean; already_activated: boolean }>();
+    if (error) throw error;
+
+    expect(data.already_activated).toBe(true);
+    expect(data.is_new).toBe(false);
+    expect(data.payment_id).toBeNull();
+  });
+
+  it("activation supersedes a still-pending provider checkout that didn't win activation", async () => {
+    // Exercises requirement 4 ("expire any still-active obsolete Checkout Session where
+    // practical") directly at the DAL level. Two live *provider* pending sessions for one
+    // event can no longer coexist (the unique-index test above), but activateEvent is
+    // payment-source-agnostic (D16) — this covers the still-plausible near-term case of a
+    // leftover pending provider checkout superseded by a different source activating the
+    // event (e.g. Slice 9's manual confirmation path). Best-effort: the PayMongo expire
+    // call for a fake session id fails harmlessly either way (network error or 404,
+    // depending on whether test PayMongo credentials are configured), so this assertion
+    // doesn't depend on it succeeding.
+    const event = await createDraftEvent(hostAId, "Supersede on activation");
+    const sidelinedPaymentId = await insertProviderPayment(
+      event.id,
+      `cs_test_${crypto.randomUUID()}`,
+    );
+
+    const { data: activatorPayment, error: activatorError } = await supabase
+      .from("payments")
+      .insert({ event_id: event.id, source: "manual" })
+      .select("id")
+      .single();
+    if (activatorError) throw activatorError;
+
+    const { activatedByThisCall } = await activateEvent(event.id, activatorPayment.id as string);
+    expect(activatedByThisCall).toBe(true);
+
+    const { data: sidelined, error: sidelinedError } = await supabase
+      .from("payments")
+      .select("provider_status")
+      .eq("id", sidelinedPaymentId)
+      .single();
+    if (sidelinedError) throw sidelinedError;
+    expect(sidelined.provider_status).toBe("superseded");
   });
 
   it("an unrecognized checkout session is ignored, not activated", async () => {
@@ -161,7 +340,8 @@ describe("payment and shared activation", () => {
 
   it("startProviderCheckout refuses for an already-activated event", async () => {
     const event = await createDraftEvent(hostAId, "Already paid");
-    await activateEvent(event.id, crypto.randomUUID());
+    const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
+    await activateEvent(event.id, paymentId);
 
     const result = await startProviderCheckout(hostAId, event.id, "https://example.test");
     expect(result).toBeNull();

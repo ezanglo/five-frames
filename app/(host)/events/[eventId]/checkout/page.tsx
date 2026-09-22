@@ -2,12 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { getLatestPaymentForEvent } from "@/lib/dal/payments";
-import {
-  EVENT_PRICE_PHP,
-  getPendingPaymentState,
-  PENDING_PAYMENT_GRACE_MINUTES,
-  REFUND_POLICY_COPY,
-} from "@/lib/payments/pricing";
+import { EVENT_PRICE_PHP, hasPendingProviderPayment, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
 import { startCheckoutAction } from "@/app/(host)/events/actions";
 import { Button } from "@/components/ui/button";
 
@@ -32,7 +27,7 @@ export default async function EventCheckoutPage({
   const latestPayment = await getLatestPaymentForEvent(host.id, eventId);
   const boundStartCheckout = startCheckoutAction.bind(null, eventId);
 
-  const { isPending, isLikelyStillConfirming } = getPendingPaymentState(latestPayment);
+  const isPending = hasPendingProviderPayment(latestPayment);
 
   return (
     <div className="flex flex-col gap-6">
@@ -51,19 +46,11 @@ export default async function EventCheckoutPage({
         </p>
       )}
 
-      {isLikelyStillConfirming && checkout !== "cancelled" && (
-        <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
-          A payment may still be confirming — it&rsquo;s been less than {PENDING_PAYMENT_GRACE_MINUTES}{" "}
-          minutes since you started checkout. If you pay again now and both attempts succeed,
-          you&rsquo;ll be charged twice. Wait a bit and check back before starting a new one,
-          unless you&rsquo;re sure that attempt failed.
-        </p>
-      )}
-
-      {isPending && !isLikelyStillConfirming && checkout !== "cancelled" && (
+      {isPending && checkout !== "cancelled" && (
         <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink-muted)">
-          A previous checkout attempt from a while ago never completed. Starting a new one below
-          should be safe.
+          You already have a payment attempt in progress for this event. Continuing below
+          returns you to that same checkout — it won&rsquo;t start a second one or charge you
+          twice.
         </p>
       )}
 
@@ -92,16 +79,9 @@ export default async function EventCheckoutPage({
         <Button
           type="submit"
           size="lg"
-          variant={isLikelyStillConfirming ? "outline" : "default"}
-          className={
-            isLikelyStillConfirming
-              ? "w-full sm:w-auto"
-              : "w-full bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90 sm:w-auto"
-          }
+          className="w-full bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90 sm:w-auto"
         >
-          {isLikelyStillConfirming
-            ? "Pay again anyway (may double-charge)"
-            : "Continue to payment (GCash, Maya, or card)"}
+          Continue to payment (GCash, Maya, or card)
         </Button>
       </form>
     </div>
