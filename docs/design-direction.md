@@ -600,3 +600,137 @@ verification, same as every other scope above.
 - Exposing a capture's signed media URL, thumbnail, or any per-guest-media affordance from this
   surface — unchanged from Slice 7's DAL boundary (`lib/dal/operator-events.ts` still selects
   aggregate counts only).
+
+---
+
+# Payment, activation, and event signage
+
+**Status: awaiting human visual verification.** Presentation-only pass, implemented 2026-09-22,
+over the already-complete and verified Slice 8 payment/activation functionality. Extends the
+accepted "Host experience" direction above rather than replacing it — no new token family, no
+anchor-approval gate required (docs/design-direction.md §6.6: an established direction may be
+extended autonomously). No payment semantics, provider behavior, activation logic, operator
+behavior, or pricing changed.
+
+## Scope
+
+The unpaid-event state, the checkout page (`app/(host)/events/[eventId]/checkout/page.tsx`), the
+event dashboard's payment/activation-related banners and masthead copy
+(`app/(host)/events/[eventId]/page.tsx`), and the four signage SVG formats
+(`lib/media/signage.ts`). Not the operator console, not payment logic, not the webhook route, not
+pricing.
+
+## Product character
+
+Same as the host scope above: calm, operational, trustworthy — a Filipino host paying ₱999 for a
+real event should understand what they're buying, that "continue to payment" is safe to retry,
+and that paying doesn't open guest capture, without reading a paragraph of legal copy.
+
+## Research
+
+Targeted image search for one-time-purchase checkout trust patterns and event QR/table-card/poster
+signage turned up mostly generic stock-template results, and — notably — almost every QR/table-
+card reference found was wedding-specific (table tents, "capture the love" table numbers,
+invitation-style decoration), which is exactly the framing product.md and this pass's brief
+require avoiding for an event-agnostic product. Rather than force-fit a mismatched anchor, this
+pass extends the already-accepted host visual identity (warm palette, terracotta accent, the
+photo-object/frame motif established in the guest-scope section above) instead of adopting an
+external anchor for the checkout or signage surfaces — consistent with the "later redesigns under
+an established visual direction" allowance in the Skill's operating rules.
+
+## Structural signature
+
+- **Checkout page:** added a "What you get" panel above the price breakdown — three lines (link/
+  QR/signage issued on confirmation; five frames per guest up to the event's guest cap; capture
+  stays closed until explicitly opened) — so a first-time host understands what a "checkout" here
+  actually produces before seeing the price, addressing this pass's requirement that the host
+  understand what happens after payment and that capture doesn't auto-open. This did not exist
+  before; previously the only post-payment expectation set was one line above the price box.
+- **State-differentiated banners:** the cancelled/pending/confirming states on both the checkout
+  page and the dashboard no longer share one identical neutral `bg-host-surface` treatment. A
+  "payment in progress" or "confirming" state now gets a distinct accent-tinted, bordered
+  treatment with a `Clock` icon; "cancelled" and "saved" keep the existing quieter neutral
+  treatment (a `CircleCheck` icon added to "Saved" for symmetry) — so an in-progress state is
+  visually distinguishable from a completed or inert one, not identical copy in an identical box.
+- **Retry wording kept honest:** the existing "won't start a second one or charge you twice" claim
+  was preserved as-is (not touched, not strengthened) — it accurately describes the real
+  `begin_provider_checkout` one-active-session guarantee (D16/D17, migration
+  `20260922030000_payment_session_integrity.sql`), not a broader "retrying can never cause another
+  charge" claim this pass was told not to make.
+- **Post-activation reassurance:** the masthead's `active` state (paid, capture not yet opened)
+  gained a quiet one-line reassurance — "Paid and ready. Capture stays closed until you open it —
+  no rush." — directly under the event name, using the existing masthead structural signature (no
+  new panel, no urgency styling, no badge).
+- **Signage (`lib/media/signage.ts`):** rebuilt from a bare cream-background QR+Georgia-serif SVG
+  into a composition consistent with the product's actual visual identity: the warm host/guest
+  canvas color (hex-converted from the same palette, since SVG can't read CSS custom properties),
+  the product's display face (`Bricolage Grotesque` with a geometric-sans fallback chain) for the
+  event name, and a QR "photo-object" plate — a rounded card with a terracotta hairline border and
+  four small L-shaped viewfinder-corner brackets at its corners, a quiet capture-cue motif echoing
+  the guest scope's frame identity without any literal camera icon or event-type decoration. A
+  vertical-centering layout algorithm replaced the previous top-anchored one, which had left roughly
+  40% of the poster format's canvas as dead space below the content — the four formats now center
+  their content proportionally regardless of aspect ratio.
+
+## Typography
+
+Signage headline: `Bricolage Grotesque` (falls back to a geometric sans-serif chain when the font
+isn't available to the rendering surface — SVG `font-family` degrades gracefully rather than
+failing). Body/instruction text: an Inter/Helvetica/Arial stack, mirroring the host scope's
+body-face choice. No new typography introduced on the checkout/dashboard pages — existing
+`font-host-display` and body text sizes are unchanged.
+
+## Color/material
+
+Signage reuses the host/guest palette's hex equivalents (`#faf4e9` canvas, `#3d3226` ink, `#8a7c6a`
+muted ink, `#a8632f` accent, `#fffdf8` plate) rather than the previous generic cream/black pairing
+that shared no color relationship with the rest of the product. Checkout/dashboard banners use the
+existing `--host-accent` token at low opacity for "in progress" states — no new color was added to
+`.host-scope`.
+
+## Layout and rhythm
+
+No structural change to the checkout page's or dashboard's existing single-column, panel-based
+host layout — this pass adds one new panel (checkout's "What you get") and restyles existing
+banner/masthead elements in place. Signage layout is unchanged in file-level API (still four fixed
+formats, still one SVG per format) but its internal vertical rhythm is now computed to center
+content in the canvas rather than being top-anchored with an unaccounted-for bottom margin.
+
+## Controls and forms
+
+No new form primitives. The checkout CTA copy simplified from "Continue to payment (GCash, Maya,
+or card)" to "Continue to payment" with the payment-method detail moved to a smaller trust line
+below the button (`Lock` icon + "Pay with GCash, Maya, or card — handled securely by PayMongo"),
+since payment methods are a trust/reassurance detail, not the primary action's label.
+
+## Motion
+
+None added beyond the existing pattern (a `Clock` icon uses the same restrained `animate-pulse`
+already used by the masthead's live-state dot, applied only to actively-in-progress states, not to
+inert ones).
+
+## Accessibility
+
+All new icons are `aria-hidden` decoration alongside real text — status is still communicated by
+text in every case, never by icon or color alone, consistent with every other scope's accepted
+accessibility approach. Contrast of the new accent-tinted banner backgrounds against
+`--host-ink`/`--host-accent` has not been measured numerically — flagged for human verification,
+same as every other scope in this document. Signage SVGs are static images with no interactive
+elements; the encoded QR data is unchanged in meaning, only its surrounding visual treatment
+changed.
+
+## Avoid
+
+- Any wedding-specific or single-event-type framing in signage — explicitly avoided per this
+  pass's research finding that most real-world QR/table-card references skew wedding-specific;
+  the viewfinder-corner motif and photo-object plate are deliberately event-agnostic.
+- Claiming retrying checkout "can never" cause a second charge — the copy states what the system
+  actually guarantees (one active session, reused on retry), not an absolute never-charge-twice
+  promise.
+- Treating the browser's checkout return/cancel redirect as trusted payment state — unchanged;
+  activation still only ever happens from the webhook, and this pass added no code path that reads
+  activation state from the redirect.
+- Any pressure, urgency, or celebratory styling on the post-activation "capture stays closed"
+  moment — it is one quiet line, not a banner, confetti, or a call to action to open capture now.
+- A Canva-like signage editor, theme picker, or per-event customization — signage remains four
+  fixed, non-customizable formats, only their shared visual treatment changed.

@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-22 (Slice 8 complete)
+Last updated: 2026-09-23 (Slice 8 complete; payment/activation/signage design pass awaiting human visual verification)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -692,6 +692,7 @@ Console mutations the current read-only Console reserves space for. Not started.
 |---|---|---|
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
 | Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens, reserved-but-inert manual-payment/refund zone) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. No mutation was implemented; Slice 9 still builds the real actions inside the reserved zone. | Design pass pending approval | `/operator`, `/operator/events/[eventId]`; see checklist in session handoff |
+| Payment/activation/signage visual redesign (checkout "what you get" panel, state-differentiated payment banners, post-activation "capture stays closed" reassurance, signage rebuilt with the host palette and a viewfinder-corner photo-object motif) implemented 2026-09-23, automated checks passing (`typecheck`/`lint`/`test`/`build` all green) — **awaiting human visual verification**, not yet accepted in design-direction.md. No payment semantics, pricing, or activation logic changed. | Design pass pending approval | `/events/[eventId]/checkout`, `/events/[eventId]`, `/events/[eventId]/signage/[format]`; see checklist in session handoff |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |
 | Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |
 | No git remote configured | Setup | Any push/CI work |

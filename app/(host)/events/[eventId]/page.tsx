@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Camera, Images, Printer, IdCard, Presentation, Smartphone } from "lucide-react";
+import { Camera, Images, Printer, IdCard, Presentation, Smartphone, Clock, CircleCheck } from "lucide-react";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { getEventCaptureStats, listCapturesForEventHost } from "@/lib/dal/captures";
@@ -147,6 +147,11 @@ export default async function EventEditPage({
               Capture opens once the event is activated.
             </p>
           )}
+          {state === "active" && (
+            <p className="text-xs text-(--host-ink-muted)">
+              Paid and ready. Capture stays closed until you open it — no rush.
+            </p>
+          )}
           {state === "capture_closed" && !captureCanOpen && (
             <p className="text-xs text-(--host-ink-muted)">
               Capture closed automatically and can&rsquo;t be reopened.
@@ -193,16 +198,20 @@ export default async function EventEditPage({
       </div>
 
       {saved && (
-        <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
+        <p className="flex items-center gap-2 rounded-lg border border-(--host-border) bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
+          <CircleCheck className="size-4 shrink-0 text-(--host-accent)" aria-hidden />
           Saved.
         </p>
       )}
 
       {(checkout === "pending" || isPaymentPending) && !event.activated_at && (
-        <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
-          Payment received — confirming with PayMongo. This page updates automatically once
-          it&rsquo;s activated.
-        </p>
+        <div className="flex items-start gap-2.5 rounded-lg border border-(--host-accent)/30 bg-(--host-accent)/8 px-3 py-2.5 text-sm text-(--host-ink)">
+          <Clock className="mt-0.5 size-4 shrink-0 animate-pulse text-(--host-accent)" aria-hidden />
+          <p>
+            Payment received — confirming with PayMongo. This page updates automatically once
+            it&rsquo;s activated; capture will still stay closed until you open it yourself.
+          </p>
+        </div>
       )}
 
       {event.activated_at ? (
