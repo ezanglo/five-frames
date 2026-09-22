@@ -138,9 +138,38 @@ pnpm lint
 Frame-mechanism changes additionally require integration tests against a real Postgres covering
 concurrency, duplicate reserves sharing one key, retries, and reservation expiry. The same applies
 to changes touching event-join capacity (D13) or event activation (D16) — both use the identical
-atomic-guard pattern and need a concurrency test proving the guard actually holds. Real-device and
-in-app-browser testing is human-run (roadmap slices 2 and 14) — do not attempt browser automation
-for it.
+atomic-guard pattern and need a concurrency test proving the guard actually holds.
+
+### Browser automation boundary
+
+Browser automation is allowed for automated functional, responsive, and objective visual
+verification when an active validation Skill such as `/e2e-validate` explicitly calls for it.
+Browser automation may use Chromium/WebKit/etc. to exercise deployed application behavior, but
+browser emulation must never be represented as proof of physical-device or native-platform
+behavior.
+
+Browser automation does NOT count as verification of:
+
+- physical iPhone or Android device behavior;
+- native camera/photo-picker behavior;
+- native iOS/Android share sheets;
+- actual Facebook, Messenger, or Instagram embedded browsers;
+- physical printed-QR scanning;
+- genuine venue Wi-Fi/mobile-network conditions.
+
+Those remain human/real-device verification (roadmap slices 2 and 14) unless actually exercised
+through an approved real-device testing system.
+
+Automated E2E results may reduce the manual checklist by proving application-level behavior, but
+they must not replace product acceptance criteria that explicitly require real devices or
+real-world conditions.
+
+Never claim:
+
+- WebKit emulation = real iPhone Safari;
+- mobile Chromium emulation = real Android Chrome;
+- user-agent emulation = a real in-app browser;
+- network throttling = real venue-network validation.
 
 ## Authority boundaries
 
