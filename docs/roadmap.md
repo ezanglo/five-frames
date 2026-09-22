@@ -334,6 +334,8 @@ slices still changing it) avoids rework.
 by code inspection / integration test asserting no DAL import in the route). The demo cannot be
 distributed as or mistaken for a working event or gallery link.
 
+**Status: complete.** See [progress.md](./progress.md) for what shipped.
+
 ---
 
 ## Slice 14 — Full-flow device and venue-network validation

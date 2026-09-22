@@ -1,8 +1,8 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-23 (Slice 12 complete: lifecycle automation and retention. Automated
-checks passing, no human verification required for this slice — see below. Slice 10's pending
-Web Share human-verification checklist is unaffected and still open.)
+Last updated: 2026-09-23 (Slice 13 complete: public pre-purchase demo. Automated checks passing,
+no human verification required for this slice — see below. Slice 10's pending Web Share
+human-verification checklist is unaffected and still open.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -11,7 +11,76 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–12: complete.** Slice 12 (lifecycle automation and retention, product.md §7.3/§15.2,
+**Slices 1–13: complete.** Slice 13 (public pre-purchase demo, product.md §7.1, decision D14,
+roadmap criterion 16) landed 2026-09-23.
+
+- **Route (`app/(demo)/demo/page.tsx` + `demo-experience.tsx`), entirely client-side per D14:**
+  a static, unauthenticated page (confirmed prerendered `○` in the production build output — no
+  server data dependency at all) rendering the five-frame mechanic against either a bundled
+  sample photo or a visitor-picked file held only as an in-browser `ObjectURL`. No DAL import, no
+  Supabase client, no server action, and no fetch to any `/api/*` route exists anywhere under
+  `app/(demo)/` — enforced by `lib/demo/route-isolation.test.ts`, which reads the route's own
+  source files and fails if that ever changes, rather than relying on a one-time manual check.
+- **Reuses the accepted guest visual identity**, not a new design: the `.guest-scope` CSS scope
+  (`app/(demo)/layout.tsx`) and the real guest `FrameGrid` component
+  (`app/(guest)/e/[token]/frame-grid.tsx`) are imported directly and unmodified — the demo passes
+  it local-only `FrameState` values (`kind: "filled"` with `downloadUrl: null`, so `FrameGrid`
+  never renders a download affordance for a fake photo) rather than forking the component.
+- **Local, DOM-free five-frame state** (`lib/demo/state.ts`, unit-tested in `state.test.ts`): a
+  `DemoFrames` tuple of five slots (`empty` / `filled` with `source: "own" | "sample"`), pure
+  immutable transitions (`withSlotFilled`, `withSlotCleared`, `nextEmptySlotIndex`,
+  `isDemoComplete`) with no React or browser dependency — same "pure logic, DOM-free, unit
+  testable without jsdom" pattern Slice 10 established for `lib/share/web-share.ts`, since this
+  project's tooling has no jsdom.
+- **Bundled sample photos** (`lib/demo/samples.ts`, unit-tested): five inline SVG data URIs
+  generated in code, not shipped image files — no `public/` asset, no network fetch, nothing that
+  could be mistaken for a real guest's photo. A visitor may pick their own photo instead; that
+  file never leaves the browser (`URL.createObjectURL`, never uploaded).
+- **Object URL lifecycle:** every own-photo `ObjectURL` the demo creates is tracked in one ref
+  (`ownUrlsRef`, a `Set`) and revoked when its composing attempt is discarded, when the visitor
+  taps "Start over," or on unmount (`useEffect` cleanup) — a committed sample photo needs no
+  revocation since it's an inline data URI, never a blob URL.
+- **Commitment is local-only:** "Keep this frame" only ever calls `setFrames`/`withSlotFilled` in
+  React state — there is no reserve/commit/upload cycle to mirror, since there is nothing to
+  persist. A filled demo slot cannot be un-committed except by "Start over" (which resets every
+  slot, matching the real product's "commitment is final for the guest" tone at demo scale) —
+  the only reset path, deliberately: no page reload persistence was added (no `localStorage`), so
+  reloading the page and tapping "Start over" both land on the identical five-empty-slots state.
+- **Explicit, non-automatic CTA:** the "Create your event" button is a plain `<Link href="/signup">`
+  the visitor must tap — nothing in the demo auto-creates an account, auto-navigates, or treats
+  demo completion as an implicit conversion event. Pricing copy reads the same
+  `EVENT_PRICE_PHP` constant (₱999) the real checkout page already uses (`lib/payments/pricing.ts`,
+  no `server-only` import, safe to read client-side), so the demo cannot drift from the real
+  launch price, and does not present ₱1,490 as a reference price (product.md §7.2/§19 — that move
+  is a later business decision, unimplemented anywhere in code).
+- **Privacy/trust copy:** a persistent header line states demo photos stay on the visitor's
+  device and are never uploaded or saved, and a footer line states a real event needs host setup
+  and payment — both true by construction, not overstated (no claim about what happens to a real
+  guest's media once an event is real, which is out of scope for a demo screen).
+- **No gamification:** no frame countdown, no "X left" copy, no urgency/countdown on the CTA —
+  matching product.md's existing no-nagging rule, the same restraint the real guest capture UI
+  already applies (it shows no numeric counter either, only the five frames themselves).
+- **Testing:** `lib/demo/state.test.ts` (five-frame local state: fills in order without mutating
+  the previous array, reaches "complete" only at five, clearing a slot makes it reachable again,
+  source/message are preserved per slot, out-of-range index throws). `lib/demo/samples.test.ts`
+  (exactly five samples, every one an inline `data:image/svg+xml` URI never a remote URL,
+  distinct ids/labels/rendered content). `lib/demo/route-isolation.test.ts` (reads every file
+  under `app/(demo)/` and fails if any forbidden import/call appears — `lib/dal/*`, any
+  Supabase import, `server-only`, `createSignedUploadUrl`/`createSignedReadUrl`/
+  `generateLinkToken`, or a `fetch("/api/...")` call — satisfying the roadmap's own "verified by
+  code inspection" requirement as an executable check rather than a one-time manual read).
+  `pnpm typecheck`, `pnpm lint`, `pnpm build` (confirms `/demo` prerenders as static `○`, i.e. no
+  server data dependency exists even structurally), and the full `pnpm test` suite (157 tests
+  across 20 files, including this slice's 3 new files) all pass.
+- **Manual verification:** none required for this slice specifically — the demo has no
+  camera/file-picker behavior beyond what Slice 2's real-device pass already validated for the
+  same `<input type="file" accept="image/*" capture="environment">` pattern reused here unchanged.
+  Slice 14's full-flow device pass will still exercise `/demo` as part of the general regression
+  sweep, but nothing here introduces new device-specific risk.
+
+**Former current-phase entry (Slice 12), preserved below:**
+
+Slice 12 (lifecycle automation and retention, product.md §7.3/§15.2,
 decision D18, roadmap criterion 12) landed 2026-09-23.
 
 - **Real defect found and fixed, not just new work:** before this slice, no real
@@ -392,16 +461,17 @@ see prior verification records in git history if needed.
 ## What exists
 
 - **Decisions D1–D18** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
-  D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 record
-  the event-capacity counter mechanism and the client-only public demo (implemented, Slice 6).
-  D15–D17 record the operator grant model, the shared provider/manual activation function
-  (implemented, Slice 8, exercised by both payment sources since Slice 9), and the
+  D12 records how "after the event" reveal timing is anchored to capture closing. D13 records the
+  event-capacity counter mechanism (implemented, Slice 6). D14 records the client-only public
+  demo, now implemented (Slice 13) exactly as decided: no server write path exists anywhere in
+  the demo route. D15–D17 record the operator grant model, the shared provider/manual activation
+  function (implemented, Slice 8, exercised by both payment sources since Slice 9), and the
   payment-row-as-audit-trail decision (manual fields populated since Slice 9). D18 records the
   lifecycle cron mechanism and permanent-deletion ordering (implemented, Slice 12), plus the
   recorded launch prerequisite that no outbound email/SMS channel exists yet for the required
   advance-expiry warning.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–12 complete; Slice 13 (public pre-purchase
-  demo) is next.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–13 complete; Slice 14 (full-flow device and
+  venue-network validation, human-run) is next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
