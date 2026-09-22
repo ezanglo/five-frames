@@ -1,14 +1,17 @@
 import { notFound } from "next/navigation";
-import { Camera, Images } from "lucide-react";
+import Link from "next/link";
+import { Camera, Images, Printer, IdCard, Presentation, Smartphone } from "lucide-react";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { getEventCaptureStats, listCapturesForEventHost } from "@/lib/dal/captures";
+import { getLatestPaymentForEvent } from "@/lib/dal/payments";
 import {
   canOpenCapture,
   deriveEventLifecycleState,
   EVENT_LIFECYCLE_STATE_LABEL,
   isGalleryRevealed,
 } from "@/lib/events/lifecycle";
+import { EVENT_PRICE_PHP, isPaymentLikelyStillConfirming } from "@/lib/payments/pricing";
 import {
   closeCaptureAction,
   openCaptureAction,
@@ -46,15 +49,40 @@ const VISIBILITY_ITEMS = [
   { value: "only_me", label: "Only me" },
 ];
 
+type SignageFormat = "qr" | "table-card" | "poster" | "digital";
+
+function SignageDownload({
+  eventId,
+  format,
+  label,
+  icon,
+}: {
+  eventId: string;
+  format: SignageFormat;
+  label: string;
+  icon: React.ReactNode;
+}) {
+  return (
+    <a
+      href={`/events/${eventId}/signage/${format}`}
+      download
+      className="flex flex-col items-center gap-1.5 rounded-xl border border-(--host-border) bg-(--host-canvas-raised) p-3 text-center text-xs text-(--host-ink) transition-colors hover:bg-(--host-surface)"
+    >
+      {icon}
+      {label}
+    </a>
+  );
+}
+
 export default async function EventEditPage({
   params,
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; checkout?: string }>;
 }) {
   const { eventId } = await params;
-  const { saved } = await searchParams;
+  const { saved, checkout } = await searchParams;
   const host = await requireHost();
 
   const event = await getEventForHost(host.id, eventId);
@@ -77,6 +105,9 @@ export default async function EventEditPage({
   const captureCanOpen = canOpenCapture(event);
 
   const isLive = state === "capture_open";
+
+  const latestPayment = state === "draft" ? await getLatestPaymentForEvent(host.id, eventId) : null;
+  const isLikelyStillConfirming = isPaymentLikelyStillConfirming(latestPayment);
 
   return (
     <div className="flex flex-col gap-8">
@@ -123,7 +154,23 @@ export default async function EventEditPage({
           )}
         </div>
 
-        {state === "capture_open" ? (
+        {state === "draft" ? (
+          <Button
+            nativeButton={false}
+            render={<Link href={`/events/${eventId}/checkout`} />}
+            size="lg"
+            variant={isLikelyStillConfirming ? "outline" : "default"}
+            className={
+              isLikelyStillConfirming
+                ? "w-full sm:w-auto"
+                : "w-full bg-(--host-accent) text-(--host-accent-foreground) hover:bg-(--host-accent)/90 sm:w-auto"
+            }
+          >
+            {isLikelyStillConfirming
+              ? "Payment pending confirmation"
+              : `Pay ₱${EVENT_PRICE_PHP} to activate`}
+          </Button>
+        ) : state === "capture_open" ? (
           <form action={boundCloseCapture}>
             <Button
               type="submit"
@@ -153,43 +200,89 @@ export default async function EventEditPage({
         </p>
       )}
 
+      {(checkout === "pending" || isLikelyStillConfirming) && !event.activated_at && (
+        <p className="rounded-lg bg-(--host-surface) px-3 py-2 text-sm text-(--host-ink)">
+          Payment received — confirming with PayMongo. This page updates automatically once
+          it&rsquo;s activated. Avoid paying again while this is showing — PayMongo will charge
+          you separately for each completed checkout, even though only one payment can activate
+          the event.
+        </p>
+      )}
+
       {event.activated_at ? (
-        <div className="flex flex-col gap-3">
-          <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
-            Links
-          </h2>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <div className="flex-1">
-              <LinkRow
-                label="Capture link"
-                icon={<Camera className="size-3.5" />}
-                helpText="For guests at the venue — lets them join and capture while capture is open."
-                path={event.event_token ? `/e/${event.event_token}` : null}
-                rotateAction={boundRotateEventToken}
-                revokeAction={boundRevokeEventToken}
-              />
+        <>
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+              Links
+            </h2>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="flex-1">
+                <LinkRow
+                  label="Capture link"
+                  icon={<Camera className="size-3.5" />}
+                  helpText="For guests at the venue — lets them join and capture while capture is open."
+                  path={event.event_token ? `/e/${event.event_token}` : null}
+                  rotateAction={boundRotateEventToken}
+                  revokeAction={boundRevokeEventToken}
+                />
+              </div>
+              <div className="flex-1">
+                <LinkRow
+                  label="Gallery link"
+                  icon={<Images className="size-3.5" />}
+                  helpText={
+                    !isGalleryRevealed(event)
+                      ? "For anyone you share it with, view-only — grants nothing until the gallery is revealed."
+                      : event.visibility === "only_me"
+                        ? "For anyone you share it with, view-only — but visibility is set to only me, so it grants nothing to anyone else."
+                        : "For anyone you share it with, view-only — they can see the gallery now."
+                  }
+                  path={event.gallery_token ? `/g/${event.gallery_token}` : null}
+                  rotateAction={boundRotateGalleryToken}
+                  revokeAction={boundRevokeGalleryToken}
+                />
+              </div>
             </div>
-            <div className="flex-1">
-              <LinkRow
-                label="Gallery link"
-                icon={<Images className="size-3.5" />}
-                helpText={
-                  !isGalleryRevealed(event)
-                    ? "For anyone you share it with, view-only — grants nothing until the gallery is revealed."
-                    : event.visibility === "only_me"
-                      ? "For anyone you share it with, view-only — but visibility is set to only me, so it grants nothing to anyone else."
-                      : "For anyone you share it with, view-only — they can see the gallery now."
-                }
-                path={event.gallery_token ? `/g/${event.gallery_token}` : null}
-                rotateAction={boundRotateGalleryToken}
-                revokeAction={boundRevokeGalleryToken}
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+              Signage
+            </h2>
+            <p className="text-xs text-(--host-ink-muted)">
+              Ready-made assets for the venue — each links straight to the capture link above.
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <SignageDownload
+                eventId={eventId}
+                format="qr"
+                label="Printable QR"
+                icon={<Printer className="size-4" />}
+              />
+              <SignageDownload
+                eventId={eventId}
+                format="table-card"
+                label="Table card"
+                icon={<IdCard className="size-4" />}
+              />
+              <SignageDownload
+                eventId={eventId}
+                format="poster"
+                label="Poster"
+                icon={<Presentation className="size-4" />}
+              />
+              <SignageDownload
+                eventId={eventId}
+                format="digital"
+                label="Digital / phone"
+                icon={<Smartphone className="size-4" />}
               />
             </div>
           </div>
-        </div>
+        </>
       ) : (
         <p className="text-sm text-(--host-ink-muted)">
-          Links are issued once the event is activated.
+          Links and signage are issued once the event is activated.
         </p>
       )}
 

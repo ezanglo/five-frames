@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-22
+Last updated: 2026-09-22 (Slice 8 implemented, awaiting human verification)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -9,9 +9,10 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–7: complete.** No implementation has started on Slice 8 (PayMongo payment, shared
-activation, signage) or later — see the reconciliation note below for what changed in the plan
-since Slice 6 landed, and the Slice 7 entry under "What exists" for what was just built.
+**Slices 1–8: implemented, automated checks passing. Slice 8 is `awaiting human verification`**
+before it can be marked complete — see the checklist below. The PayMongo account-creation blocker
+recorded earlier in this slice (KYC page broken) was resolved by the user directly with PayMongo;
+test-mode API keys now exist. Nothing about Slices 1–7 changed in this pass.
 
 **Reconciliation pass (2026-09-22, second pass — operator role, manual payment, Operator
 Console).** product.md was updated with the internal Operator role, supplier-assisted/manual
@@ -83,10 +84,11 @@ see prior verification records in git history if needed.
 - **Decisions D1–D17** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
   D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 record
   the event-capacity counter mechanism and the client-only public demo (implemented, Slice 6).
-  D15–D17 (new in this reconciliation pass, not yet implemented) record the operator grant model,
-  the shared provider/manual activation function, and the payment-row-as-audit-trail decision.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–7 done, Slice 8 (PayMongo payment, shared
-  activation, and signage) next.
+  D15–D17 record the operator grant model, the shared provider/manual activation function
+  (implemented, Slice 8), and the payment-row-as-audit-trail decision (manual fields land Slice 9).
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–8 implemented; Slice 8 is `awaiting human
+  verification` (see checklist below); Slice 9 (manual payment/refunds through the Operator
+  Console) next once it passes.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -221,7 +223,8 @@ see prior verification records in git history if needed.
   `/operator/events/[eventId]` detail) is read-only this slice — no mutation, matching the
   roadmap's scope boundary (manual payment confirmation/refund is Slice 9). Payment state on the
   detail page reads only from `events.activated_at` and says so plainly ("payment records land in
-  Slice 8/9") since the `payments` table doesn't exist yet.
+  Slice 8/9") since the `payments` table doesn't exist yet — **superseded by the Slice 8 entry
+  below**, the payments table now exists and this page reads it.
   **Regression fix, not new for this slice:** `pnpm dev:activate-event` (Slice 2) and the new
   `pnpm ops:grant-operator` both import modules marked `import "server-only"`; under plain
   `tsx`/`node` (no bundler) that marker package throws on import instead of no-op'ing the way it
@@ -231,6 +234,91 @@ see prior verification records in git history if needed.
   condition Next's own server bundle effectively selects. This was a pre-existing defect in
   `dev:activate-event` (it would have thrown on any real invocation), caught while building the
   new script on the identical pattern, not introduced by this slice.
+- **Provider payment, shared activation, and event signage (Slice 8, product.md §7.2/§11.3/§15,
+  decisions D16/D17, architecture §8/§8a).** Migration `20260922020000_payments.sql` adds the
+  source-agnostic `payments` table designed in architecture §4 — only the `source = 'provider'`
+  fields are populated this slice; the manual fields are Slice 9. `lib/payments/paymongo-client.ts`
+  is a thin fetch-based wrapper (no SDK) around PayMongo v2 Checkout Sessions: creates a session
+  with `payment_method_types: ["gcash", "paymaya", "card"]` and `pass_on_fees: false` (so the
+  disclosed price is the full amount charged, no separate fee line), and verifies the
+  `Paymongo-Signature` header as HMAC-SHA256 of the **raw** request body against
+  `PAYMONGO_WEBHOOK_SECRET`, timing-safe compared — confirmed against PayMongo's own go-live
+  checklist and Checkout Session quick-start docs (`docs.paymongo.com`), not a third-party
+  tutorial. `lib/payments/pricing.ts` holds the single launch price constant (₱999,
+  `EVENT_PRICE_CENTAVOS = 99900`) the checkout page, the DAL, and the PayMongo request all read
+  from — moving toward the ₱1,490 post-validation target later is a one-constant change.
+  `lib/dal/payments.ts` holds `activateEvent(eventId, paymentId)` — the one place
+  `event_token`/`gallery_token` are minted, via a single atomic `UPDATE events ... WHERE
+  activated_at IS NULL RETURNING *` (decision D16, the same guard pattern as D5/D6/D13) — and
+  `startProviderCheckout` (ownership-checked via `getEventForHost`, refuses for an
+  already-activated event before ever calling PayMongo) and
+  `recordProviderWebhookAndActivate` (matches a verified webhook delivery to its payment row by
+  PayMongo checkout session id — never trusts webhook metadata for that — then calls
+  `activateEvent`; a duplicate/replayed delivery is harmless because `activateEvent`'s guard, not
+  the webhook-id claim step, is the actual source of the "activate exactly once" guarantee).
+  `app/api/webhooks/paymongo/route.ts` reads the raw body before any parsing, verifies the
+  signature first and rejects with 401 before doing anything else, then dispatches to the DAL.
+  Checkout UI: the host dashboard's masthead shows "Pay ₱999 to activate" for a draft event,
+  linking to `/events/[eventId]/checkout` (price/fee/total/refundability breakdown built from our
+  own price constant, not derived from provider UI, per architecture §8) with a "Continue to
+  payment" action (`startCheckoutAction`) that redirects the host's browser to PayMongo's hosted
+  checkout URL; the checkout page also carries retry messaging for a cancelled or previously
+  incomplete attempt. `success_url`/`cancel_url` are absolute, built server-side via
+  `lib/http/base-url.ts` (reads the `host`/`x-forwarded-proto` request headers — the server-side
+  equivalent of the `window.location.origin` pattern link-row.tsx already uses client-side).
+  Activation itself never happens on the redirect return — only the webhook does that — so the
+  post-redirect page shows a "confirming with PayMongo" note keyed off `?checkout=pending` and
+  the existing `DashboardPoller` picks up the real state once the webhook lands.
+  **Signage** (`lib/media/signage.ts`): four formats (`qr`, `table-card`, `poster`, `digital`),
+  each a self-contained SVG with the QR code embedded as a data URI (via the `qrcode` package) —
+  deliberately not rasterized through `sharp`, to avoid depending on system fonts being present
+  in the serverless runtime for text rendering. Served by the host-authenticated
+  `app/(host)/events/[eventId]/signage/[format]/route.ts`, which 404s unless the event is
+  activated and has a real `event_token` (invariant 7: nothing to render before payment), and
+  builds the encoded capture URL from the same `lib/http/base-url.ts` helper. Every format carries
+  the event name, "Scan. You have five frames.", and "No app. No account." — no invitation editor,
+  no template choices, matching product.md §11.3's bounded scope.
+  **Operator Console read consistency (not new work, a required follow-on):** the Slice 7
+  placeholder text ("payment records land in Slice 8/9") on the operator event detail page is now
+  stale, since the `payments` table exists. `getOperatorEventDetail` (`lib/dal/operator-events.ts`)
+  now also reads the event's latest payment row (still no mutation, still no capture media
+  exposure) and the detail page shows the real source/status/amount when one exists — this keeps
+  "provider and activation records remain internally consistent," one of this slice's own
+  verification requirements, true from the operator's read-only vantage point too.
+  **Double-charge safety follow-up (found during the user's own manual verification pass, not a
+  pre-planned part of the slice):** the checkout page originally claimed retrying was "safe — it
+  won't charge you twice," which was wrong — `activateEvent`'s guard prevents double
+  *activation*, not a second real PayMongo charge if a host completes two checkouts while a first
+  is still confirming. `lib/payments/pricing.ts` now has `getPendingPaymentState()`/
+  `isPaymentLikelyStillConfirming()` (a `PENDING_PAYMENT_GRACE_MINUTES = 10` heuristic, pure and
+  `now`-parameterized like `lib/events/lifecycle.ts`'s functions, so it can be called from a
+  server component without a literal `Date.now()` in the render body — the lint config flags
+  that). While a payment looks like it's still confirming, the dashboard masthead CTA changes
+  from "Pay ₱999 to activate" to a de-emphasized "Payment pending confirmation" (still links to
+  `/checkout`, never fully blocks the host), and the checkout page swaps its primary button for an
+  honest warning ("Pay again anyway (may double-charge)") instead of the retryable-looking default
+  styling. This never gates `startProviderCheckout` itself at the DAL level — a host can still
+  always retry — it only changes what the UI encourages. Covered by
+  `lib/payments/pricing.test.ts`.
+  **Webhook signature verification was wrong and rejected every real delivery (found during the
+  user's own manual verification — 8 failed retries visible in the PayMongo dashboard, no
+  activation happened despite a completed test payment).** The original `verifyWebhookSignature`
+  treated the `Paymongo-Signature` header as a bare hex digest and signed only the raw body.
+  PayMongo's own docs never state the header's actual layout, so this was built from the general
+  "HMAC-SHA256 the raw body" description alone — wrong. The real header is
+  `t=<timestamp>,te=<test_signature>,li=<live_signature>`, and the signed string is
+  `{timestamp}.{raw_body}`, confirmed against PayMongo's own official Node SDK source
+  (`github.com/paymongo/paymongo-node`, `src/services/Webhook.js`,
+  `WebhookService.prototype.constructEvent` — a first-party source, not a tutorial), which also
+  clarified precedence: compare against `li` when present, else `te`. `verifyWebhookSignature`
+  (`lib/payments/paymongo-client.ts`) now matches this exactly, and
+  `lib/payments/paymongo-client.test.ts` was rewritten to construct real `t=/te=/li=` headers
+  instead of a bare hex string, covering: correct test-mode signature, correct live-mode
+  signature, live-mode precedence when both are present, tampered body, missing header,
+  malformed header (too few parts), and wrong secret. **This has not yet been re-verified against
+  a real PayMongo delivery** — the fix is local, unbuilt-and-undeployed as of this note; the next
+  manual verification pass must confirm an actual webhook delivery now succeeds before Slice 8 is
+  marked complete.
 - **Testing:** `lib/dal/captures.integration.test.ts` against the real linked dev Postgres and
   Storage — concurrent reserve storm (5 succeed, 6th exhausted, slots 0–4 exactly), duplicate
   reserve sharing one key (one row, one slot), retry-after-failed-upload (exactly one committed
@@ -262,6 +350,23 @@ see prior verification records in git history if needed.
   all three reveal modes, including the exact-instant boundary for `custom`, and for
   `hasReachedGuestCapacity()` below/at/above the cap. `lib/auth/guest-session-token.test.ts` —
   cookie signing round-trip, tamper rejection, cross-event rejection, wrong-secret rejection.
+  `lib/dal/payments.integration.test.ts` (Slice 8) adds: a draft event has a null
+  `event_token`/`gallery_token` (no distributable link before payment); `activateEvent` called
+  twice directly returns identical tokens both times (idempotent under a race); a duplicate/
+  replayed webhook delivery (same webhook event id, same checkout session) activates the event
+  exactly once and leaves exactly one `payments` row with `provider_status = 'paid'`; a webhook
+  for an unrecognized checkout session, and a non-`checkout_session.payment.paid` event type, are
+  both ignored and never activate; `startProviderCheckout` refuses (without any network call) for
+  another host's event and for an already-activated event; `getLatestPaymentForEvent` is
+  ownership-scoped the same way every other host-facing DAL read is. Doesn't exercise the actual
+  PayMongo network call — the ownership/already-activated refusals return before reaching it, and
+  the webhook-processing path is tested by constructing payment rows directly, the way a real
+  checkout would have left them, so the suite runs without needing real PayMongo credentials.
+  `lib/payments/paymongo-client.test.ts` (Slice 8, unit) — `verifyWebhookSignature` accepts a
+  correctly HMAC-signed body, rejects a tampered body against the original signature, a missing
+  header, and a signature computed with the wrong secret; `parseWebhookEventPayload` extracts the
+  event id/type/nested checkout session correctly and returns a null session for an unrelated
+  event type.
 
 ## Verification status
 
@@ -269,9 +374,9 @@ see prior verification records in git history if needed.
 - `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`, and
   `/operator/events/[eventId]` register as dynamic routes.
-- `pnpm test` (Vitest) — 62/62 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
-  join-capacity, and Slice 7 operator-authorization integration tests above against the real dev
-  database.
+- `pnpm test` (Vitest) — 83/83 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
+  join-capacity, Slice 7 operator-authorization, and Slice 8 payment/activation integration tests
+  above against the real dev database.
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -298,6 +403,16 @@ see prior verification records in git history if needed.
   through in a browser for the same reason as Slice 4; if convenient, a human sanity check is to
   sign in as a granted operator and confirm `/operator` lists events from more than one host, then
   sign in as an ordinary host and confirm `/operator` 404s.
+- **Slice 8 is `awaiting human verification`.** The activation mechanism (idempotency, unpaid
+  event exposing no link, webhook-replay safety, ownership boundary) is proven against the real
+  database by the integration tests above — that part does not need manual verification. What
+  does: the actual round trip through PayMongo's hosted checkout UI and a real webhook delivery,
+  which needs the user's own PayMongo test-mode keys and this environment does not run browser
+  automation (see the checklist below). `PAYMONGO_SECRET_KEY` and
+  `NEXT_PUBLIC_PAYMONGO_PUBLIC_KEY` were provided by the user during this slice; `.env.local` was
+  not read or modified by the assistant. `PAYMONGO_WEBHOOK_SECRET` still needs to be set once the
+  user creates the webhook endpoint (checklist step 1 below) — until then, real webhook delivery
+  cannot be verified end-to-end, only the handler's logic (tested above).
 
 ## Regression protection added for human-found defects
 
@@ -367,11 +482,56 @@ acceptance criteria. If convenient, click through once in a browser as a sanity 
 3. Set reveal back to "After the event" with capture still open, and confirm the gallery link
    denies access until capture is closed.
 
+## Manual verification checklist for Slice 8 exit condition
+
+Not yet run. This is the minimum equivalent checklist — automated tests prove the activation
+mechanism itself (idempotency, replay safety, ownership, unpaid-event has no link); these steps
+prove the real PayMongo round trip, which needs the user's own test-mode account and cannot be
+exercised by this environment (no browser automation).
+
+1. **Register the test-mode webhook endpoint** in the PayMongo Dashboard (Developers → Webhooks,
+   test mode) pointed at `https://five-frames.vercel.app/api/webhooks/paymongo`, subscribed to
+   `checkout_session.payment.paid` only. Copy the signing secret it shows into `.env.local` and
+   the Vercel Preview/Production env vars as `PAYMONGO_WEBHOOK_SECRET`, and set
+   `PAYMONGO_SECRET_KEY`/`NEXT_PUBLIC_PAYMONGO_PUBLIC_KEY` there too (already in `.env.local`
+   locally, per the user).
+   Expected: the endpoint shows as registered and enabled in the PayMongo dashboard.
+2. **Full checkout, GCash test payment method** — on a draft event's `/events/[eventId]/checkout`
+   page, confirm the price breakdown (₱999, "Included — nothing extra charged" fees, ₱999 total,
+   refund policy line) renders, then "Continue to payment," complete a GCash test payment on
+   PayMongo's hosted page.
+   Expected: redirected back to `/events/[eventId]?checkout=pending` showing "confirming with
+   PayMongo"; within a few seconds (webhook delivery), the page (via `DashboardPoller`) flips to
+   showing the activated Links and Signage sections, exactly once — no duplicate activation, no
+   duplicate `payments` row.
+3. **Cancelled checkout** — start checkout again on a still-unpaid event, cancel on PayMongo's
+   page instead of paying.
+   Expected: redirected to `/events/[eventId]/checkout?checkout=cancelled` showing the
+   cancellation notice; the event remains unactivated; "Continue to payment" is retryable without
+   any corrupted state.
+4. **Card and Maya test payments** — repeat step 2's happy path with PayMongo's test card number
+   and with Maya, on two more draft events.
+   Expected: same successful activation behavior as GCash.
+5. **Signage download** — on the now-activated event from step 2, download all four signage
+   formats (Printable QR, Table card, Poster, Digital/phone).
+   Expected: each opens as a valid SVG image, encodes the real `/e/[event_token]` capture link
+   (scanning the QR opens that link), and shows the event name, "Scan. You have five frames.",
+   and "No app. No account."
+6. **Another host cannot pay for or view this event's checkout/payment state** — sign in as a
+   different host and attempt to open `/events/[eventId]/checkout` for the event from step 2.
+   Expected: 404, same as any other host-scoped route for an event that host doesn't own.
+
+Report pass/fail for each item and any error/screenshot. Failures are fixed within this slice per
+the defect-to-regression policy before the slice is marked complete.
+
 ## Next slice
 
 **Slice 8 — Provider payment, shared activation, and event signage** ([roadmap](./roadmap.md)).
-Not started. Needs a PayMongo account with KYC completed (see blockers below) before the
-webhook-driven activation path can be exercised against anything but the dev stand-in.
+Implemented, automated checks passing (`pnpm typecheck`/`lint`/`build`/`test` all green, 83/83
+tests). Status: `awaiting human verification` — see the checklist immediately above. Once that
+passes, Slice 8 is complete and **Slice 9 — Manual payment confirmation and refunds through the
+Operator Console** ([roadmap](./roadmap.md)) is next; it reuses `activateEvent` unchanged and adds
+the two Operator Console mutations the current read-only Console reserves space for.
 
 ## Blockers and open items
 
@@ -379,8 +539,9 @@ webhook-driven activation path can be exercised against anything but the dev sta
 |---|---|---|
 | Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md | Design pass pending approval | `/g/[token]`, host link-row polish; see checklist in session handoff |
 | Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens, reserved-but-inert manual-payment/refund zone) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. No mutation was implemented; Slice 9 still builds the real actions inside the reserved zone. | Design pass pending approval | `/operator`, `/operator/events/[eventId]`; see checklist in session handoff |
-| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before Slice 8+ production work |
-| PayMongo account with KYC completed | External prerequisite | Slice 8 (not Slice 7 or 9 — manual payment doesn't need it) |
+| Slice 8 (PayMongo checkout, webhook, signage) implemented 2026-09-22, automated checks passing — **awaiting human verification** of the real PayMongo round trip and webhook delivery (checklist above) | Manual verification pending | `/events/[eventId]/checkout`, `/api/webhooks/paymongo`, signage downloads |
+| `PAYMONGO_WEBHOOK_SECRET` not yet set anywhere — the webhook endpoint must be created in the PayMongo dashboard first (checklist step 1) before this can be filled in and real webhook delivery verified | Setup step, part of the checklist above | `.env.local`, Vercel env vars |
+| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |
 | Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |
 | No git remote configured | Setup | Any push/CI work |
 | Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
@@ -388,4 +549,4 @@ webhook-driven activation path can be exercised against anything but the dev sta
 | Refund/retention/deletion legal copy | Business decision, from spec §19 | Pre-launch |
 | 250-session / 1,250-capture launch capacity (`guest_session_cap`, now enforced) is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; decision D13) | Launch policy, to revisit with real data | Beyond launch |
 | Exact demo content/mechanism (bundled sample images vs. visitor's own device photo) | Open, left to design/implementation (product.md §19) | Slice 13 |
-| Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch, not a Slice 8 blocker |
+| Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch |

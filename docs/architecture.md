@@ -61,7 +61,7 @@ solving any requirement in the spec.
 | Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
 | Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
 | Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
-| Payment | PayMongo Checkout Sessions + signed webhooks | Not yet built — Slice 7 |
+| Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit) |
 | Scheduled work | Vercel Cron | Not yet built — Slice 10 |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |

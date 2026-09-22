@@ -64,7 +64,7 @@ export default async function OperatorEventDetailPage({
   const detail = await getOperatorEventDetail(eventId);
   if (!detail) notFound();
 
-  const { event, hostEmail, captureCounts } = detail;
+  const { event, hostEmail, captureCounts, latestPayment } = detail;
   const state = deriveEventLifecycleState(event);
   const revealed = isGalleryRevealed(event);
 
@@ -140,8 +140,27 @@ export default async function OperatorEventDetailPage({
             />
             <Row
               label="Source"
-              value="Not yet tracked — payment records land in Slice 8/9"
+              value={
+                latestPayment
+                  ? latestPayment.source === "provider"
+                    ? "PayMongo (self-service)"
+                    : "Manual — reserved for Slice 9"
+                  : "No payment attempt yet"
+              }
             />
+            {latestPayment?.source === "provider" && (
+              <>
+                <Row label="Provider status" value={latestPayment.provider_status ?? "—"} />
+                <Row
+                  label="Amount"
+                  value={
+                    latestPayment.amount != null
+                      ? `₱${(latestPayment.amount / 100).toLocaleString()} ${latestPayment.currency ?? ""}`
+                      : "—"
+                  }
+                />
+              </>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 border-t border-(--operator-border) pt-4">

@@ -14,8 +14,10 @@ import {
   type EventConfigInput,
 } from "@/lib/dal/events";
 import { moderateCapture, type ModerationAction } from "@/lib/dal/captures";
+import { startProviderCheckout } from "@/lib/dal/payments";
 import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
+import { getRequestBaseUrl } from "@/lib/http/base-url";
 
 const REVEAL_MODES: RevealMode[] = ["after_event", "immediate", "custom"];
 const VISIBILITIES: GalleryVisibility[] = ["anyone_with_link", "only_me"];
@@ -88,6 +90,21 @@ export async function updateEvent(eventId: string, formData: FormData) {
   }
 
   redirect(`/events/${eventId}?saved=1`);
+}
+
+/** Bound to the checkout confirmation page's "Continue to payment" button (product.md
+ *  §7.2). Redirects the host's browser to PayMongo's hosted checkout; activation itself
+ *  only happens later, via the signed webhook (architecture §8), never here. */
+export async function startCheckoutAction(eventId: string) {
+  const host = await requireHost();
+  const baseUrl = await getRequestBaseUrl();
+
+  const session = await startProviderCheckout(host.id, eventId, baseUrl);
+  if (!session) {
+    notFound();
+  }
+
+  redirect(session.checkoutUrl);
 }
 
 export async function openCaptureAction(eventId: string) {

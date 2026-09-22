@@ -67,3 +67,34 @@ export type CaptureRow = {
   committed_at: string | null;
   created_at: string;
 };
+
+export type PaymentSource = "provider" | "manual";
+export type ManualPaymentMethod = "cash" | "bank_transfer" | "other";
+
+export type PaymentRow = {
+  id: string;
+  event_id: string;
+  source: PaymentSource;
+
+  provider_checkout_session_id: string | null;
+  provider_status: string | null;
+  amount: number | null;
+  currency: string | null;
+  fee_amount: number | null;
+  provider_webhook_event_id: string | null;
+
+  manual_method: ManualPaymentMethod | null;
+  manual_amount: number | null;
+  manual_currency: string | null;
+  paid_at: string | null;
+  confirmed_at: string | null;
+  confirmed_by: string | null;
+  reference_note: string | null;
+
+  refunded_at: string | null;
+  refunded_by: string | null;
+  refund_note: string | null;
+
+  created_at: string;
+  updated_at: string;
+};

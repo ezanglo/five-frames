@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
-import type { EventRow } from "@/lib/db/types";
+import type { EventRow, PaymentRow } from "@/lib/db/types";
 
 /**
  * Operator Console reads (architecture §8b, product.md §5.1). Deliberately a separate
@@ -60,6 +60,7 @@ export type OperatorEventDetail = {
   event: EventRow;
   hostEmail: string;
   captureCounts: OperatorCaptureCounts;
+  latestPayment: PaymentRow | null;
 };
 
 export async function getOperatorEventDetail(
@@ -116,6 +117,16 @@ export async function getOperatorEventDetail(
     if (result.error) throw result.error;
   }
 
+  const { data: latestPayment, error: paymentError } = await supabase
+    .from("payments")
+    .select()
+    .eq("event_id", eventId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (paymentError) throw paymentError;
+
   return {
     event: event as EventRow,
     hostEmail: hosts?.email ?? "unknown",
@@ -126,5 +137,6 @@ export async function getOperatorEventDetail(
       favorited: favorited.count ?? 0,
       deleted: deleted.count ?? 0,
     },
+    latestPayment: latestPayment as PaymentRow | null,
   };
 }
