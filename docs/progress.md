@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-23 (Slice 11 complete: host downloads, individual and bulk. Automated
+Last updated: 2026-09-23 (Slice 12 complete: lifecycle automation and retention. Automated
 checks passing, no human verification required for this slice — see below. Slice 10's pending
 Web Share human-verification checklist is unaffected and still open.)
 
@@ -11,7 +11,99 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–11: complete.** Slice 11 (downloads, product.md §11.2/§12/§13, decision D11,
+**Slices 1–12: complete.** Slice 12 (lifecycle automation and retention, product.md §7.3/§15.2,
+decision D18, roadmap criterion 12) landed 2026-09-23.
+
+- **Real defect found and fixed, not just new work:** before this slice, no real
+  activation/capture-open code path ever set `safety_net_closes_at`, `hosted_until`, or
+  `grace_until` — only the dev-only `pnpm dev:activate-event` script did. That meant the automatic
+  capture safety-net close, hosted-access expiry, and the grace period had never actually fired
+  for a single real, provider- or manually-activated event, even though `deriveEventLifecycleState`
+  (decision D8) had derived correctly from those columns since Slice 1. `activateEvent`
+  (`lib/dal/payments.ts`) now stamps `hosted_until`/`grace_until` in the same atomic update that
+  activates the event; `openCapture` (`lib/dal/events.ts`) now stamps `safety_net_closes_at` on
+  first open (computed by `computeSafetyNetClosesAt`, `lib/events/lifecycle.ts`) and never moves
+  it on a later reopen.
+- **A second, related regression this fix exposed:** `recordManualRefund` cleared
+  `activated_at`/`event_token`/`gallery_token`/`activating_payment_id` on refund but not
+  `hosted_until`/`grace_until`/`safety_net_closes_at`/`capture_opened_at`/`capture_closed_at`.
+  Harmless before this slice (those columns were always already null in production), but once
+  `activateEvent` started populating them for real, a refunded/unpaid event would eventually have
+  derived as `expired`/`archived` from a since-undone activation (D8 checks `hosted_until`/
+  `grace_until` before `activated_at`). Fixed in the same refund-clearing update; regression test
+  in `lib/dal/payments.manual.integration.test.ts` asserts the event derives back to `draft`.
+- **`computeSafetyNetClosesAt`** (`lib/events/lifecycle.ts`) anchors to the end of the event's
+  configured day, in the event's own timezone (`zonedDateTimeLocalToUtcIso`, never the server's),
+  plus the launch-policy safety-net window — per product.md §7.3, which anchors this to "the
+  event's configured end/date," not to whenever the host happens to open capture. Falls back to
+  the capture-open instant when no event date was ever configured, or when that computed deadline
+  would already be in the past (a late/postponed opening), so the safety net always exists.
+- **`lib/events/policy.ts`** (new) holds the launch-policy duration constants product.md itself
+  calls out as policy, not fixed invariants: `SAFETY_NET_CLOSE_HOURS` (72), `HOSTED_ACCESS_DAYS`
+  (365), `GRACE_PERIOD_DAYS` (30), `EXPIRY_WARNING_DAYS_BEFORE` (30).
+- **Advance expiry warning:** `getExpiryWarning()` (`lib/events/lifecycle.ts`) is a pure derived
+  read — within the warning window and not yet expired/archived. The host dashboard
+  (`app/(host)/events/[eventId]/page.tsx`) shows it as a calm banner, plus separate banners for
+  `expired` (read-only, downloads available until `grace_until`) and `archived` (deletion pending
+  or completed, reading `media_deleted_at`). **No outbound email/SMS exists in this codebase**, and
+  none was invented for this slice — the roadmap/build instructions for Slice 12 explicitly forbid
+  that. This is a real, recorded launch prerequisite (decision D18): before a genuine production
+  launch, product needs to decide on an actual delivery channel (most likely transactional email
+  to the host's Supabase Auth account email, since that's already collected).
+- **Permanent deletion (`lib/dal/lifecycle.ts`, new module — system-authoritative, no ownership
+  predicate, mirroring why `lib/dal/operator-events.ts` is its own module):**
+  `permanentlyDeleteEventMedia(eventId, now)` re-derives eligibility itself (`grace_until` must
+  have elapsed, `media_deleted_at` must still be null) rather than trusting a caller, then deletes
+  every capture's storage objects (original/display/thumbnail/share via the new
+  `deleteObjects()` in `lib/media/storage.ts`) **before** hard-deleting the `captures` rows, and
+  only marks `events.media_deleted_at` (an atomic `WHERE media_deleted_at IS NULL` guard) once
+  both steps succeed. A rerun after any partial failure re-lists whatever capture rows are still
+  present and retries; removing an already-removed storage object is a no-op, not an error, which
+  is what makes this safe to retry from any point without a saga/transaction log. Once
+  `media_deleted_at` is set, a repeat call is a pure no-op — media is never revived.
+  `runLifecycleSweep(now)` processes every eligible event independently (try/catch per event, so
+  one event's failure — a transient storage error, say — never blocks another's), plus a global,
+  purely cosmetic sweep of abandoned `pending` reservations past their TTL (Operator Console
+  display accuracy only; the frame-limit invariant itself was already guaranteed by the existing
+  per-guest-session lazy sweep in `reserve_capture()`, unchanged).
+- **Migration `20260923010000_lifecycle_retention.sql`** adds `events.media_deleted_at`
+  (nullable timestamptz) — the durable "deletion actually completed" marker, distinct from
+  `grace_until` merely having elapsed — plus a partial index for the cron's own query shape.
+- **Cron (`app/api/cron/lifecycle/route.ts`, `vercel.json`, decision D18):** one daily Vercel Cron
+  target, authenticated via `CRON_SECRET` (`Authorization: Bearer`, which Vercel sends
+  automatically once that env var is set in the Vercel project — the one manual configuration
+  step this slice couldn't do itself; see below). No new job platform, no queue.
+- **Operator Console:** the event detail page now shows a "Permanent deletion" row (completed
+  with timestamp / pending / not yet eligible) alongside the existing `hosted_until`/`grace_until`
+  rows from earlier slices.
+- **Testing:** `lib/dal/lifecycle.integration.test.ts` (new) against the real dev database and
+  Storage bucket: not-eligible before grace elapses (and excluded from the sweep listing); host
+  downloads still work throughout the grace period; permanent deletion actually removes a real
+  uploaded storage object and its capture row and stamps `media_deleted_at`; a rerun after
+  completion is a no-op; a rerun after a simulated partial failure (object already gone, row and
+  marker not yet) converges correctly; and one event's deletion failure (a mocked storage error,
+  via `vi.spyOn` on `deleteObjects` scoped to only that event's paths) is caught and recorded in
+  `runLifecycleSweep`'s `failures` array without blocking a second event's real deletion in the
+  same sweep. `lib/dal/captures.integration.test.ts` adds a case proving `openCapture` computes
+  and stamps `safety_net_closes_at` on first real open and never moves it on reopen.
+  `lib/dal/payments.integration.test.ts` adds a case proving `activateEvent` stamps `hosted_until`
+  (~365 days out) and `grace_until` (~30 days after that). `lib/dal/payments.manual.integration
+  .test.ts` extends the existing refund test with the regression assertions above.
+  `lib/events/lifecycle.test.ts` (unit) adds coverage for `computeSafetyNetClosesAt` (timezone-
+  anchored, the no-event-date fallback, the already-past-event-date fallback) and
+  `getExpiryWarning` (no `hosted_until`, well before the window, inside the window, already
+  expired, already archived).
+- **Human/deployment prerequisite this slice could not complete itself:** the `CRON_SECRET` env
+  var must be set on the Vercel project (any value; generate with
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`), matching the
+  pattern every other secret in `.env.example` already follows. Once set, Vercel Cron picks up
+  `vercel.json`'s daily schedule automatically on the next deploy — no separate dashboard step
+  beyond setting that one env var. Local `supabase db push` for this slice's migration was applied
+  during this session (with the user's permission) against the linked dev project.
+
+**Former current-phase entry (Slice 11), preserved below:**
+
+Slice 11 (downloads, product.md §11.2/§12/§13, decision D11,
 roadmap criteria 26/33) landed 2026-09-23. Guest download of a guest's own committed captures
 already existed since Slice 3 (`listCapturesForGuestSessionWithUrls`, wired into the frame-grid
 tile itself as a download anchor in both the in-progress capture view and the post-capture-close
@@ -42,8 +134,8 @@ already minting a `downloadUrl` per capture:
   `getEventForHost`/`listCapturesForEventHost`/the new `listOriginalDownloadUrlsForEventHost` all
   check ownership only, never lifecycle state, so an `expired` (grace-period) event's downloads
   keep working structurally, the same way they already did for Slice 4's gallery grid. Permanent
-  deletion at the end of the grace period is Slice 12 (lifecycle automation and retention),
-  unimplemented — nothing currently removes captures once an event reaches `archived`.
+  deletion at the end of the grace period was unimplemented at the time this slice landed —
+  **superseded by the Slice 12 entry above**, which now implements it.
 - **Testing:** `lib/dal/captures.integration.test.ts` adds one case against the real dev database:
   bulk download includes a committed and a hidden capture, excludes a deleted one and a still-
   pending reservation, returns real https signed URLs with unique filenames, and is refused
@@ -299,14 +391,17 @@ see prior verification records in git history if needed.
 
 ## What exists
 
-- **Decisions D1–D17** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
+- **Decisions D1–D18** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
   D12 records how "after the event" reveal timing is anchored to capture closing. D13/D14 record
   the event-capacity counter mechanism and the client-only public demo (implemented, Slice 6).
   D15–D17 record the operator grant model, the shared provider/manual activation function
   (implemented, Slice 8, exercised by both payment sources since Slice 9), and the
-  payment-row-as-audit-trail decision (manual fields populated since Slice 9).
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–11 complete; Slice 12 (lifecycle automation
-  and retention) is next.
+  payment-row-as-audit-trail decision (manual fields populated since Slice 9). D18 records the
+  lifecycle cron mechanism and permanent-deletion ordering (implemented, Slice 12), plus the
+  recorded launch prerequisite that no outbound email/SMS channel exists yet for the required
+  advance-expiry warning.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–12 complete; Slice 13 (public pre-purchase
+  demo) is next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -629,17 +724,36 @@ see prior verification records in git history if needed.
   `lib/dal/payments.test.ts` (Slice 9, unit) — `isDuplicatePayment` across a winning/losing
   provider payment, a still-pending provider payment (never flagged), and a winning/losing manual
   payment.
+  `lib/dal/lifecycle.integration.test.ts` (Slice 12) against the real dev database and Storage
+  bucket — not-eligible-before-grace, host downloads still working during grace, real storage
+  object + capture row deletion with `media_deleted_at` stamped, a no-op rerun after completion,
+  a converging rerun after a simulated partial failure, and one event's mocked deletion failure
+  not blocking a second event's real deletion in the same sweep. `lib/events/lifecycle.test.ts`
+  (Slice 12, unit) adds `computeSafetyNetClosesAt` and `getExpiryWarning` coverage.
 
 ## Verification status
 
 - `pnpm typecheck` — passing.
 - `pnpm lint` — passing, no errors or warnings.
-- `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`, and
-  `/operator/events/[eventId]` register as dynamic routes.
-- `pnpm test` (Vitest) — 129/129 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
+- `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`,
+  `/operator/events/[eventId]`, and `/api/cron/lifecycle` register as dynamic routes.
+- `pnpm test` (Vitest) — 145/145 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
   join-capacity, Slice 7 operator-authorization, Slice 8 payment/activation/signage, Slice 9
-  manual-payment/refund, Slice 10 share-card-generation/authorization, and Slice 11
-  bulk-download-scope integration and unit tests above, all against the real dev database.
+  manual-payment/refund, Slice 10 share-card-generation/authorization, Slice 11
+  bulk-download-scope, and Slice 12 lifecycle/retention integration and unit tests above, all
+  against the real dev database. (Occasional single-test timeouts against the real dev database
+  under full-suite parallel load are pre-existing flakiness in this environment, not a defect —
+  every test passes individually and the suite as a whole passes on rerun.)
+- **Slice 12 has no device-dependent acceptance criteria and no human verification is required
+  for correctness** — the mechanism is proven at the database/storage level by the integration
+  tests above (real deletion, real idempotent reruns, real per-event failure isolation), and the
+  dashboard banners are ordinary server-rendered text. The one thing this environment genuinely
+  cannot verify is a live Vercel Cron invocation itself, since that requires the deployment-side
+  `CRON_SECRET` env var this session can't set (see the Current phase section above and the
+  human/deployment prerequisite noted there) — the route's logic is fully covered by
+  `runLifecycleSweep`'s own tests regardless of how it's triggered. If convenient once
+  `CRON_SECRET` is set and deployed, a human sanity check is to `curl` the route with the correct
+  bearer token and confirm a `200` with a JSON summary, and a `401` without it.
 - **Slice 11 has no device-dependent or otherwise human-only acceptance criteria** — individual
   and bulk download are ordinary desktop/browser host affordances (a download link, a button
   triggering sequential `<a download>` clicks), fully exercised by the integration test above and

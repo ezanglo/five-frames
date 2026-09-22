@@ -4,9 +4,10 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-09-22 (reconciliation pass: the internal Operator role, the Operator Console,
-supplier-assisted/manual payment, and the shared provider/manual activation path — see D15–D17.
-No change to the rest of the baseline; §6/D5/D6/D13's frame and capacity mechanisms are untouched.)
+Last updated: 2026-09-23 (Slice 12: lifecycle automation and retention — see D18. `hosted_until`/
+`grace_until`/`safety_net_closes_at` are now actually stamped by the real activation/capture-open
+paths, not just the dev script; a new `events.media_deleted_at` column and a single daily Vercel
+Cron route handle permanent deletion after the grace period. No change to anything before D18.)
 
 ---
 
@@ -63,7 +64,7 @@ solving any requirement in the spec.
 | Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit) |
-| Scheduled work | Vercel Cron | Not yet built — Slice 10 |
+| Scheduled work | Vercel Cron | Built — Slice 12 (`GET /api/cron/lifecycle`, daily, `vercel.json`) |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
 
 Remaining rows not yet built are provisioned/installed in the slice that first needs them.
@@ -81,10 +82,11 @@ app/
   (demo)/demo/            Public pre-purchase demo — client-only, no DAL calls (§6b, D14)
   api/
     webhooks/paymongo/    Signed webhook → activation
-    cron/                 Vercel Cron targets
+    cron/lifecycle/       Vercel Cron target — reservation sweep + permanent deletion (D18)
 lib/
   db/                     Schema types, query helpers
   dal/                    Data Access Layer — the ONLY place that touches the database
+                          (lifecycle.ts: system-authoritative, no ownership predicate, D18)
   auth/                   Host session, guest session, operator authorization, token verification
   media/                  Storage paths, signed URLs, derivative generation, share cards
 proxy.ts                  (if needed) — Next 16 renamed middleware to Proxy
@@ -125,7 +127,9 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 - **`events`** — owner, name, date, timezone, host message, lifecycle timestamps, config
   (reveal mode, visibility, sharing enabled, hashtag), `event_token`, `gallery_token`,
   `activated_at`, `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`,
-  `hosted_until`, `grace_until`, `guest_session_cap`, `guest_session_count` (§6a, D13).
+  `hosted_until`, `grace_until`, `media_deleted_at` (Slice 12, D18 — the durable "permanent
+  deletion actually completed" marker, distinct from `grace_until` merely having elapsed),
+  `guest_session_cap`, `guest_session_count` (§6a, D13).
 - **`guest_sessions`** — `event_id`, display name, created/last-seen. One row per browser
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
@@ -153,8 +157,12 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 Event state is computed from timestamps (`activated_at`, `capture_opened_at`,
 `capture_closed_at`, `safety_net_closes_at`, `hosted_until`, `grace_until`) rather than kept
 in a status column that a cron job must remember to update. The safety-net close is therefore
-correct **the instant it elapses**, even if no job has run. Cron only materializes derived
-state for display and sends warning emails; it is never load-bearing for authorization.
+correct **the instant it elapses**, even if no job has run. Cron (Slice 12, D18) is never
+load-bearing for lifecycle-state derivation or authorization — it exists only for the one
+genuinely irreversible side effect nothing else triggers (permanent deletion of an event's media
+once its grace period has elapsed) plus a cosmetic global reservation-TTL sweep. There is no
+outbound email/SMS in this codebase; the required advance-expiry warning is in-product only (see
+D18's recorded launch prerequisite).
 
 ---
 

@@ -12,6 +12,13 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
+import {
+  addDays,
+  addHours,
+  GRACE_PERIOD_DAYS,
+  HOSTED_ACCESS_DAYS,
+  SAFETY_NET_CLOSE_HOURS,
+} from "@/lib/events/policy";
 
 function loadEnvLocal() {
   const envPath = path.resolve(import.meta.dirname, "..", ".env.local");
@@ -45,6 +52,7 @@ async function main() {
   });
 
   const now = new Date().toISOString();
+  const hostedUntil = addDays(now, HOSTED_ACCESS_DAYS);
   const { data, error } = await supabase
     .from("events")
     .update({
@@ -52,8 +60,9 @@ async function main() {
       gallery_token: generateLinkToken(),
       activated_at: now,
       capture_opened_at: now,
-      safety_net_closes_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
-      hosted_until: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+      safety_net_closes_at: addHours(now, SAFETY_NET_CLOSE_HOURS),
+      hosted_until: hostedUntil,
+      grace_until: addDays(hostedUntil, GRACE_PERIOD_DAYS),
     })
     .eq("id", eventId)
     .select()

@@ -9,6 +9,7 @@ import {
   canOpenCapture,
   deriveEventLifecycleState,
   EVENT_LIFECYCLE_STATE_LABEL,
+  getExpiryWarning,
   isGalleryRevealed,
 } from "@/lib/events/lifecycle";
 import { EVENT_PRICE_PHP, hasPendingProviderPayment } from "@/lib/payments/pricing";
@@ -109,6 +110,7 @@ export default async function EventEditPage({
 
   const latestPayment = state === "draft" ? await getLatestPaymentForEvent(host.id, eventId) : null;
   const isPaymentPending = hasPendingProviderPayment(latestPayment);
+  const expiryWarning = getExpiryWarning(event);
 
   return (
     <div className="flex flex-col gap-8">
@@ -211,6 +213,42 @@ export default async function EventEditPage({
           <p>
             Payment received — confirming with PayMongo. This page updates automatically once
             it&rsquo;s activated; capture will still stay closed until you open it yourself.
+          </p>
+        </div>
+      )}
+
+      {state === "archived" && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-(--host-border) bg-(--host-canvas-raised) px-3 py-2.5 text-sm text-(--host-ink)">
+          <Clock className="mt-0.5 size-4 shrink-0 text-(--host-ink-muted)" aria-hidden />
+          <p>
+            {event.media_deleted_at
+              ? "This event's hosted access has ended and its media has been permanently deleted."
+              : "This event's hosted access and download grace period have both ended. Media is scheduled for permanent deletion."}
+          </p>
+        </div>
+      )}
+
+      {state === "expired" && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-(--host-border) bg-(--host-canvas-raised) px-3 py-2.5 text-sm text-(--host-ink)">
+          <Clock className="mt-0.5 size-4 shrink-0 text-(--host-ink-muted)" aria-hidden />
+          <p>
+            This event&rsquo;s hosted gallery access has expired and the gallery is now
+            read-only. You can still download your media until{" "}
+            {event.grace_until ? new Date(event.grace_until).toLocaleDateString() : "the end of the grace period"}
+            . After that, media is permanently deleted.
+          </p>
+        </div>
+      )}
+
+      {expiryWarning && (
+        <div className="flex items-start gap-2.5 rounded-lg border border-(--host-accent)/30 bg-(--host-accent)/8 px-3 py-2.5 text-sm text-(--host-ink)">
+          <Clock className="mt-0.5 size-4 shrink-0 text-(--host-accent)" aria-hidden />
+          <p>
+            Hosted gallery access for this event expires in {expiryWarning.daysRemaining}{" "}
+            day{expiryWarning.daysRemaining === 1 ? "" : "s"}
+            {event.hosted_until ? ` (${new Date(event.hosted_until).toLocaleDateString()})` : ""}.
+            Download your media anytime before then — it stays available throughout the
+            grace period after expiry too.
           </p>
         </div>
       )}

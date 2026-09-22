@@ -304,6 +304,13 @@ place from earlier slices.
 **Verification:** Capture is refused past the safety-net deadline even with no cron run.
 Deletion removes originals and all derivatives from Supabase Storage.
 
+**Status: complete.** See [progress.md](./progress.md) and [decisions.md](./decisions.md) (D18)
+for what shipped, including one real (pre-existing, now-fixed) defect this slice found: no real
+activation/capture-open path had ever actually stamped `safety_net_closes_at`/`hosted_until`/
+`grace_until` before now. The host advance-expiry warning is in-product only — no outbound
+email/SMS channel exists in this codebase, and D18 records this as an explicit launch
+prerequisite rather than inventing one.
+
 ---
 
 ## Slice 13 — Public pre-purchase demo

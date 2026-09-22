@@ -1,7 +1,11 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { canOpenCapture, deriveEventLifecycleState } from "@/lib/events/lifecycle";
+import {
+  canOpenCapture,
+  computeSafetyNetClosesAt,
+  deriveEventLifecycleState,
+} from "@/lib/events/lifecycle";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import type { EventRow, GalleryVisibility, RevealMode } from "@/lib/db/types";
 
@@ -173,12 +177,17 @@ export async function openCapture(
 
   if (!canOpenCapture(event)) return null;
 
+  const now = new Date();
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("events")
     .update({
-      capture_opened_at: event.capture_opened_at ?? new Date().toISOString(),
+      capture_opened_at: event.capture_opened_at ?? now.toISOString(),
       capture_closed_at: null,
+      // Computed once, on first open, and held fixed thereafter (product.md §7.3):
+      // reopening capture must never push the safety-net deadline back out.
+      safety_net_closes_at:
+        event.safety_net_closes_at ?? computeSafetyNetClosesAt(event, now),
     })
     .eq("id", eventId)
     .eq("host_id", hostId)

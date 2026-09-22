@@ -107,6 +107,28 @@ describe("payment and shared activation", () => {
     expect(second.event.activating_payment_id).toBe(paymentId);
   });
 
+  it("activation stamps hosted_until (~12 months out) and grace_until (~30 days after that)", async () => {
+    const event = await createDraftEvent(hostAId, "Retention timestamps");
+    const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
+
+    const before = Date.now();
+    const { event: activated } = await activateEvent(event.id, paymentId);
+    const after = Date.now();
+
+    expect(activated.hosted_until).not.toBeNull();
+    expect(activated.grace_until).not.toBeNull();
+
+    const hostedUntilMs = Date.parse(activated.hosted_until as string);
+    const graceUntilMs = Date.parse(activated.grace_until as string);
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    // ~365 days from activation, allowing for the small window between `before`/`after`.
+    expect(hostedUntilMs).toBeGreaterThanOrEqual(before + 364 * oneDayMs);
+    expect(hostedUntilMs).toBeLessThanOrEqual(after + 366 * oneDayMs);
+    // grace_until is ~30 days after hosted_until.
+    expect(graceUntilMs - hostedUntilMs).toBe(30 * oneDayMs);
+  });
+
   it("a duplicate/replayed webhook delivery activates the event exactly once", async () => {
     const event = await createDraftEvent(hostAId, "Webhook replay");
     const checkoutSessionId = `cs_test_${crypto.randomUUID()}`;

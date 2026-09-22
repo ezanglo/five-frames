@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { createDraftEvent, getEventForHost } from "@/lib/dal/events";
+import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
 import { grantOperator } from "@/lib/dal/operators";
 import {
   confirmManualPayment,
@@ -244,6 +245,17 @@ describe("manual payment confirmation and refund", () => {
     expect(result.payment?.refunded_at).not.toBeNull();
     expect(result.payment?.refunded_by).toBe(operatorBId);
     expect(result.payment?.refund_note).toBe("returned in cash");
+
+    // Regression: a refund must also clear the retention/safety-net timestamps
+    // activation stamped (product.md §15.1) — otherwise a refunded, unpaid event could
+    // later derive as expired/archived from a since-undone activation (decision D8 checks
+    // hosted_until/grace_until before activated_at).
+    expect(result.event.hosted_until).toBeNull();
+    expect(result.event.grace_until).toBeNull();
+    expect(result.event.safety_net_closes_at).toBeNull();
+    expect(result.event.capture_opened_at).toBeNull();
+    expect(result.event.capture_closed_at).toBeNull();
+    expect(deriveEventLifecycleState(result.event)).toBe("draft");
   });
 
   it("repeated refund submissions are safe", async () => {

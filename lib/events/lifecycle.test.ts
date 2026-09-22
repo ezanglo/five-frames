@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  computeSafetyNetClosesAt,
   deriveEventLifecycleState,
+  getExpiryWarning,
   hasReachedGuestCapacity,
   isCaptureOpen,
   isGalleryRevealed,
@@ -29,6 +31,7 @@ function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
     safety_net_closes_at: null,
     hosted_until: null,
     grace_until: null,
+    media_deleted_at: null,
     guest_session_cap: 250,
     guest_session_count: 0,
     created_at: "2026-01-01T00:00:00.000Z",
@@ -190,5 +193,70 @@ describe("hasReachedGuestCapacity", () => {
   it("is true past the cap", () => {
     const event = baseEvent({ guest_session_cap: 250, guest_session_count: 251 });
     expect(hasReachedGuestCapacity(event)).toBe(true);
+  });
+});
+
+describe("computeSafetyNetClosesAt", () => {
+  it("anchors to 72 hours after the end of the configured event day, in the event's timezone", () => {
+    const event = baseEvent({ event_date: "2026-06-15", timezone: "Asia/Manila" });
+    const openedAt = new Date("2026-06-15T08:00:00.000Z");
+    // 2026-06-15T23:59 Asia/Manila (UTC+8) = 2026-06-15T15:59:00.000Z; +72h.
+    expect(computeSafetyNetClosesAt(event, openedAt)).toBe("2026-06-18T15:59:00.000Z");
+  });
+
+  it("falls back to 72 hours after the capture-open instant when no event date is configured", () => {
+    const event = baseEvent({ event_date: null });
+    const openedAt = new Date("2026-06-15T08:00:00.000Z");
+    expect(computeSafetyNetClosesAt(event, openedAt)).toBe("2026-06-18T08:00:00.000Z");
+  });
+
+  it("anchors to the capture-open instant when the event date has already long passed", () => {
+    const event = baseEvent({ event_date: "2026-01-01", timezone: "Asia/Manila" });
+    const openedAt = new Date("2026-06-15T08:00:00.000Z");
+    expect(computeSafetyNetClosesAt(event, openedAt)).toBe("2026-06-18T08:00:00.000Z");
+  });
+});
+
+describe("getExpiryWarning", () => {
+  const activated = "2026-01-01T00:00:00.000Z";
+
+  it("is null with no hosted_until set", () => {
+    const event = baseEvent({ activated_at: activated });
+    expect(getExpiryWarning(event, NOW)).toBeNull();
+  });
+
+  it("is null well before the warning window", () => {
+    const event = baseEvent({
+      activated_at: activated,
+      hosted_until: "2027-06-15T12:00:00.000Z",
+    });
+    expect(getExpiryWarning(event, NOW)).toBeNull();
+  });
+
+  it("shows within the warning window before hosted_until", () => {
+    const event = baseEvent({
+      activated_at: activated,
+      hosted_until: "2026-07-10T12:00:00.000Z",
+    });
+    const warning = getExpiryWarning(event, NOW);
+    expect(warning).not.toBeNull();
+    expect(warning?.daysRemaining).toBe(25);
+  });
+
+  it("is null once the event has already expired (no stale 'expiring soon' warning after the fact)", () => {
+    const event = baseEvent({
+      activated_at: activated,
+      hosted_until: "2026-06-14T12:00:00.000Z",
+    });
+    expect(getExpiryWarning(event, NOW)).toBeNull();
+  });
+
+  it("is null once archived", () => {
+    const event = baseEvent({
+      activated_at: activated,
+      hosted_until: "2026-06-01T00:00:00.000Z",
+      grace_until: "2026-06-10T00:00:00.000Z",
+    });
+    expect(getExpiryWarning(event, NOW)).toBeNull();
   });
 });

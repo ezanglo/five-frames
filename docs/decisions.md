@@ -405,3 +405,62 @@ infrastructure the spec explicitly does not ask for.
 **Reopen note:** if a future, separately-decided change requires view-level audit logging (who
 looked at which event's payment detail), that is new scope requiring its own decision — this one
 covers mutation auditability only.
+
+---
+
+## D18 — Lifecycle automation is one daily Vercel Cron route; permanent deletion is storage-first, marker-last
+
+**Status:** Accepted (2026-09-23)
+**Context:** product.md §15.2 requires expiry, a grace period, and permanent deletion after it,
+none of which anything actively triggers on its own — unlike the rest of the event lifecycle
+(decision D8), which is entirely derived from timestamps and needs no scheduled job to be correct.
+Permanent deletion is a genuine, irreversible side effect (removing Storage objects and capture
+rows), not a read, so *something* has to actually run it.
+**Decision:**
+- A single Vercel Cron target (`GET /api/cron/lifecycle`, `vercel.json`, daily) is the only
+  scheduled mechanism added. It authenticates via `CRON_SECRET` (`Authorization: Bearer`, the
+  header Vercel Cron sends automatically once that env var is set) — no new job platform, no
+  queue, no separate worker service.
+- The route does two independent, idempotent things: (1) a global sweep marking abandoned
+  `pending` capture reservations `expired` past their existing TTL — cosmetic, for Operator
+  Console accuracy only, never load-bearing (the per-guest-session lazy sweep in
+  `reserve_capture()` already guarantees the frame-limit invariant on its own); (2) permanent
+  deletion for every event whose `grace_until` has elapsed and whose media hasn't been deleted
+  yet, each processed independently so one event's failure can't block another's.
+- Permanent deletion order is: delete Storage objects for every capture (original, display,
+  thumbnail, share) → hard-delete the `captures` rows → mark `events.media_deleted_at` last, via
+  an atomic `WHERE media_deleted_at IS NULL` guard (the same guard pattern as D5/D6/D13/D16). A
+  retry after a crash partway through re-lists whatever capture rows are still present and
+  reprocesses them; re-deleting an already-removed Storage object is a no-op, not an error, which
+  is what makes the sequence safe to rerun from any point of failure without a saga/transaction
+  log. Once `media_deleted_at` is set, a repeat call is a pure no-op — matching "never restore
+  media after permanent deletion."
+- `hosted_until` and `grace_until` are stamped once, inside `activateEvent`, at the activation
+  instant (the same "compute once, derive forever after" pattern D8 already uses for the rest of
+  the lifecycle) — not left for a later cron-driven "expiry transition" write. `grace_until` is
+  computed as `hosted_until + GRACE_PERIOD_DAYS` rather than being independently re-derived later,
+  since product.md ties both to fixed durations from the same activation event.
+- `safety_net_closes_at` is computed once, inside `openCapture`, anchored to the event's
+  configured date (not the capture-open instant) per product.md §7.3, and held fixed across a
+  reopen. This closes a real gap: before this slice, no real activation/capture-open code path
+  ever set `safety_net_closes_at`/`hosted_until`/`grace_until` at all (only the dev-only
+  `activate-event-dev.ts` script did), so the automatic safety-net close, expiry, and grace period
+  had never actually fired for a real, provider- or manually-activated event.
+- The durations themselves (72h safety net, 365-day hosted access, 30-day grace, 30-day advance
+  warning) live in `lib/events/policy.ts`, explicitly documented as launch-policy hypotheses per
+  product.md, not invariants like the five-frame limit.
+**Reasoning:** product.md explicitly calls these durations "launch policy," not fixed forever, and
+explicitly says not to build an elaborate job platform. A single idempotent cron route reusing the
+existing atomic-guard pattern needs no new infrastructure concept, stays consistent with every
+other lifecycle mechanism already in the codebase, and is trivially safe to rerun on any schedule,
+including ad hoc manual retries.
+**No external communication channel exists for the required advance-expiry warning.** product.md
+requires the host be "warned in advance of expiry" but defines no email/SMS/push delivery
+mechanism anywhere, and the roadmap/build instructions for this slice explicitly forbid inventing
+one. The warning is therefore in-product only (a banner on the host dashboard, computed the same
+derived way as everything else, `getExpiryWarning()` in `lib/events/lifecycle.ts`) — a host who
+never opens their dashboard in the 30 days before `hosted_until` won't see it. **This is a real,
+recorded launch prerequisite**, not a silent gap: before a genuine production launch, product needs
+to decide on an actual outbound channel (most likely transactional email to the host's account
+email, since Supabase Auth already has it) and that is new scope for its own slice/decision, not
+implied by this one.

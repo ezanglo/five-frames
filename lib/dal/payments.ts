@@ -11,6 +11,7 @@ import {
   type PaymongoWebhookEvent,
 } from "@/lib/payments/paymongo-client";
 import { CURRENCY, EVENT_PRICE_CENTAVOS } from "@/lib/payments/pricing";
+import { addDays, GRACE_PERIOD_DAYS, HOSTED_ACCESS_DAYS } from "@/lib/events/policy";
 import type { EventRow, ManualPaymentMethod, PaymentRow } from "@/lib/db/types";
 
 function sleep(ms: number) {
@@ -245,13 +246,23 @@ export async function activateEvent(
 ): Promise<{ event: EventRow; activatedByThisCall: boolean }> {
   const supabase = createServiceClient();
 
+  const activatedAt = new Date().toISOString();
+  // Hosted access and its grace period (product.md §15.2, decision D8) are both fixed
+  // launch-policy durations from the activation instant, so they're computed once here —
+  // the same "set once, derive forever after" pattern as safety_net_closes_at — rather than
+  // requiring a later mutation to materialize the expiry/grace transition.
+  const hostedUntil = addDays(activatedAt, HOSTED_ACCESS_DAYS);
+  const graceUntil = addDays(hostedUntil, GRACE_PERIOD_DAYS);
+
   const { data: activated, error } = await supabase
     .from("events")
     .update({
-      activated_at: new Date().toISOString(),
+      activated_at: activatedAt,
       event_token: generateLinkToken(),
       gallery_token: generateLinkToken(),
       activating_payment_id: paymentId,
+      hosted_until: hostedUntil,
+      grace_until: graceUntil,
     })
     .eq("id", eventId)
     .is("activated_at", null)
@@ -537,6 +548,16 @@ export async function recordManualRefund(
       event_token: null,
       gallery_token: null,
       activating_payment_id: null,
+      // A refund returns the event fully to its pre-payment (draft) state (product.md
+      // §15.1). Without also clearing these, a refunded event would eventually derive as
+      // `expired`/`archived` from a hosted_until/grace_until stamped by the activation this
+      // refund just undid (decision D8 checks those columns before `activated_at`) — a
+      // refunded, unpaid event must never appear expired.
+      capture_opened_at: null,
+      capture_closed_at: null,
+      safety_net_closes_at: null,
+      hosted_until: null,
+      grace_until: null,
     })
     .eq("id", eventId)
     .not("activated_at", "is", null)

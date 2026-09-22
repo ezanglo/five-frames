@@ -445,6 +445,26 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(await openCapture(hostId, event.id)).toBeNull();
   });
 
+  it("openCapture computes and stamps safety_net_closes_at on first open, and never moves it on reopen", async () => {
+    const draft = await createDraftEvent(hostId, `Safety net event ${crypto.randomUUID()}`);
+    const activated = await supabase
+      .from("events")
+      .update({ activated_at: new Date().toISOString() })
+      .eq("id", draft.id)
+      .select()
+      .single();
+    if (activated.error) throw activated.error;
+    expect(activated.data.safety_net_closes_at).toBeNull();
+
+    const opened = await openCapture(hostId, draft.id);
+    expect(opened?.safety_net_closes_at).not.toBeNull();
+    const firstDeadline = opened?.safety_net_closes_at;
+
+    await closeCapture(hostId, draft.id);
+    const reopened = await openCapture(hostId, draft.id);
+    expect(reopened?.safety_net_closes_at).toBe(firstDeadline);
+  });
+
   it(
     "the gallery viewer never sees a hidden or deleted capture, but does see a favorited one",
     async () => {

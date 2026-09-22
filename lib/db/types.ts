@@ -26,6 +26,7 @@ export type EventRow = {
   safety_net_closes_at: string | null;
   hosted_until: string | null;
   grace_until: string | null;
+  media_deleted_at: string | null;
 
   guest_session_cap: number;
   guest_session_count: number;

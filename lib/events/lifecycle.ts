@@ -1,4 +1,6 @@
 import type { EventRow } from "@/lib/db/types";
+import { addHours, EXPIRY_WARNING_DAYS_BEFORE, SAFETY_NET_CLOSE_HOURS } from "@/lib/events/policy";
+import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 
 /**
  * Derived from timestamps, not stored (decision D8): correct the instant a deadline
@@ -102,6 +104,58 @@ export function isGalleryRevealed(
  */
 export function hasReachedGuestCapacity(event: EventRow): boolean {
   return event.guest_session_count >= event.guest_session_cap;
+}
+
+/**
+ * The automatic safety-net close deadline (product.md §7.3, decision D8), computed once
+ * when capture first opens and then held fixed — reopening capture never pushes this
+ * deadline back out. Anchored to the event's configured date (end of that day, in the
+ * event's own timezone — never the server's, matching the timezone-conversion rule every
+ * other event-local datetime in this codebase follows) plus the launch-policy safety-net
+ * window, since product.md anchors this to "the event's configured end/date", not to
+ * whenever the host happens to open capture. Falls back to the capture-open instant itself
+ * when no event date was ever configured (the field is optional), so the safety net still
+ * exists rather than silently never firing.
+ */
+export function computeSafetyNetClosesAt(
+  event: EventRow,
+  openedAt: Date = new Date(),
+): string {
+  if (event.event_date) {
+    const endOfEventDay = zonedDateTimeLocalToUtcIso(
+      `${event.event_date}T23:59`,
+      event.timezone,
+    );
+    const deadline = addHours(endOfEventDay, SAFETY_NET_CLOSE_HOURS);
+    // If capture is opened after the computed deadline would already have passed (a late
+    // or postponed opening), anchor to the opening instant instead so the host still gets
+    // a genuine safety-net window rather than one that expired before it began.
+    if (Date.parse(deadline) > openedAt.getTime()) return deadline;
+  }
+  return addHours(openedAt.toISOString(), SAFETY_NET_CLOSE_HOURS);
+}
+
+/**
+ * Whether the host should see an advance warning that hosted access is expiring soon
+ * (product.md §15.2: "the host is warned in advance of expiry"). Pure display logic — never
+ * an authorization check, and never itself a communication channel (no email/SMS exists in
+ * this codebase for hosts; see docs/progress.md for the recorded launch prerequisite).
+ */
+export function getExpiryWarning(
+  event: EventRow,
+  now: Date = new Date(),
+): { daysRemaining: number } | null {
+  if (!event.hosted_until) return null;
+  const state = deriveEventLifecycleState(event, now);
+  if (state === "expired" || state === "archived") return null;
+
+  const msRemaining = Date.parse(event.hosted_until) - now.getTime();
+  if (msRemaining < 0) return null;
+
+  const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+  if (daysRemaining > EXPIRY_WARNING_DAYS_BEFORE) return null;
+
+  return { daysRemaining };
 }
 
 /**

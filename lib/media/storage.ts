@@ -129,6 +129,20 @@ export async function generateDerivatives(
   return { displayPath, thumbnailPath };
 }
 
+/**
+ * Permanently removes objects from the private bucket (retention/deletion, product.md
+ * §15.2). Removing an already-absent path is not an error from Supabase Storage's own
+ * `remove()` — it simply isn't included in the returned list — which is what makes a
+ * retry-after-partial-failure safe: re-deleting the objects a previous attempt already
+ * removed is a harmless no-op, not a failure.
+ */
+export async function deleteObjects(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const supabase = createServiceClient();
+  const { error } = await supabase.storage.from(BUCKET).remove(paths);
+  if (error) throw error;
+}
+
 /** Signed read URL, minted only after the caller has already done its own access check. */
 export async function createSignedReadUrl(
   path: string,

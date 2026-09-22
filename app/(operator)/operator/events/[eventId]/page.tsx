@@ -83,6 +83,16 @@ export default async function OperatorEventDetailPage({
             />
             <Row label="Hosted until (expiry)" value={formatDate(event.hosted_until)} />
             <Row label="Grace period until" value={formatDate(event.grace_until)} />
+            <Row
+              label="Permanent deletion"
+              value={
+                event.media_deleted_at
+                  ? `Completed ${formatDate(event.media_deleted_at)}`
+                  : state === "archived"
+                    ? "Pending (grace period ended)"
+                    : "Not yet eligible"
+              }
+            />
           </Section>
 
           <Section title="Guests and capacity">

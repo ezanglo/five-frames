@@ -25,6 +25,7 @@ describe("isDuplicatePayment", () => {
     safety_net_closes_at: null,
     hosted_until: null,
     grace_until: null,
+    media_deleted_at: null,
     guest_session_cap: 250,
     guest_session_count: 0,
     created_at: new Date().toISOString(),
