@@ -134,12 +134,16 @@ export function DemoExperience() {
 
   return (
     <div className="flex flex-1 flex-col gap-6">
-      <DemoBadgeHeader />
+      <DemoBadgeHeader showOrientation={!hasAnyFilled && !pickerOpen && !composing} />
 
       {viewMode === "capture" ? (
         <>
           <p className="font-guest-display text-lg text-(--guest-ink)">
-            {complete ? "These are yours to keep — for now." : "Try capturing a few frames."}
+            {complete
+              ? "All five — yours to keep, for now."
+              : hasAnyFilled
+                ? "Keep going, or stop whenever it feels right."
+                : "Tap the first frame to try it."}
           </p>
 
           <FrameGrid frames={gridFrames} onActivate={openPicker} />
@@ -159,16 +163,25 @@ export function DemoExperience() {
 
           {pickerOpen && !composing && (
             <div className="flex flex-col gap-3 rounded-2xl border border-(--guest-border) bg-(--guest-canvas-raised) p-4">
-              <p className="text-sm text-(--guest-ink-muted)">
-                Use your own photo, or try a sample.
-              </p>
-              <Button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-(--guest-accent) text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
-              >
-                Choose or take a photo
-              </Button>
+              <div className="flex flex-col gap-1.5">
+                <Button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-(--guest-accent) text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
+                >
+                  Use your own photo
+                </Button>
+                <p className="text-xs text-(--guest-ink-muted)">
+                  Stays on your device — never uploaded.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs text-(--guest-ink-muted)">
+                <span className="h-px flex-1 bg-(--guest-border)" aria-hidden />
+                or try a sample
+                <span className="h-px flex-1 bg-(--guest-border)" aria-hidden />
+              </div>
+
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {DEMO_SAMPLE_PHOTOS.map((sample) => (
                   <button
@@ -183,6 +196,7 @@ export function DemoExperience() {
                   </button>
                 ))}
               </div>
+
               <Button type="button" variant="ghost" onClick={closePicker}>
                 Cancel
               </Button>
@@ -191,6 +205,9 @@ export function DemoExperience() {
 
           {composing && (
             <div className="flex flex-col gap-3 rounded-2xl border border-(--guest-border) bg-(--guest-canvas-raised) p-4">
+              <p className="text-xs text-(--guest-ink-muted)">
+                Only visible here — this demo photo isn&rsquo;t uploaded or saved anywhere.
+              </p>
               <Textarea
                 placeholder="Add a short message (optional)"
                 value={message}
@@ -227,7 +244,9 @@ export function DemoExperience() {
       ) : (
         <>
           <p className="font-guest-display text-lg text-(--guest-ink)">
-            A taste of a revealed FiveFrames gallery.
+            {complete
+              ? "All five, together — a taste of a real event's collection."
+              : "This is what your frames look like together."}
           </p>
           <FrameGrid frames={gridFrames} />
           <Button type="button" variant="outline" onClick={() => setViewMode("capture")} className="border-(--guest-border)">
@@ -240,29 +259,44 @@ export function DemoExperience() {
         Start over
       </Button>
 
-      <TrustAndConversion />
+      <TrustAndConversion compact={!hasAnyFilled} />
     </div>
   );
 }
 
-function DemoBadgeHeader() {
+function DemoBadgeHeader({ showOrientation }: { showOrientation: boolean }) {
   return (
     <div className="flex flex-col gap-1">
       <span className="font-guest-display w-fit rounded-full bg-(--guest-accent)/15 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-(--guest-accent)">
-        Demo
+        Demo — nothing here is saved
       </span>
       <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">
-        Five frames. That&rsquo;s the whole idea.
+        Everyone gets five frames.
       </h1>
-      <p className="text-sm text-(--guest-ink-muted)">
-        This is a demo, not a real event. Photos stay on your device and are never uploaded or
-        saved — reload this page any time to start fresh.
-      </p>
+      {showOrientation && (
+        <p className="text-sm text-(--guest-ink-muted)">
+          Capture a few, and they become part of the event&rsquo;s collection. This is a demo, not
+          a real event — reload any time to start fresh.
+        </p>
+      )}
     </div>
   );
 }
 
-function TrustAndConversion() {
+function TrustAndConversion({ compact }: { compact: boolean }) {
+  if (compact) {
+    return (
+      <div className="mt-auto pt-5">
+        <Link
+          href="/signup"
+          className="text-sm text-(--guest-ink-muted) underline underline-offset-4"
+        >
+          Already sold? Create your event
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-auto flex flex-col gap-3 border-t border-(--guest-border) pt-5">
       <p className="text-sm text-(--guest-ink-muted)">

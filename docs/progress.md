@@ -1,8 +1,11 @@
 # FiveFrames — Progress
 
 Last updated: 2026-09-23 (Slice 13 complete: public pre-purchase demo. Automated checks passing,
-no human verification required for this slice — see below. Slice 10's pending Web Share
-human-verification checklist is unaffected and still open.)
+no human verification required for this slice's functionality — see below. A separate
+presentation-only design pass over the demo (docs/design-direction.md, "Public pre-purchase demo"
+section) landed the same day and is awaiting human visual verification — see that section's
+checklist. Slice 10's pending Web Share human-verification checklist is unaffected and still
+open.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and

@@ -921,3 +921,164 @@ below.
 - Letting the caption strip's typography or the corner-tick motif grow loud enough to compete
   with the photo for attention — every element in the caption block is sized and weighted to sit
   below the photo in the page's reading order.
+
+---
+
+# Public pre-purchase demo
+
+**Status: awaiting human visual verification.** Presentation-only pass, implemented 2026-09-23,
+over the already-complete and verified Slice 13 demo functionality. Extends the accepted
+guest-scope direction above rather than replacing it — anchor selected autonomously per
+docs/design-direction.md §6.6 ("later redesigns under an established visual direction"), since the
+brief explicitly required reusing the accepted guest identity and the real `FrameGrid` unmodified,
+which rules out a foundational identity shift by construction. No demo isolation, client-only
+architecture (decision D14), pricing, account behavior, or roadmap scope changed — see
+Verification below.
+
+## Scope
+
+`app/(demo)/demo/demo-experience.tsx` only — the copy, information architecture, and conditional
+rendering around the demo's five-frame interaction. Not `lib/demo/state.ts`, not
+`lib/demo/samples.ts`, not the route-isolation guarantees, not `FrameGrid` itself, not the real
+guest capture journey documented above.
+
+## Product character
+
+Same as the guest scope: calm, tangible, event-agnostic. The demo's job is narrower than the
+guest scope's, though — it exists to make a first-time visitor *feel* the five-frame mechanic in
+seconds and understand it becomes a shared collection, not to fully replicate every guest-flow
+affordance or to read as a feature tour.
+
+## Research
+
+Targeted research for interactive product demos / try-before-signup experiences. The
+design-inspiration tool's image/reference search returned mostly generic B2B "interactive demo
+platform" marketing listicles for this query space (Walnut, Navattic, Demoboost, etc.) rather than
+concrete, inspectable UI case studies — this is a UX-pattern space, not a visual-style space, so
+the tool's coverage was thin. Per the research budget's "stop when additional results stop adding
+meaningful new directions," research converged on three real, well-documented structural patterns
+instead of forcing a visual anchor:
+
+- **Duolingo's pre-signup first lesson** — real, well-documented product pattern (confirmed via
+  search: "no account creation before lesson one, sign-up only shows up after you've already
+  earned XP"). Relevant for: teaching entirely by doing the real mechanic, deferring signup until
+  after value is felt.
+- **Excalidraw's zero-friction canvas** — real production product (confirmed via search: "no
+  sign-up, no pop-ups... instant-canvas spirit"). Relevant for: the core interaction *is* the
+  entire front door, with no tutorial gate or explanation carousel before it, and a quiet,
+  non-blocking upsell alongside it.
+- **Browser private/incognito-mode intro pattern** — a real, universally familiar convention
+  (a calm, explicit "nothing here will be saved" statement, understated rather than alarming,
+  coexisting with an otherwise fully normal, fully functional interface underneath). Relevant for:
+  stating a non-persistence guarantee candidly without it reading as a warning or a legal notice.
+
+## Primary anchor
+
+- **Excalidraw's zero-friction try-now canvas** (product-level structural pattern, not a specific
+  screen to clone)
+- Source/type: real production product, inspiration-only (no code/asset/branding reuse)
+- Why chosen: it is the only one of the three that resolves the brief's explicit rejection list
+  (no tutorial carousel, no gamified tour, no marketing-page-with-screenshot) by removing the
+  question entirely — there is no separate "demo mode" chrome layered over the product, the real
+  interaction is the whole page. That transferred directly: the demo's headline and picker changes
+  below exist to get out of the way faster, not to add more explaining surface area.
+- What was explicitly **not** taken from it: Excalidraw's toolbar-dense, utility-app visual
+  register — FiveFrames' existing warm, tactile guest identity (already accepted above) was kept
+  completely unchanged, per the brief's explicit "do not redesign `FrameGrid` or fork the
+  production guest visual system" constraint.
+
+## Secondary references
+
+- **Duolingo's pre-signup first lesson** — contributed the sequencing idea of deferring the full
+  conversion offer until after the visitor has actually experienced the mechanic once, rather than
+  presenting it up front alongside the interaction. Inspiration-only.
+- **Browser private/incognito-mode intro copy** — contributed the tone for the non-persistence
+  guarantee: stated candidly and only once as ambient framing (the badge), then reinforced briefly
+  at the one moment it matters most (right before committing a frame), rather than repeated as a
+  disclaimer block. Inspiration-only.
+
+## Structural signature
+
+- **Progressive, state-driven copy replaces one static intro paragraph.** The previous header
+  always showed the same explanatory paragraph regardless of what the visitor had done.
+  `demo-experience.tsx`'s `DemoBadgeHeader` now shows its one-sentence orientation line only
+  before the visitor's first interaction (`showOrientation = !hasAnyFilled && !pickerOpen &&
+  !composing`); once they've acted once, the explanatory sentence gets out of the way and the
+  headline itself becomes the only state cue (idle → "Tap the first frame to try it.", partial →
+  "Keep going, or stop whenever it feels right.", complete → "All five — yours to keep, for
+  now."). This is the Excalidraw-anchored "teach by interaction, not upfront explanation" idea
+  applied to copy sequencing, not layout.
+- **The sample-vs-own choice is now two legible, differently-weighted paths instead of one
+  paragraph plus an unlabeled thumbnail row.** The picker now leads with "Use your own photo" as
+  the primary button with its own reassurance line directly beneath it ("Stays on your device —
+  never uploaded."), then a quiet "or try a sample" divider, then the existing sample strip
+  unchanged in mechanism (still `DEMO_SAMPLE_PHOTOS`, still a horizontal scroll of thumbnails) —
+  only the framing around the same two existing affordances changed.
+- **The non-persistence guarantee is restated once more at the moment it's most load-bearing**:
+  the composing panel (where a visitor is about to tap "Keep this frame") now carries its own
+  short reassurance line ("Only visible here — this demo photo isn't uploaded or saved
+  anywhere."), rather than relying solely on copy read minutes earlier in the header. This is the
+  incognito-mode-anchored idea of restating a non-persistence guarantee right where the action
+  happens, not just once at arrival.
+- **The conversion CTA now becomes visible at the point the brief specifies, rather than always
+  being present.** `TrustAndConversion` previously rendered its full price/CTA panel
+  unconditionally, even before a visitor had touched anything. It now takes a `compact` prop: with
+  zero frames kept, only a single quiet, ghost-styled text link ("Already sold? Create your
+  event") is present, so nothing resembling a sales panel competes with the very first frame; once
+  `hasAnyFilled` is true, the existing full panel (price line + primary "Create your event" button,
+  copy and `EVENT_PRICE_PHP` reference unchanged) takes its place. No new route, no new offer — the
+  same link and same panel content, gated on visitor progress rather than always rendered.
+- **The preview/complete state copy now names the "moments become part of the collection" idea
+  the brief centers on**, which the previous copy ("A taste of a revealed FiveFrames gallery.")
+  didn't state. Partial: "This is what your frames look like together."; complete: "All five,
+  together — a taste of a real event's collection." Still no celebratory framing (no confetti
+  language, no "you did it") — closure is stated plainly, consistent with the guest scope's
+  existing no-celebration precedent.
+
+## Typography, color/material, media treatment, motion, accessibility
+
+Unchanged from the guest-scope sections above — this pass introduced no new token, no new font
+role, no new image treatment, and no new interaction beyond the conditional-rendering and copy
+changes described in Structural signature. `FrameGrid`, `.guest-scope`, and every existing
+`--guest-*` token are used exactly as already accepted.
+
+## Layout and rhythm
+
+No change to the page shell (`app/(demo)/layout.tsx`'s `max-w-md` single column, unchanged) or to
+`FrameGrid`'s fixed board. The picker panel gained one additional row (the "own photo" reassurance
+line and the "or try a sample" divider) and the composing panel gained one reassurance line above
+the existing textarea — both within the existing `rounded-2xl` panel treatment already established
+for these two states.
+
+## Controls and forms
+
+No new form primitives. The compact-CTA state's text link reuses plain Tailwind utility classes
+(no new `Button` variant) since it must read as quieter than even the existing `ghost` button
+variant used for "Start over."
+
+## Avoid
+
+- Reintroducing a static, always-visible explanatory paragraph in the header regardless of
+  interaction state — that was the exact pattern this pass moved away from.
+- Rendering the full price/CTA panel before a visitor has kept any frame — the brief is explicit
+  the CTA must "become visible at an appropriate point without interrupting the demo," and zero
+  interaction is not that point.
+- Any tutorial carousel, gamified progress indicator, or "X of 5 left" copy — none was added,
+  consistent with the guest scope's existing no-gamification rule and this pass's brief.
+- Forking or restyling `FrameGrid` for this surface — every visual change in this pass lives in
+  `demo-experience.tsx`'s copy and conditional rendering only.
+
+## Verification
+
+`pnpm typecheck`, `pnpm lint`, and `pnpm build` all pass (`/demo` still prerenders as static `○`,
+confirming route isolation — decision D14 — is unaffected). The full `pnpm test` suite ran with all
+`lib/demo/*` unit tests (state, samples, route-isolation) passing; one pre-existing, unrelated
+integration suite (`lib/dal/share-cards.integration.test.ts`) intermittently timed out against live
+Postgres/Storage infrastructure on this run — the same category of pre-existing network-latency
+flakiness already documented in the "Guest sharing" section above, not a regression this pass
+introduced (this pass touched no DAL, no share-card code, and no file outside
+`demo-experience.tsx` and this document).
+
+Browser-driven/rendered visual verification was not performed — global environment rules prohibit
+launching a dev server or browser automation for this session. This design pass is marked awaiting
+human visual verification; see the checklist delivered with this pass's completion report.
