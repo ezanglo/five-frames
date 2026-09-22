@@ -282,9 +282,12 @@ behavior is on the pending human-verification checklist in progress.md).
 - Individual capture download via signed URL.
 - Bulk download of originals (sequential signed URLs — see decision D11).
 
-**Criteria:** 26
+**Criteria:** 26, 33
 **Verification:** Every committed original is retrievable. Downloads work for a host whose event
 has expired but is within the grace period.
+
+**Status: complete.** See [progress.md](./progress.md) for what shipped and what was already in
+place from earlier slices.
 
 ---
 

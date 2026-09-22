@@ -37,6 +37,7 @@ import {
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
 import { DashboardPoller } from "./dashboard-poller";
 import { GalleryGrid } from "./gallery-grid";
+import { BulkDownloadButton } from "./bulk-download-button";
 
 const REVEAL_MODE_ITEMS = [
   { value: "after_event", label: "After the event" },
@@ -292,9 +293,12 @@ export default async function EventEditPage({
       )}
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
-          Gallery
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-xs font-medium tracking-wide text-(--host-ink-muted) uppercase">
+            Gallery
+          </h2>
+          <BulkDownloadButton eventId={eventId} disabled={(captures ?? []).length === 0} />
+        </div>
         <GalleryGrid eventId={eventId} captures={captures ?? []} />
       </div>
 

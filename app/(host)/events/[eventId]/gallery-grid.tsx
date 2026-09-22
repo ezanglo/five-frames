@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Eye, EyeOff, Star, Trash2 } from "lucide-react";
+import { Download, Eye, EyeOff, Star, Trash2 } from "lucide-react";
 import { moderateCaptureAction } from "@/app/(host)/events/actions";
 import type { HostCaptureView, ModerationAction } from "@/lib/dal/captures";
 
@@ -117,10 +117,22 @@ function GalleryTile({
           )}
         </button>
 
-        {capture.hidden && (
-          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
-            Hidden
-          </span>
+        {!confirmingDelete && (
+          <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1.5">
+            {capture.hidden && (
+              <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white backdrop-blur-sm">
+                Hidden
+              </span>
+            )}
+            <a
+              href={capture.downloadUrl}
+              download
+              aria-label="Download original"
+              className="flex size-9 items-center justify-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
+            >
+              <Download className="size-4" />
+            </a>
+          </div>
         )}
 
         {/* Delete is deliberately separate from the persistent icons above — a distinct

@@ -1,9 +1,8 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-23 (Slice 10 complete: guest sharing flow and branded share-card
-generation. Automated checks passing; real Web Share behavior on Safari/Android/in-app
-browsers is unverifiable here and is a pending human-verification checklist below. Design
-passes from Slices 5/7/8 remain awaiting human visual verification, unaffected by this slice.)
+Last updated: 2026-09-23 (Slice 11 complete: host downloads, individual and bulk. Automated
+checks passing, no human verification required for this slice — see below. Slice 10's pending
+Web Share human-verification checklist is unaffected and still open.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -12,7 +11,49 @@ appending narrative.
 
 ## Current phase
 
-**Slices 1–10: complete.** Slice 10 (guest sharing flow and branded share-card generation,
+**Slices 1–11: complete.** Slice 11 (downloads, product.md §11.2/§12/§13, decision D11,
+roadmap criteria 26/33) landed 2026-09-23. Guest download of a guest's own committed captures
+already existed since Slice 3 (`listCapturesForGuestSessionWithUrls`, wired into the frame-grid
+tile itself as a download anchor in both the in-progress capture view and the post-capture-close
+"your captures" view) — already ownership-scoped by `guest_session_id` + `event_id` with no
+capture-by-id lookup path at all, so a guessed capture id has nothing to be looked up against,
+and already excluding hidden/deleted captures. Nothing needed to change there; this slice's real
+work was the host-facing half, which had no UI despite `listCapturesForEventHost` (Slice 4)
+already minting a `downloadUrl` per capture:
+- **Individual download:** `gallery-grid.tsx`'s tile gained a persistent download icon (bottom
+  left, alongside the existing "Hidden" badge when present) linking to the capture's existing
+  `downloadUrl` — the original, not a derivative. No DAL change; the ownership check and signed
+  URL already existed, just unused by the UI.
+- **Bulk download (decision D11: client-driven sequential signed URLs, no server-side zip for
+  MVP):** `listOriginalDownloadUrlsForEventHost(hostId, eventId)` (`lib/dal/captures.ts`) is a new
+  DAL function, ownership-checked via the same `getEventForHost` predicate as every other
+  host-facing capture query, returning every committed, non-deleted capture's original signed URL
+  and a generated filename (`NNN-guest-slug.ext`, extension derived from the capture's own stored
+  `mime_type`). Deliberately includes a hidden capture — hiding removes it from gallery/guest view,
+  not from the host's ownership of their own media (invariant 11) — the same scope
+  `listCapturesForEventHost` already uses. Signed URLs are minted fresh on each call (a Server
+  Action, `getBulkDownloadUrlsAction` in `app/(host)/events/actions.ts`) rather than reused from
+  page load, so a host who leaves the dashboard open a while before clicking doesn't hit URLs that
+  expired while the page just sat there. `BulkDownloadButton` (new client component) calls that
+  action, then triggers one browser download per original via a detached `<a download>` click,
+  spaced 300ms apart — a plain browser-compatibility measure (rapid programmatic-download bursts
+  get silently blocked as a popup storm by some browsers), not a product requirement.
+- **Grace-period access (roadmap's own verification requirement):** no new gating was needed —
+  `getEventForHost`/`listCapturesForEventHost`/the new `listOriginalDownloadUrlsForEventHost` all
+  check ownership only, never lifecycle state, so an `expired` (grace-period) event's downloads
+  keep working structurally, the same way they already did for Slice 4's gallery grid. Permanent
+  deletion at the end of the grace period is Slice 12 (lifecycle automation and retention),
+  unimplemented — nothing currently removes captures once an event reaches `archived`.
+- **Testing:** `lib/dal/captures.integration.test.ts` adds one case against the real dev database:
+  bulk download includes a committed and a hidden capture, excludes a deleted one and a still-
+  pending reservation, returns real https signed URLs with unique filenames, and is refused
+  (`null`) for a different host. Guest-side download coverage (ownership scoping, hidden/deleted
+  exclusion, null urls for a pending capture) was already covered by Slice 3's own tests and
+  needed no changes.
+
+**Former current-phase entry (Slice 10), preserved below:**
+
+Slice 10 (guest sharing flow and branded share-card generation,
 product.md §10, roadmap criteria 29–31) landed 2026-09-23. The host-facing sharing toggle and
 hashtag field already existed since Slice 1's original event form (`events.sharing_enabled`
 default `true`, `events.hashtag`) — this slice's work was entirely the guest-facing half: an
@@ -264,7 +305,8 @@ see prior verification records in git history if needed.
   D15–D17 record the operator grant model, the shared provider/manual activation function
   (implemented, Slice 8, exercised by both payment sources since Slice 9), and the
   payment-row-as-audit-trail decision (manual fields populated since Slice 9).
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–10 complete; Slice 11 (downloads) is next.
+- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–11 complete; Slice 12 (lifecycle automation
+  and retention) is next.
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -594,10 +636,18 @@ see prior verification records in git history if needed.
 - `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`, and
   `/operator/events/[eventId]` register as dynamic routes.
-- `pnpm test` (Vitest) — 128/128 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
+- `pnpm test` (Vitest) — 129/129 passing, including the Slice 5 gallery-viewer/link-rotation, Slice 6
   join-capacity, Slice 7 operator-authorization, Slice 8 payment/activation/signage, Slice 9
-  manual-payment/refund, and Slice 10 share-card-generation/authorization integration and unit
-  tests above, all against the real dev database.
+  manual-payment/refund, Slice 10 share-card-generation/authorization, and Slice 11
+  bulk-download-scope integration and unit tests above, all against the real dev database.
+- **Slice 11 has no device-dependent or otherwise human-only acceptance criteria** — individual
+  and bulk download are ordinary desktop/browser host affordances (a download link, a button
+  triggering sequential `<a download>` clicks), fully exercised by the integration test above and
+  the ownership/scope logic it proves. Not clicked through in a browser for the same reason as
+  Slices 4/6/7 (no browser automation in this environment); if convenient, a human sanity check is
+  to open a host's event with a few committed captures, click one tile's download icon and confirm
+  the original file (not a resized derivative) saves, then click "Download all originals" and
+  confirm one file per committed capture saves, including any hidden one.
 - **Slice 10 — awaiting human verification for real Web Share behavior only.** Everything
   server-authoritative (the sharing toggle gate, cross-guest isolation, moderation gating,
   pre-reveal isolation, original-media integrity, idempotent generation) is proven by

@@ -8,6 +8,7 @@ import {
   listCapturesForEventHost,
   listCapturesForGalleryViewer,
   listCapturesForGuestSessionWithUrls,
+  listOriginalDownloadUrlsForEventHost,
   moderateCapture,
   reserveCapture,
 } from "@/lib/dal/captures";
@@ -354,6 +355,44 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
       await supabase.auth.admin.deleteUser(otherHost.user.id);
     }
   });
+
+  it("listOriginalDownloadUrlsForEventHost: includes committed (even hidden) originals, excludes deleted and pending, refused for another host", async () => {
+    // 3 real commits (upload + derivative generation) plus a reserve makes this slower than
+    // the default 5s timeout — same reason getEventCaptureStats's test below uses 15s.
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+    const visible = await commitTinyCapture(event.id, session.id);
+    const hidden = await commitTinyCapture(event.id, session.id);
+    const toDelete = await commitTinyCapture(event.id, session.id);
+    await moderateCapture(hostId, event.id, hidden.id, "hide");
+    await moderateCapture(hostId, event.id, toDelete.id, "delete");
+    const pendingReserve = await reserveCapture(event.id, session.id, crypto.randomUUID());
+    expect(pendingReserve.kind).toBe("reserved");
+
+    const downloads = await listOriginalDownloadUrlsForEventHost(hostId, event.id);
+    expect(downloads).not.toBeNull();
+    const ids = downloads!.map((d) => d.id);
+    expect(ids).toContain(visible.id);
+    expect(ids).toContain(hidden.id);
+    expect(ids).not.toContain(toDelete.id);
+    if (pendingReserve.kind === "reserved") {
+      expect(ids).not.toContain(pendingReserve.capture.id);
+    }
+    expect(downloads!.every((d) => d.url.startsWith("http"))).toBe(true);
+    expect(new Set(downloads!.map((d) => d.filename)).size).toBe(downloads!.length);
+
+    const { data: otherHost, error } = await supabase.auth.admin.createUser({
+      email: `other-host-${crypto.randomUUID()}@example.test`,
+      password: crypto.randomUUID(),
+      email_confirm: true,
+    });
+    if (error) throw error;
+    try {
+      expect(await listOriginalDownloadUrlsForEventHost(otherHost.user.id, event.id)).toBeNull();
+    } finally {
+      await supabase.auth.admin.deleteUser(otherHost.user.id);
+    }
+  }, 20000);
 
   it(
     "getEventCaptureStats counts guest sessions and committed, non-deleted photos",

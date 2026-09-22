@@ -407,6 +407,81 @@ export async function listCapturesForGalleryViewer(
   );
 }
 
+export type OriginalDownload = {
+  id: string;
+  filename: string;
+  url: string;
+};
+
+const EXTENSION_FOR_MIME_TYPE: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+};
+
+function filenameForOriginal(
+  index: number,
+  guestDisplayName: string,
+  mimeType: string | null,
+): string {
+  const extension = (mimeType && EXTENSION_FOR_MIME_TYPE[mimeType]) || "";
+  const slug =
+    guestDisplayName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "guest";
+  return `${String(index + 1).padStart(3, "0")}-${slug}${extension}`;
+}
+
+/**
+ * Bulk "download all originals" (product.md §11.2/§12, decision D11: client-driven sequential
+ * signed URLs, no server-side zip for MVP). Every original — including a hidden one, matching
+ * listCapturesForEventHost's own scope — since hiding removes a capture from the gallery view,
+ * not from the host's ownership of their media (invariant 11). Signed URLs are minted fresh on
+ * each call rather than reused from page load, so a host who waits before clicking doesn't hit
+ * URLs that expired while the page just sat open.
+ */
+export async function listOriginalDownloadUrlsForEventHost(
+  hostId: string,
+  eventId: string,
+): Promise<OriginalDownload[] | null> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return null;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("captures")
+    .select("id, storage_path, mime_type, guest_sessions(display_name)")
+    .eq("event_id", eventId)
+    .eq("status", "committed")
+    .is("deleted_at", null)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    storage_path: string;
+    mime_type: string | null;
+    guest_sessions: { display_name: string } | { display_name: string }[] | null;
+  };
+
+  return Promise.all(
+    (data as Row[]).map(async (row, index) => {
+      const guestSession = Array.isArray(row.guest_sessions)
+        ? row.guest_sessions[0]
+        : row.guest_sessions;
+      return {
+        id: row.id,
+        filename: filenameForOriginal(index, guestSession?.display_name ?? "guest", row.mime_type),
+        url: await createSignedReadUrl(row.storage_path),
+      };
+    }),
+  );
+}
+
 export type ModerationAction =
   | "hide"
   | "unhide"

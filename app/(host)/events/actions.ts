@@ -13,7 +13,11 @@ import {
   updateEventConfig,
   type EventConfigInput,
 } from "@/lib/dal/events";
-import { moderateCapture, type ModerationAction } from "@/lib/dal/captures";
+import {
+  listOriginalDownloadUrlsForEventHost,
+  moderateCapture,
+  type ModerationAction,
+} from "@/lib/dal/captures";
 import { startProviderCheckout } from "@/lib/dal/payments";
 import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
@@ -128,6 +132,18 @@ export async function moderateCaptureAction(
 ) {
   const host = await requireHost();
   await moderateCapture(host.id, eventId, captureId, action);
+}
+
+/** Bound to the "Download all originals" button (product.md §11.2, decision D11). Mints a
+ *  fresh batch of short-lived signed URLs on each click rather than reusing anything from page
+ *  load, then hands them to the client for sequential triggered downloads — no server-side zip. */
+export async function getBulkDownloadUrlsAction(eventId: string) {
+  const host = await requireHost();
+  const downloads = await listOriginalDownloadUrlsForEventHost(host.id, eventId);
+  if (!downloads) {
+    notFound();
+  }
+  return downloads;
 }
 
 /** Bound to link rotate/revoke buttons (product.md §8.1, roadmap Slice 5); no redirect,
