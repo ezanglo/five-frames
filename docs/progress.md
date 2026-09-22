@@ -531,6 +531,19 @@ see prior verification records in git history if needed.
 
 ## What exists
 
+- **Reusable E2E test identities (maintenance, 2026-09-23):** three synthetic Supabase Auth
+  identities exist in the linked **dev** project (`five-frames-dev`, `lrheuifbgbplekxnljfv`) so
+  `/e2e-validate` doesn't depend on real email confirmation: E2E host A, E2E host B, and an E2E
+  operator (granted via the normal `pnpm ops:grant-operator`, not a bypass). Provisioned via the
+  new idempotent `pnpm e2e:provision-identities` (`scripts/e2e-provision-identities.ts`), which
+  refuses to run against anything other than that dev project ref. Credentials live only in
+  `.env.local` under `E2E_HOST_A_EMAIL`/`E2E_HOST_A_PASSWORD`/`E2E_HOST_B_EMAIL`/
+  `E2E_HOST_B_PASSWORD`/`E2E_OPERATOR_EMAIL`/`E2E_OPERATOR_PASSWORD` (names only in
+  `.env.example`) — never recorded here. Each E2E run should create its own event through the
+  normal host UI (naming convention: `E2E <run id>`) rather than relying on seeded event data;
+  none was created by this maintenance task. No global email-confirmation or auth behavior
+  changed — this uses the Admin API's `email_confirm: true`, the same provider-supported
+  mechanism `pnpm ops:grant-operator` already uses for its own confirmation prompt pattern.
 - **Decisions D1–D18** ([decisions.md](./decisions.md)) — all **Accepted**, standing architecture.
   D12 records how "after the event" reveal timing is anchored to capture closing. D13 records the
   event-capacity counter mechanism (implemented, Slice 6). D14 records the client-only public
