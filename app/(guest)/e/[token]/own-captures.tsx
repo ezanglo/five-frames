@@ -22,7 +22,7 @@ export function OwnCaptures({
   sharingEnabled: boolean;
   captures: { id: string; thumbnailUrl: string; downloadUrl: string }[];
 }) {
-  const { share, pendingCaptureId, error } = useShareCapture(token, eventName);
+  const { share, pendingCaptureId, error, status } = useShareCapture(token, eventName);
 
   if (captures.length === 0) return null;
 
@@ -47,6 +47,7 @@ export function OwnCaptures({
         sharingCaptureId={pendingCaptureId}
       />
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {!error && status && <p className="text-sm text-(--guest-ink-muted)">{status}</p>}
     </div>
   );
 }

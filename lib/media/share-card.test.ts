@@ -25,7 +25,7 @@ describe("renderShareCardPng", () => {
     expect(png.subarray(0, 4)).toEqual(PNG_MAGIC);
     const metadata = await sharp(png).metadata();
     expect(metadata.width).toBe(1080);
-    expect(metadata.height).toBe(1380);
+    expect(metadata.height).toBe(1356);
   });
 
   it("handles a portrait photo without throwing (arbitrary aspect ratio safety)", async () => {

@@ -130,7 +130,10 @@ export function CaptureSlots({
   const [error, setError] = useState<string | null>(null);
   const pendingKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { share, pendingCaptureId, error: shareError } = useShareCapture(token, eventName);
+  const { share, pendingCaptureId, error: shareError, status: shareStatus } = useShareCapture(
+    token,
+    eventName,
+  );
 
   const storageKey = pendingStorageKey(eventId);
 
@@ -342,6 +345,9 @@ export function CaptureSlots({
         sharingCaptureId={pendingCaptureId}
       />
       {shareError && <p className="text-sm text-destructive">{shareError}</p>}
+      {!shareError && shareStatus && (
+        <p className="text-sm text-(--guest-ink-muted)">{shareStatus}</p>
+      )}
 
       <input
         ref={fileInputRef}

@@ -734,3 +734,190 @@ changed.
   moment — it is one quiet line, not a banner, confetti, or a call to action to open capture now.
 - A Canva-like signage editor, theme picker, or per-event customization — signage remains four
   fixed, non-customizable formats, only their shared visual treatment changed.
+
+---
+
+# Guest sharing and the branded share card
+
+**Status: awaiting human visual verification.** Presentation-only pass, implemented 2026-09-23,
+over the already-complete and verified Slice 10 sharing functionality. Extends the accepted
+guest-scope direction above rather than replacing it — anchor selected autonomously per
+docs/design-direction.md §6.6 ("later redesigns under an established visual direction"), since
+this is not a foundational identity shift. No sharing authorization rules, gallery-visibility
+logic, moderation behavior, storage behavior, idempotency, or Web Share/download-fallback
+semantics changed — see Verification below.
+
+## Scope
+
+The generated share-card image (`lib/media/share-card.tsx`, served by
+`lib/dal/share-cards.ts`) and the guest-facing share affordance on filled frames
+(`Share2` button in `app/(guest)/e/[token]/frame-grid.tsx`, wired through
+`use-share-capture.ts` in both `capture-slots.tsx` and `own-captures.tsx`). Not the DAL's
+authorization/eligibility logic, not `web-share.ts`'s share-vs-download decision, not the
+guest capture journey documented above.
+
+## Product character
+
+Same as the guest scope: calm, tangible, event-agnostic. A share card exists to leave the
+product with the guest when they post it somewhere else — it should read as "a photo from my
+event, with a quiet FiveFrames credit," never as an ad for FiveFrames wrapped around someone
+else's memory.
+
+## Research
+
+Targeted research (design-inspiration search + targeted web search) for real production
+share-card/social-card/photo-keepsake systems, avoiding wedding-only references per the brief:
+
+- **Spotify Wrapped** shareable stat cards — real production, the strongest available reference
+  for "typography and metadata that survive being screenshotted into a chat/feed at small size."
+  Its promotional, saturated, gradient-driven tone was explicitly **not** taken — this pass needed
+  the opposite: restraint.
+- **Fujifilm Instax-style instant-print format** — a real, universally recognized physical
+  keepsake-photo object (mat border, photo dominant, a caption strip beneath, not overlaid on the
+  image) that people already normalize sharing to social feeds. Chosen as primary anchor because
+  it is the only reference that structurally extends FiveFrames' own already-accepted "photo
+  object" language (the mat/rounded-corner/soft-presence treatment already used for every filled
+  frame, gallery tile, and moderation tile) rather than introducing a new visual genre.
+- **Museum/gallery wall-label ("tombstone data") convention** — artist/title/date as a small,
+  quiet caption block *below and secondary to* the work, never overlaid on it. Reused here for the
+  event-name/date/hashtag/message hierarchy, consistent with the same "quiet metadata under a
+  prominent element" idea already established as the Public Gallery section's anchor rationale
+  above.
+
+## Primary anchor
+
+- **Instant-print photo-object format** (Fujifilm Instax-style keepsake prints; format-level
+  reference, not a specific screen or product to clone)
+- Source/type: a real, widely recognized physical media format, inspiration-only (no
+  code/asset/branding reuse — nothing Instax-specific, no literal camera chrome, no plastic-frame
+  skeuomorphism)
+- Why chosen: it is the only reference that both (a) is already a "worth posting" object in real
+  life, unprompted, and (b) structurally extends FiveFrames' own accepted photo-object material
+  language instead of adding a second one. It also solves the arbitrary-aspect-ratio requirement
+  for free — a mat border around a photo tolerates any source shape without a forced crop.
+- What was explicitly **not** taken from it: literal instant-film chrome (rounded plastic
+  corners, a white polaroid-style thick-bottom-heavy border treated as a physical object photo,
+  handwriting-style caption fonts, film-grain/light-leak filters on the photo itself — invariant
+  10 and the brief both forbid inventing filters on the original).
+
+## Secondary references
+
+- **Spotify Wrapped** — contributed the legibility requirement (bold enough kicker/wordmark,
+  sufficient name/metadata contrast) for surviving screenshot/feed compression, not its tone.
+  Inspiration-only.
+- **Museum wall-label convention** — contributed the caption hierarchy (name → date/hashtag →
+  message, each visually quieter than the last, all quieter than the photo). Inspiration-only.
+
+## Structural signature
+
+- The card is no longer a flat two-band rectangle with a **black** photo letterbox
+  (`lib/media/share-card.tsx`, previous version). It is a single warm-paper mat
+  (`lib/media/share-card.tsx`'s `CANVAS` token) framing a rounded photo tile, a hairline rule,
+  and a caption strip — one continuous "photo object," not a picture with a footer bolted on.
+- The photo tile's own background is the same mat color as the rest of the card, not black. An
+  `object-fit: contain` photo whose aspect ratio doesn't match the tile (portrait, landscape,
+  or square source, per the brief) now letterboxes invisibly into the mat instead of showing
+  bars of an unrelated color — the same "never force one destructive crop" requirement, met
+  without a visible seam.
+- Four small accent-colored corner brackets (`CornerTickTL/TR/BL/BR`) sit just inside the photo
+  tile's corners — the same quiet "viewfinder" motif already established on event signage
+  (`lib/media/signage.ts`), reused here rather than inventing a second capture-cue mark, and
+  deliberately not a literal camera icon.
+- The caption strip's hierarchy is now real typographic hierarchy, not four same-weight text
+  rows: a small accent kicker (mark + "FIVE FRAMES," tracked caps) → event name (largest, the
+  product's actual display face) → date/hashtag (one quiet metadata line) → optional guest
+  message (quoted, quietest). Each is visually subordinate to the one above it, and all of them
+  are subordinate to the photo.
+- Long event names truncate on a word boundary, not mid-word (`truncate()` now finds the last
+  space before the character limit rather than hard-slicing) — a small, self-contained polish fix
+  found and fixed during visual verification of the long-name/long-message checklist case.
+
+## Typography
+
+The product's actual display face is used here for the first time in this file: the previous
+version deferred it (documented in the file's own comment) because `ImageResponse` needs raw font
+bytes, not a CSS `next/font` reference. This pass bundles static TTFs
+(`lib/media/fonts/bricolage-grotesque-{600,700}.ttf`, `inter-500.ttf` — the same open-source
+Google Fonts files already used via `next/font/google` elsewhere, fetched once and committed
+rather than fetched over the network at render time) and passes them to `ImageResponse`'s `fonts`
+option per the Next.js `ImageResponse` "Custom fonts" guide
+(`node_modules/next/dist/docs/01-app/03-api-reference/04-functions/image-response.md`). Event
+name: Bricolage Grotesque 700. Kicker/metadata/message: Inter 500. This closes the one deliberate
+gap the original implementer flagged, rather than leaving it open indefinitely.
+
+## Color/material
+
+Same hex-converted `--guest-canvas`/`--guest-ink`/`--guest-ink-muted`/`--guest-accent` family as
+`lib/media/signage.ts` — no new palette. One new hex value, `BORDER` (`#ddd2c7`, converted from
+`--guest-border`), for the hairline rule between the photo tile and the caption strip.
+
+## Layout and rhythm
+
+1080px-wide canvas (unchanged), now built from an explicit mat padding (40px top/sides, 64px
+bottom — asymmetric, echoing the classic instant-print mat) around a fixed-height photo tile, a
+32px rule row, and a 300px caption block, rather than two flush bands. Total canvas height is
+1356px (previously 1380px for the same landscape case — a byproduct of the new layout, not a
+independently chosen number; `lib/media/share-card.test.ts`'s fixed-size assertion was updated to
+match).
+
+## Controls and forms
+
+Not applicable — this is a static generated image, not an interactive surface.
+
+## Guest share affordance
+
+The `Share2` icon button on filled frames (`frame-grid.tsx`) was visually reviewed against the
+brief's "discoverable but not louder than capture/own-photo behavior" requirement and left as-is:
+it already matches the established pattern (a small always-visible icon toggle on the photo,
+mirroring the numeral badge's placement and the host moderation grid's favorite/hide icons) rather
+than a labeled button or a second call to action. One real gap was found and fixed instead: the
+download fallback (`lib/share/web-share.ts`'s `shareOrDownload`) already returned which of
+"shared"/"downloaded"/"cancelled" happened, but `use-share-capture.ts` discarded that result, so a
+guest whose device fell back to download got no acknowledgement anything happened. A quiet status
+line ("Saved your share card — find it in your downloads.") now surfaces only for the
+`"downloaded"` outcome — a native share hands off to the OS's own confirmation, and a cancelled
+share says nothing, matching the existing "never pressure the guest" rule.
+
+## Motion
+
+None added, consistent with the guest scope's restraint. The existing spin-on-the-share-icon busy
+state (`RefreshCw` in `frame-grid.tsx`) is unchanged.
+
+## Accessibility
+
+Unchanged: the share button remains a real `<button>` with `aria-label="Share this photo"`. The
+new status line is plain text alongside the existing error text, communicated the same way
+(never by icon or color alone). The share-card image itself has no interactive elements. Contrast
+of the new caption typography against the mat has not been measured numerically — flagged for
+human verification, same as every other scope in this document.
+
+## Verification
+
+`pnpm typecheck`, `pnpm lint`, `pnpm build`, and the full `vitest` suite (128 tests, including the
+`lib/dal/share-cards.integration.test.ts` and `lib/dal/captures.integration.test.ts` suites
+against the real linked dev Postgres/Storage) all pass. Two integration tests intermittently hit
+the default 5s per-test timeout against live infrastructure during this pass and passed cleanly on
+re-run with a longer timeout — pre-existing network-latency flakiness unrelated to this change,
+not a regression it introduced. No DAL, authorization, or Web Share/download-fallback logic was
+touched; `lib/dal/share-cards.ts` and `lib/share/web-share.ts` are unmodified.
+
+Browser-driven/rendered visual verification was not performed — global environment rules prohibit
+launching a dev server or browser automation for this session. Rendered PNG samples (portrait,
+landscape, square, long event name, long message, no message/no hashtag) were generated directly
+through `renderShareCardPng()` and inspected as static images to confirm the layout doesn't
+overflow or error, but this is **not** a substitute for the human visual-verification checklist
+below.
+
+## Avoid
+
+- Any literal instant-film skeuomorphism (plastic corner curl, drop shadow implying a physical
+  print sitting on a surface, faux-handwriting caption font, grain/light-leak filters on the
+  guest's actual photo) — only the mat/caption-strip *structure* was taken from the anchor, not
+  its literal material rendering, per invariant 10 and the brief's "no invented filters" rule.
+- Likes, comments, view counts, or any social-metrics chrome on the card — explicitly out of
+  scope per the brief.
+- A host-selectable card theme or a card editor — the card remains one fixed template, same as
+  event signage remains four fixed formats.
+- Letting the caption strip's typography or the corner-tick motif grow loud enough to compete
+  with the photo for attention — every element in the caption block is sized and weighted to sit
+  below the photo in the page's reading order.
