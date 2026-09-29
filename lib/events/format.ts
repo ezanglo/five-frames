@@ -33,13 +33,18 @@ export function formatEventTime(iso: string | null, timeZone: string): string | 
   }).format(new Date(iso));
 }
 
-/** "Sat, Oct 18 · 2:46 PM" for an instant, in the event's timezone. */
-export function formatEventDateTime(iso: string | null, timeZone: string): string | null {
+/** "Sat, Oct 18 · 2:46 PM" (or "Sat, Oct 18, 2026 · 2:46 PM") for an instant, in the event's timezone. */
+export function formatEventDateTime(
+  iso: string | null,
+  timeZone: string,
+  options: { year?: boolean } = {},
+): string | null {
   if (!iso) return null;
   const date = new Intl.DateTimeFormat("en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
+    year: options.year ? "numeric" : undefined,
     timeZone,
   }).format(new Date(iso));
   return `${date} · ${formatEventTime(iso, timeZone)}`;

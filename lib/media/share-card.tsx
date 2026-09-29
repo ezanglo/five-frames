@@ -11,54 +11,46 @@ import { ImageResponse } from "next/og";
  * message and FiveFrames branding — never a mutation of the original or its display/thumbnail
  * derivatives.
  *
- * Visual design (docs/design-direction.md, "Guest sharing / share-card artifact"): an
- * instant-print "photo object," the same tangible-object language already established for
- * every filled frame and gallery tile elsewhere in the product (mat, rounded corner, soft
- * presence) — not a promotional overlay on top of the photo. The photo sits in a rounded tile
- * inset within a continuous warm-paper mat (deliberately not the previous black letterbox — see
- * PHOTO_AREA below); a hairline rule separates the photo from a quiet caption strip carrying
- * the FiveFrames mark, event name, date/hashtag, and an optional guest message, in that order
- * of visual weight. The photo remains the dominant object on the card at every step.
+ * Visual design follows the contracted design system (docs/design-direction.md): a white card
+ * (color/surface/base) with the photo on a night tile (color/surface/dark, radius/sheet) — the
+ * same full-bleed dark treatment the photo viewer uses — then the event name in Fraunces 600,
+ * meta and the guest's message in Plus Jakarta Sans (the message on surface/subtle in
+ * text/on-tint, like the photo list row), and the text-only wordmark at the foot. The photo stays
+ * the dominant object on the card.
  *
  * Rendered with `next/og`'s `ImageResponse` (Satori + resvg) rather than `sharp` compositing
  * text or an SVG string rasterized by `sharp`, for the same font-availability reason
- * `lib/media/signage.ts` documents. Unlike the first version of this file, the product's own
- * display face is embedded directly as font bytes (`lib/media/fonts/*.ttf`, bundled at build
- * time per the Next.js `ImageResponse` "Custom fonts" guide) rather than deferred — this is a
- * visual-system upgrade, not a behavior change: same idempotent generation, same derived-asset
- * semantics, same "never touches the original" guarantee.
+ * `lib/media/signage.ts` documents. Satori cannot read CSS variables or woff2, so the brand
+ * faces are embedded as static TTF bytes (`lib/media/fonts/*.ttf`, SIL Open Font License, per
+ * the Next.js `ImageResponse` "Custom fonts" guide) and the colors below mirror the semantic
+ * tokens in app/globals.css by hex.
  *
  * The photo is placed with `object-fit: contain` inside a fixed-size tile (never `cover`) so an
  * arbitrary source orientation or aspect ratio is always shown in full — matching the same
  * "never crop unnecessarily" requirement `capture-slots.tsx`'s composing preview already honors
- * for the guest's own confirm step. Because the tile's own background is the same warm mat color
- * as the rest of the card, a mismatched aspect ratio letterboxes invisibly into the mat instead
- * of showing bars of an unrelated color.
+ * for the guest's own confirm step. A mismatched aspect ratio letterboxes into the night tile.
  */
 
 const CANVAS_WIDTH = 1080;
-const MAT_TOP = 40;
-const MAT_SIDE = 40;
-const MAT_BOTTOM = 64;
-const PHOTO_TILE_HEIGHT = 920;
-const RULE_ROW_HEIGHT = 32;
-const CAPTION_HEIGHT = 300;
-const CANVAS_HEIGHT = MAT_TOP + PHOTO_TILE_HEIGHT + RULE_ROW_HEIGHT + CAPTION_HEIGHT + MAT_BOTTOM;
-const PHOTO_TILE_WIDTH = CANVAS_WIDTH - MAT_SIDE * 2;
-const PHOTO_TILE_RADIUS = 24;
-const CORNER_TICK_SIZE = 26;
-const CORNER_TICK_INSET = 16;
-const CORNER_TICK_THICKNESS = 3;
+const PADDING = 40;
+const PHOTO_TILE_HEIGHT = 840;
+const PHOTO_CAPTION_GAP = 36;
+const CAPTION_HEIGHT = 400;
+const CANVAS_HEIGHT = PADDING + PHOTO_TILE_HEIGHT + PHOTO_CAPTION_GAP + CAPTION_HEIGHT + PADDING;
+const PHOTO_TILE_WIDTH = CANVAS_WIDTH - PADDING * 2;
+const PHOTO_TILE_RADIUS = 28; // radius/sheet
 
-// Matches lib/media/signage.ts's hex-converted host/guest --canvas / --ink / --accent family
-// (docs/design-direction.md) — the same accepted visual identity, not a new palette.
-const CANVAS = "#faf4e9";
-const INK = "#3d3226";
-const INK_MUTED = "#8a7c6a";
-const ACCENT = "#a8632f";
-const ACCENT_SOFT = "rgba(168, 99, 47, 0.35)";
-const BORDER = "#ddd2c7";
+// Semantic tokens (DS01), hex-mirrored from app/globals.css for Satori.
+const SURFACE = "#FFFFFF"; // color/surface/base
+const SURFACE_SUBTLE = "#F5F4F8"; // color/surface/subtle
+const SURFACE_DARK = "#141414"; // color/surface/dark
+const INK = "#15141A"; // color/text/primary
+const INK_MUTED = "#6B6A75"; // color/text/muted
+const INK_ON_TINT = "#5B5670"; // color/text/on-tint
+const BORDER = "#E6E4EE"; // color/border/subtle
+const BRAND = "#6B2BD9"; // brand/primary
 
+const MAX_NAME_LENGTH = 48;
 const MAX_MESSAGE_LENGTH = 140;
 
 export type ShareCardInput = {
@@ -69,13 +61,12 @@ export type ShareCardInput = {
   photoBuffer: Buffer;
 };
 
-const bricolageBold = readFile(
-  join(process.cwd(), "lib/media/fonts/bricolage-grotesque-700.ttf"),
+const frauncesSemibold = readFile(join(process.cwd(), "lib/media/fonts/fraunces-600.ttf"));
+const jakartaMedium = readFile(join(process.cwd(), "lib/media/fonts/plus-jakarta-sans-500.ttf"));
+const jakartaBold = readFile(join(process.cwd(), "lib/media/fonts/plus-jakarta-sans-700.ttf"));
+const jakartaExtraBold = readFile(
+  join(process.cwd(), "lib/media/fonts/plus-jakarta-sans-800.ttf"),
 );
-const bricolageSemibold = readFile(
-  join(process.cwd(), "lib/media/fonts/bricolage-grotesque-600.ttf"),
-);
-const interMedium = readFile(join(process.cwd(), "lib/media/fonts/inter-500.ttf"));
 
 function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value;
@@ -83,80 +74,6 @@ function truncate(value: string, maxLength: number): string {
   const lastSpace = cut.lastIndexOf(" ");
   const boundary = lastSpace > maxLength * 0.6 ? cut.slice(0, lastSpace) : cut;
   return `${boundary.trimEnd()}…`;
-}
-
-/** A small accent L-bracket at one corner of the photo tile — the same quiet "viewfinder" motif
- * used on event signage (lib/media/signage.ts), not a literal camera icon. Four fully-explicit
- * variants rather than a parameterized style object: Satori's style-object parsing does not
- * tolerate `undefined` values for unused sides the way browser CSSOM does. */
-const TICK_BORDER = `${CORNER_TICK_THICKNESS}px solid ${ACCENT}`;
-
-function CornerTickTL() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: CORNER_TICK_INSET,
-        left: CORNER_TICK_INSET,
-        width: CORNER_TICK_SIZE,
-        height: CORNER_TICK_SIZE,
-        display: "flex",
-        borderTop: TICK_BORDER,
-        borderLeft: TICK_BORDER,
-      }}
-    />
-  );
-}
-
-function CornerTickTR() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: CORNER_TICK_INSET,
-        right: CORNER_TICK_INSET,
-        width: CORNER_TICK_SIZE,
-        height: CORNER_TICK_SIZE,
-        display: "flex",
-        borderTop: TICK_BORDER,
-        borderRight: TICK_BORDER,
-      }}
-    />
-  );
-}
-
-function CornerTickBL() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: CORNER_TICK_INSET,
-        left: CORNER_TICK_INSET,
-        width: CORNER_TICK_SIZE,
-        height: CORNER_TICK_SIZE,
-        display: "flex",
-        borderBottom: TICK_BORDER,
-        borderLeft: TICK_BORDER,
-      }}
-    />
-  );
-}
-
-function CornerTickBR() {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        bottom: CORNER_TICK_INSET,
-        right: CORNER_TICK_INSET,
-        width: CORNER_TICK_SIZE,
-        height: CORNER_TICK_SIZE,
-        display: "flex",
-        borderBottom: TICK_BORDER,
-        borderRight: TICK_BORDER,
-      }}
-    />
-  );
 }
 
 export async function renderShareCardPng(input: ShareCardInput): Promise<Buffer> {
@@ -177,21 +94,21 @@ export async function renderShareCardPng(input: ShareCardInput): Promise<Buffer>
           height: CANVAS_HEIGHT,
           display: "flex",
           flexDirection: "column",
-          backgroundColor: CANVAS,
-          padding: `${MAT_TOP}px ${MAT_SIDE}px ${MAT_BOTTOM}px`,
+          backgroundColor: SURFACE,
+          padding: PADDING,
+          gap: PHOTO_CAPTION_GAP,
+          fontFamily: "Plus Jakarta Sans",
         }}
       >
         <div
           style={{
-            position: "relative",
             width: PHOTO_TILE_WIDTH,
             height: PHOTO_TILE_HEIGHT,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            backgroundColor: CANVAS,
+            backgroundColor: SURFACE_DARK,
             borderRadius: PHOTO_TILE_RADIUS,
-            border: `1px solid ${ACCENT_SOFT}`,
             overflow: "hidden",
           }}
         >
@@ -207,14 +124,6 @@ export async function renderShareCardPng(input: ShareCardInput): Promise<Buffer>
               objectFit: "contain",
             }}
           />
-          <CornerTickTL />
-          <CornerTickTR />
-          <CornerTickBL />
-          <CornerTickBR />
-        </div>
-
-        <div style={{ height: RULE_ROW_HEIGHT, display: "flex", alignItems: "center" }}>
-          <div style={{ display: "flex", width: PHOTO_TILE_WIDTH, height: 1, backgroundColor: BORDER }} />
         </div>
 
         <div
@@ -222,72 +131,77 @@ export async function renderShareCardPng(input: ShareCardInput): Promise<Buffer>
             height: CAPTION_HEIGHT,
             display: "flex",
             flexDirection: "column",
-            justifyContent: "center",
-            gap: 12,
+            justifyContent: "space-between",
             padding: "0 8px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div
               style={{
                 display: "flex",
-                width: 8,
-                height: 8,
-                borderRadius: 9999,
-                backgroundColor: ACCENT,
-              }}
-            />
-            <div
-              style={{
-                display: "flex",
-                fontFamily: "Inter",
-                fontWeight: 500,
-                fontSize: 20,
-                letterSpacing: 4,
-                color: ACCENT,
+                fontFamily: "Fraunces",
+                fontWeight: 600,
+                fontSize: 54,
+                lineHeight: 1.1,
+                letterSpacing: -0.5,
+                color: INK,
               }}
             >
-              FIVE FRAMES
+              {truncate(input.eventName, MAX_NAME_LENGTH)}
             </div>
+            {metaLine && (
+              <div style={{ display: "flex", fontWeight: 500, fontSize: 26, color: INK_MUTED }}>
+                {metaLine}
+              </div>
+            )}
+            {input.message && (
+              <div
+                style={{
+                  display: "flex",
+                  marginTop: 8,
+                  padding: "18px 24px",
+                  borderRadius: 16, // radius/lg
+                  backgroundColor: SURFACE_SUBTLE,
+                  fontWeight: 500,
+                  fontSize: 25,
+                  lineHeight: 1.4,
+                  color: INK_ON_TINT,
+                }}
+              >
+                &ldquo;{truncate(input.message, MAX_MESSAGE_LENGTH)}&rdquo;
+              </div>
+            )}
           </div>
+
           <div
             style={{
               display: "flex",
-              fontFamily: "Bricolage Grotesque",
-              fontWeight: 700,
-              fontSize: 46,
-              lineHeight: 1.15,
-              color: INK,
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingTop: 22,
+              borderTop: `1px solid ${BORDER}`,
             }}
           >
-            {truncate(input.eventName, 60)}
+            <div
+              style={{
+                display: "flex",
+                fontWeight: 800,
+                fontSize: 30,
+                letterSpacing: -0.3,
+                color: INK,
+              }}
+            >
+              FiveFrames
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div
+                style={{ display: "flex", width: 10, height: 10, borderRadius: 9999, backgroundColor: BRAND }}
+              />
+              <div style={{ display: "flex", fontWeight: 700, fontSize: 22, color: INK_MUTED }}>
+                Every guest. Five frames.
+              </div>
+            </div>
           </div>
-          {metaLine && (
-            <div
-              style={{
-                display: "flex",
-                fontFamily: "Inter",
-                fontWeight: 500,
-                fontSize: 24,
-                color: INK_MUTED,
-              }}
-            >
-              {metaLine}
-            </div>
-          )}
-          {input.message && (
-            <div
-              style={{
-                display: "flex",
-                fontFamily: "Inter",
-                fontWeight: 500,
-                fontSize: 26,
-                color: INK_MUTED,
-              }}
-            >
-              &ldquo;{truncate(input.message, MAX_MESSAGE_LENGTH)}&rdquo;
-            </div>
-          )}
         </div>
       </div>
     ),
@@ -295,9 +209,10 @@ export async function renderShareCardPng(input: ShareCardInput): Promise<Buffer>
       width: CANVAS_WIDTH,
       height: CANVAS_HEIGHT,
       fonts: [
-        { name: "Bricolage Grotesque", data: await bricolageBold, weight: 700, style: "normal" },
-        { name: "Bricolage Grotesque", data: await bricolageSemibold, weight: 600, style: "normal" },
-        { name: "Inter", data: await interMedium, weight: 500, style: "normal" },
+        { name: "Fraunces", data: await frauncesSemibold, weight: 600, style: "normal" },
+        { name: "Plus Jakarta Sans", data: await jakartaMedium, weight: 500, style: "normal" },
+        { name: "Plus Jakarta Sans", data: await jakartaBold, weight: 700, style: "normal" },
+        { name: "Plus Jakarta Sans", data: await jakartaExtraBold, weight: 800, style: "normal" },
       ],
     },
   );

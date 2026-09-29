@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { HostTag } from "./pill";
+import { HostTag, OperatorTag } from "./pill";
 
 /** Wordmark (DS04): 17px ExtraBold, text only. */
 export function Wordmark({
   host,
+  operator,
   href,
   tone = "dark",
   className,
 }: {
   host?: boolean;
+  operator?: boolean;
   href?: string;
   tone?: "dark" | "light";
   className?: string;
@@ -18,6 +20,7 @@ export function Wordmark({
     <>
       <span className="text-[17px] leading-none font-extrabold tracking-[-0.01em]">FiveFrames</span>
       {host && <HostTag />}
+      {operator && <OperatorTag />}
     </>
   );
   const classes = cn(

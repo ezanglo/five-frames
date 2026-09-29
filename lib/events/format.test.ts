@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { firstName, formatEventDate, formatEventTime, splitDuration } from "./format";
+import {
+  firstName,
+  formatEventDate,
+  formatEventDateTime,
+  formatEventTime,
+  splitDuration,
+} from "./format";
 
 describe("event presentation formatting", () => {
   it("formats a calendar event_date without shifting it across a day boundary", () => {
@@ -13,6 +19,12 @@ describe("event presentation formatting", () => {
     // 2026-10-18T17:30Z is 01:30 on Oct 19 in Manila (UTC+8) but 10:30 on Oct 18 in LA.
     expect(formatEventTime("2026-10-18T17:30:00.000Z", "Asia/Manila")).toBe("1:30 AM");
     expect(formatEventTime("2026-10-18T17:30:00.000Z", "America/Los_Angeles")).toBe("10:30 AM");
+    expect(formatEventDateTime("2026-12-31T17:30:00.000Z", "Asia/Manila", { year: true })).toBe(
+      "Fri, Jan 1, 2027 · 1:30 AM",
+    );
+    expect(
+      formatEventDateTime("2026-12-31T17:30:00.000Z", "America/Los_Angeles", { year: true }),
+    ).toBe("Thu, Dec 31, 2026 · 9:30 AM");
   });
 
   it("splits a duration into non-negative units", () => {

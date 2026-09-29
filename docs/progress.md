@@ -6,7 +6,9 @@ Last updated: 2026-09-29 (contracted UI/UX designer handoff implemented across t
 verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
 note: a focused `/e2e-validate` pass found two defects (host downloads navigating instead of
 saving; a refunded payment misclassified as an unresolved duplicate), both repaired — see
-"Regression protection added for human-found defects" → "Slice 14".)
+"Regression protection added for human-found defects" → "Slice 14". Same day, follow-up pass:
+the Operator Console, branded share card, 404/error pages and app icons moved onto the design
+system too — nothing in the app still uses the retired look.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -65,8 +67,32 @@ product should change:
 3. Delete event (Settings danger zone) — no host event-deletion capability exists yet.
 4. Photographer name/time in the *public* gallery viewer and the Join-screen guest count —
    withheld (data exposure / engagement nudge).
-5. Branded share card still uses the retired palette/fonts (needs Fraunces/Jakarta TTFs bundled
-   into `lib/media/fonts/`).
+
+**Follow-up pass — remaining surfaces (2026-09-29, same day):**
+
+- **Operator Console** (`/operator`, `/operator/events/[id]`) rebuilt on `components/ff` (host
+  desktop template; see `docs/design-direction.md` → "Surfaces outside the handoff"). Same DAL
+  calls, server actions and privilege checks; no new data exposed (aggregate counts only). Three
+  display fixes made on the way: lifecycle times now render in the event's timezone (previously
+  the server process's locale/timezone); reveal timing, visibility, payment method and provider
+  status show labels instead of raw values (`after_event`, `bank_transfer`, …) via the new
+  `lib/events/labels.ts`; the manual-payment "received at" default is now "now" in the event's
+  timezone, matching how the action interprets it (previously the operator's browser time).
+  `window.confirm` replaced by `ConfirmSubmitButton` (native `<dialog>`, runs form validation
+  first). Removed: `.operator-scope` tokens, `state-indicator.tsx`, all of `components/ui/*`.
+- **Branded share card** redrawn in the new palette with bundled Fraunces 600 and Plus Jakarta
+  Sans 500/700/800 TTFs (OFL, from Google Fonts); the Bricolage/Inter files were removed. Build
+  traces confirmed to include the new fonts. Share cards are stored per capture once generated,
+  so any generated before this change keep the old design.
+- **404 and error pages** added (`app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx`)
+  on the guest shell; fonts moved to `app/fonts.ts` so `global-error` can load them.
+- **App icons** replaced the stock Next.js favicon: `app/icon.svg`, a brand `favicon.ico`
+  (16/32/48) and `apple-icon.png` (180).
+- Verification: typecheck ✔ · lint ✔ · build ✔ · `pnpm test` 167/168 on the first run, then
+  the timed-out test's file (`captures.integration.test.ts`, one test past the 5 s default)
+  passed 16/16 on rerun — no capture code changed in this pass. Share card checked by rendering
+  landscape/portrait/square/long-text samples. No browser automation in this pass — see
+  checklist item 7.
 
 **Automated verification (2026-09-29):** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
 (new routes `/auth/confirm`, `/events/new`, `/events/[id]/setup`, `/events/[id]/photos`,
@@ -109,6 +135,11 @@ are also no longer in `.env.local`.
    `<origin>/auth/confirm` for each environment — configuration, not code).
 5. Public gallery locked/revealed, viewer swipe/arrows/Escape.
 6. Taste: does the result read as the contracted handoff? Report any screen that doesn't.
+7. Follow-up surfaces: `/operator` list (search, empty result) and an event detail at phone and
+   desktop widths — confirm-payment and record-refund dialogs (Cancel leaves the form untouched;
+   a missing required field is flagged before the dialog opens); a mistyped URL and another
+   host's event id (both show "We can't find that page"); a newly generated share card from a
+   guest's own photo; the new browser-tab icon and iOS home-screen icon.
 
 ## Current phase
 
@@ -406,10 +437,9 @@ via the Web Share API or a download fallback, gated on that existing host settin
   branded footer carries only product-approved fields already on the event/capture: event name,
   formatted date, hashtag, and the guest's own optional capture message — colors reused verbatim
   from `signage.ts`'s hex-converted host/guest palette (the accepted visual identity, not a new
-  theme). Known simplification: `ImageResponse`'s embedded fallback font is used throughout
-  rather than the product's Bricolage Grotesque/Inter faces, since supplying those would require
-  fetching font bytes at render time (reintroducing a dependency this design deliberately avoids)
-  — visually adequate for MVP, not pixel-matched to the rest of the guest UI.
+  theme). The first version used `ImageResponse`'s embedded fallback font. The brand fonts are now
+  bundled as TTF files in `lib/media/fonts/` and read from disk (still no network fetch), and the
+  card follows the redesign (see "Follow-up pass — remaining surfaces" above).
 - **Authorization (`lib/dal/share-cards.ts`):** `getShareCardForGuestCapture(event,
   guestSessionId, captureId)` is server-authoritative — checks `event.sharing_enabled` first,
   then loads the capture scoped by `id` + `guest_session_id` + `event_id` (the same three-column
@@ -1509,8 +1539,8 @@ is PASS or an honestly-recorded BLOCKED with no unresolved launch-blocking defec
 | Slice 14 full human verification checklist not yet run (see above) — this is now the single gating item for MVP completion | Manual verification pending | Entire guest/host/operator flow on real devices; see checklist above |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
 | Handoff capabilities not in the product: cover photo, theme color, delete event, pre-payment guest preview, public photographer attribution | Product decision (only if the product should change) | Create · Look, Settings, gallery viewer |
-| Branded share card still on the retired palette/fonts | Follow-up design task | `lib/media/share-card.tsx` |
-| Operator Console kept outside the handoff (own neutral layout; display font now the brand sans) — its 2026-09-22 visual pass still awaits approval (Slice 14 §9) | Design pass pending approval | `/operator`, `/operator/events/[eventId]` |
+| Operator Console, share card, 404/error pages and app icons moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
+| Supabase Auth email templates (confirmation, password reset) still Supabase defaults — dashboard configuration, not repo code | Follow-up design task | Host signup and password-reset emails |
 | `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |
 | Supabase Auth redirect allowlist must include `/auth/confirm` for password reset in each environment | Configuration | Password reset |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |

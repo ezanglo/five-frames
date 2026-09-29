@@ -39,10 +39,16 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Shells: guest mobile shell, auth split, host nav/mobile header/sheet, event tabs, wizard | `components/ff/guest-shell.tsx`, `components/ff/auth-shell.tsx`, `components/ff/host/*` |
 | Lifecycle → status badge (Draft → Upcoming → Open → Closed → Revealed) | `components/ff/event-status.tsx` |
 | Event-local date/time formatting (always the event's timezone) | `lib/events/format.ts` |
+| Labels for stored enums (reveal timing, visibility, payment method) — never show raw values | `lib/events/labels.ts` |
+| 404 and error screens (guest shell, any audience) | `app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx`, `components/ff/error-screen.tsx` |
+| Brand fonts shared by the root layout and `global-error` | `app/fonts.ts` |
+| App icons (violet tile, two tilted frames) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
+| Branded share card (Satori; tokens mirrored by hex, fonts as bundled TTFs) | `lib/media/share-card.tsx`, `lib/media/fonts/` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
 `border-line`, `ff-dashed`, `rounded-sheet`, `shadow-glow`, `text-label`…), never raw palette
-values. `components/ui/*` (shadcn/base-ui) remains only for the Operator Console.
+values. There is no `components/ui` layer any more — every surface, including the Operator
+Console, uses `components/ff`.
 
 ## Implementation principles
 
@@ -118,15 +124,27 @@ Each is rendered as the closest visual equivalent; none adds product capability.
 
 ## Surfaces outside the handoff
 
-- **Operator Console** (`app/(operator)/`, `.operator-scope`): internal tool, not in the handoff's
-  inventory. Keeps its neutral, dense layout and privileged-action color; its display face is now
-  the brand sans (the old guest display font is retired). A future pass may bring it onto the
-  `components/ff` primitives.
-- **Branded share card** (`lib/media/share-card.tsx`): still renders the previous palette and
-  embedded Bricolage/Inter font files. Moving it needs Fraunces/Jakarta TTFs bundled — tracked in
-  `docs/progress.md`.
+Not in the handoff's screen inventory, so each reuses an existing template rather than inventing
+one:
+
+- **Operator Console** (`app/(operator)/`): the host desktop template at every width — white top
+  nav with the wordmark and an ink `OPERATOR` tag (never violet, so it can't read as the host
+  product), grey page, white cards, 1200 column. Event list = one card of dense rows with the
+  shared status badge; event detail = stat tiles for the aggregate counts, lifecycle/gallery
+  cards (times in the event's timezone), and a 380 side column with payment history and the one
+  privileged action card. The privileged submit is the screen's single primary (refund uses
+  danger) and asks through the native `<dialog>` confirm, not `window.confirm`.
+- **404 / error** (`app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx`): the guest shell,
+  because either can reach any audience. A host opening an event they don't own sees the same
+  404 as a missing one (invariant 9).
+- **Branded share card** (`lib/media/share-card.tsx`): white card, photo contained on a night
+  tile (radius/sheet), Fraunces event name, Jakarta meta, message on surface/subtle in
+  text/on-tint, wordmark footer. Cards are stored per capture once generated, so ones generated
+  before this design keep the old look.
 - **Signage SVGs** (`lib/media/signage.ts`) and the landing page (`app/page.tsx`) use the new
   tokens and fonts.
+- **Not in the repo:** Supabase Auth email templates (confirmation, password reset) are set in the
+  Supabase dashboard and still use Supabase's defaults.
 
 ## Avoid
 

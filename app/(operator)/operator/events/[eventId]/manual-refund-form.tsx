@@ -1,10 +1,10 @@
 "use client";
 
 import { useActionState } from "react";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { recordManualRefundAction, type ManualRefundFormState } from "@/app/(operator)/actions";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ConfirmSubmitButton } from "@/components/ff/confirm-button";
+import { Field, TextArea } from "@/components/ff/field";
 
 const INITIAL_STATE: ManualRefundFormState = { status: "idle" };
 
@@ -19,49 +19,46 @@ export function ManualRefundForm({ eventId }: { eventId: string }) {
   );
 
   return (
-    <form
-      action={formAction}
-      onSubmit={(e) => {
-        if (
-          !window.confirm(
-            "Record this refund as completed? The event will return to unpaid and its link/QR will stop working immediately.",
-          )
-        ) {
-          e.preventDefault();
-        }
-      }}
-      className="flex flex-col gap-2.5 rounded-lg border border-(--operator-privileged)/25 bg-(--operator-privileged-surface) p-3"
-    >
-      <label className="flex flex-col gap-1 text-xs text-(--operator-ink-muted)">
-        Note (optional)
-        <Textarea
+    <form action={formAction} className="flex flex-col gap-4">
+      <p className="text-caption font-medium text-ink-muted">
+        Only after the money has actually been returned. The event goes back to unpaid and its
+        guest link and QR stop working immediately.
+      </p>
+
+      <Field label="Note" htmlFor="note" optional>
+        <TextArea
+          id="note"
           name="note"
           placeholder="e.g. how the money was actually returned"
           rows={2}
+          className="min-h-20"
         />
-      </label>
+      </Field>
 
       {state.status === "error" && (
-        <p className="flex items-start gap-1.5 text-xs text-(--operator-privileged)">
-          <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        <p role="alert" className="flex items-start gap-2 text-caption font-medium text-danger">
+          <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           {state.message}
         </p>
       )}
       {state.status === "refunded" && (
-        <p className="text-xs text-(--operator-ink-muted)">
-          Refund recorded. The event is unpaid again and its link/QR no longer work.
+        <p role="status" className="flex items-start gap-2 text-caption font-medium text-success">
+          <CircleCheck aria-hidden className="mt-0.5 size-4 shrink-0" />
+          Refund recorded. The event is unpaid again and its link and QR no longer work.
         </p>
       )}
 
-      <Button
-        type="submit"
-        size="sm"
-        variant="secondary"
-        disabled={pending}
-        className="self-start"
+      <ConfirmSubmitButton
+        pending={pending}
+        variant="danger"
+        destructive
+        title="Record this refund as completed?"
+        body="The event returns to unpaid and its guest link and QR stop working immediately."
+        confirmLabel="Record refund"
+        className="w-full"
       >
         {pending ? "Recording…" : "Record a refund"}
-      </Button>
+      </ConfirmSubmitButton>
     </form>
   );
 }

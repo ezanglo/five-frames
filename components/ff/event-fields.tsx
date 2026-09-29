@@ -3,22 +3,15 @@
 import { useState } from "react";
 import { Clock, Eye, Globe, Hash } from "lucide-react";
 import type { EventRow } from "@/lib/db/types";
+import { labelItems, REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
 import { Counter, Field, SelectInput, TextArea, TextInput, Toggle } from "./field";
 
 /** Welcome message limit (DS04: max 140 welcome). */
 export const WELCOME_MAX = 140;
 
-const REVEAL_MODE_ITEMS = [
-  { value: "after_event", label: "When capture closes" },
-  { value: "immediate", label: "Immediately" },
-  { value: "custom", label: "At a time I choose" },
-] as const;
-
-const VISIBILITY_ITEMS = [
-  { value: "anyone_with_link", label: "Anyone with the gallery link" },
-  { value: "only_me", label: "Only me" },
-] as const;
+const REVEAL_MODE_ITEMS = labelItems(REVEAL_MODE_LABEL);
+const VISIBILITY_ITEMS = labelItems(VISIBILITY_LABEL);
 
 /**
  * Event details fields (Create · Details, Settings · Event details): name, date, timezone.

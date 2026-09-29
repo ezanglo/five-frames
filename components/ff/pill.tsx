@@ -109,6 +109,21 @@ export function HostTag({ className }: { className?: string }) {
   );
 }
 
+/** OPERATOR tag next to the wordmark — ink, not violet, so the internal console never reads as
+ * the host product. */
+export function OperatorTag({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-5 items-center rounded-[6px] bg-ink px-1.5 text-[11px] font-bold tracking-[0.04em] text-ink-inverse",
+        className,
+      )}
+    >
+      OPERATOR
+    </span>
+  );
+}
+
 /** "You" badge (DS03/DS05) — marks the viewer's own shots. */
 export function YouBadge({ className }: { className?: string }) {
   return (
