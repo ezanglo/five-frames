@@ -1,7 +1,7 @@
 # FiveFrames — Progress
 
 Last updated: 2026-09-30 (Full Set keepsakes: product amendment accepted, architecture amended as
-**D20 (proposed)** and Slice 16 Phases A/B; **Full Set design amendment pending**. Before that
+**D20 (accepted)** and Slice 16 Phases A/B; **Full Set design amendment pending**. Before that
 the same day, Event Theme & Keepsakes: product spec accepted, architecture/roadmap prepared as D19
 + Slices 15–17, **design pass done — awaiting human visual approval**, implementation **not
 started** — see the section below. Earlier the same day: brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
@@ -26,8 +26,7 @@ appending narrative.
   the same day:** two keepsake families, five **Single-photo** styles and five **Full Set** styles
   that combine a session's five committed captures in commit order, one of them built on the
   brandmark (§10.2.2, criteria 54–66).
-- **Architecture:** decision D19, extended by **D20 (Full Set; status Proposed, awaiting
-  approval)**. Architecture §7a (theme), §7b (keepsakes: two families in one registry and renderer;
+- **Architecture:** decision D19, extended by **D20 (Full Set; accepted)**. Architecture §7a (theme), §7b (keepsakes: two families in one registry and renderer;
   the Full Set route derives the five captures server-side, ordered `(committed_at, slot_index)`
   with no schema change; deterministic cover crops; on demand, never persisted; Slice 16
   measurement gate), §7c (themed signage, placeholder-QR previews), §10 threat model.
@@ -60,8 +59,8 @@ appending narrative.
   the Draft preview QR (obviously not a working code). Printing and scanning real signage, and
   real-device share sheets, stay human checks in Slices 16–17. They can't be judged from the
   board.
-- **Next:** approve (or adjust) D20 and the Single-photo design, then run the Full Set
-  `/design-app` amendment. `/build-app` Slice 15 does not depend on the Full Set design and can
+- **Next:** approve (or adjust) the Single-photo design, and run the Full Set `/design-app`
+  amendment. `/build-app` Slice 15 does not depend on the Full Set design and can
   start once the existing design is approved.
 
 ## Brand identity rollout (2026-09-30): `awaiting human visual approval`

@@ -556,7 +556,9 @@ token for Draft signage previews (a working link before payment, which invariant
 
 ## D20 — Full Set keepsakes: a second family in D19's renderer, sources derived server-side, deterministic crops
 
-**Status:** Proposed (2026-09-30). Awaiting approval of this architecture amendment.
+**Status:** Accepted (2026-09-30), with two clarifications made at approval: the lifecycle
+check is guest event access, not the capture window, and the cost figures separate distinct
+renders from request volume.
 **Context:** product.md §10.2 was amended on 2026-09-30. Keepsakes now come in two families of
 exactly five styles each:
 
@@ -593,6 +595,11 @@ longer describes the workload.
    - The Single-photo route becomes `…/keepsake/photo/[captureId]/[styleId]`. Its checks are
      unchanged.
    - Both routes re-confirm their sources after rendering and before responding.
+   - The routes' lifecycle check is the existing guest event-access rule: a valid, current event
+     token for an event that is not expired/archived, plus the guest's session cookie for that
+     event. It is **not** the capture gate. Both families stay available after capture closes,
+     like every other guest action on their own committed photos. `isCaptureOpen` applies only to
+     reserve and commit.
 3. **Order is `(committed_at, slot_index)`, with no schema change.** `committed_at` is written
    once, in the guarded commit update. `slot_index` is unique among a session's committed rows
    (D5). Together they give a total, stable order.
@@ -634,8 +641,10 @@ longer describes the workload.
     limitation is stated honestly (architecture §7b, §13), and design is asked to avoid layouts
     that need a perfect crop.
 - *On demand, still:*
-  - Estimated demand: a realistic event produces hundreds of Full Set renders, with a ceiling of
-    about 2,500 renders (12,500 source reads) if every session rendered every style twice.
+  - Estimated demand: an event has at most 1,250 distinct guest/style combinations (250 sessions
+    × 5 styles), which is 6,250 source reads if each is rendered once. Request volume is a
+    workload estimate, not a bound: realistically hundreds of Full Set renders, and in a heavy
+    scenario (every style requested twice) 2,500 renders and 12,500 source reads.
   - Persisting outputs would reintroduce everything D19 removed — invalidation on theme change,
     D18 cleanup, orphans — plus an extra hazard: a stored Full Set that outlives a hide.
   - Measure first, cache only if needed.

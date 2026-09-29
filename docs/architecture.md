@@ -765,7 +765,9 @@ are GETs and need no CSRF token.
 
 Every request re-checks, in the DAL:
 
-1. `event_token` resolves to an event whose lifecycle is not expired/archived;
+1. **guest event access holds**: `event_token` resolves (via the existing `getEventByToken`) to an
+   event whose lifecycle is not expired/archived. A rotated, revoked or refund-cleared token
+   therefore resolves to nothing;
 2. the signed guest cookie holds a session for **this** event;
 3. `sharing_enabled` is true;
 4. `styleId` is in the registry **for this route's family**;
@@ -773,6 +775,12 @@ Every request re-checks, in the DAL:
    - **Single-photo:** the capture matches `(id, guest_session_id, event_id)`, is `committed`, is
      not hidden or deleted, and has a display derivative;
    - **Full Set:** `getFullSetSources` returns an eligible set.
+
+**Check 1 is guest access, not the capture gate.** It never calls `isCaptureOpen` and never
+requires the capture window to be open. Keepsakes of either family work while capture is open,
+before it opens again, and after it closes, for as long as the guest can still reach their own
+captures under the existing token and session rules (product.md §10.2). The paid/active/open
+capture gate belongs only to reserve and commit (§6).
 
 The server then renders and **re-confirms before it responds**. One indexed query checks that the
 source capture ids are still committed, not hidden and not deleted. If a host's hide lands while a
@@ -884,12 +892,20 @@ These are estimates, not measurements.
 Renders happen only on demand, never eagerly, and a Full Set is offered only to sessions that
 already have five eligible captures.
 
-- A realistic event (≤ 250 sessions under D13, some reaching five, a few renders each) produces
-  hundreds of Full Set renders, which means low thousands of source reads.
-- The ceiling, with every session rendering every Full Set style twice, is 2,500 Full Set renders
-  and 12,500 source reads.
+Unique renders and request volume are separate numbers:
+
+- **Distinct guest/style combinations** (the bounded quantity): 250 sessions (D13) × 5 Full Set
+  styles = **1,250** per event. If each is rendered exactly once, that is **6,250 source-image
+  reads**. It is also the most a render cache could ever hold per event.
+- **Request volume** is not bounded by that number. Because nothing is cached, every selection,
+  save or revisit is a new render. Neither of the following is a ceiling; they are workload
+  estimates:
+  - *Realistic:* some sessions reach five captures, and each makes a few requests. That is
+    hundreds of Full Set renders, or low thousands of source reads.
+  - *Heavy:* every session requests every Full Set style twice (say, selecting it and then saving
+    it). That is 2,500 renders and 12,500 source reads.
 - Both are small at launch scale. **D19's on-demand, never-persisted strategy therefore holds for
-  both families** (D20).
+  both families** (D20). Ordinary fair use covers abusive repetition (§10).
 
 **Slice 16 measurement gate.** Measure on a Vercel preview against the development storage, cold
 and warm:

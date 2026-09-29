@@ -430,7 +430,8 @@ building the renderer twice.
 - `GET /e/[token]/keepsake/photo/[captureId]/[styleId]`:
   - per-request authorization;
   - sharing toggle;
-  - lifecycle/expiry check;
+  - guest event-access check (valid token, not expired), **not** the capture-open gate: keepsakes
+    work after capture closes;
   - re-confirm before responding;
   - JPEG output;
   - `?download=1` for save.
@@ -515,6 +516,7 @@ A. The Full Set design amendment is needed for Phase B.
   - equal `committed_at` values order by `slot_index`;
   - a hide landing between render and response returns not-found;
   - a pre-reveal keepsake of either family exposes no gallery data;
+  - keepsakes of both families still work after capture closes;
   - originals are byte-identical after keepsakes are made in every style of both families;
   - no frame is consumed, no gallery item appears, and no row or storage object is written.
 - **Rendered samples, human-inspected against the DOM previews:**
