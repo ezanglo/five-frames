@@ -173,6 +173,14 @@
   --text-wizard-desktop--line-height: 1.1;
   --text-title-desktop: 36px;
   --text-title-desktop--line-height: 1.15;
+  /* Marketing extension (docs/design-direction.md → "Marketing site"): the public site's hero
+     is more editorial than any app screen, so it gets one step above display on each side. */
+  --text-hero: 40px;
+  --text-hero--line-height: 1.05;
+  --text-hero--letter-spacing: -0.015em;
+  --text-hero-desktop: 68px;
+  --text-hero-desktop--line-height: 1.02;
+  --text-hero-desktop--letter-spacing: -0.02em;
 
   --shadow-glow: var(--shadow-primary-glow);
   --shadow-tab: var(--shadow-active-tab);

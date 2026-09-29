@@ -11,6 +11,8 @@ export const cn = createCn({
       "font-size": [
         {
           text: [
+            "hero",
+            "hero-desktop",
             "display",
             "display-create",
             "display-desktop",

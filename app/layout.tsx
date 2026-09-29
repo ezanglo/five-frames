@@ -3,11 +3,13 @@ import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { cn } from "@/lib/utils"
+import { getSiteUrl, SITE_TAGLINE } from "@/lib/marketing/site"
 import { fontVariables } from "./fonts"
 
 export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
   title: "FiveFrames",
-  description: "Every guest. Five frames. One shared story.",
+  description: SITE_TAGLINE,
 }
 
 /** viewport-fit=cover lets the photo header run under the phone's status bar (DS04 top bars). */

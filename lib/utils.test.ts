@@ -10,6 +10,9 @@ describe("cn with FiveFrames design tokens", () => {
   it("keeps a text color alongside a custom font-size token", () => {
     expect(cn("text-ink-inverse", "text-button")).toBe("text-ink-inverse text-button");
     expect(cn("text-brand", "text-label")).toBe("text-brand text-label");
+    expect(cn("text-ink-inverse", "text-hero", "lg:text-hero-desktop")).toBe(
+      "text-ink-inverse text-hero lg:text-hero-desktop",
+    );
   });
 
   it("still resolves real conflicts within each custom group", () => {

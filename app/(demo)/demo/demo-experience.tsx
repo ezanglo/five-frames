@@ -7,6 +7,7 @@ import { Button, ButtonLink } from "@/components/ff/button";
 import { GuestShell, SheetActions } from "@/components/ff/guest-shell";
 import { HighlightCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
+import { Wordmark } from "@/components/ff/wordmark";
 import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 import { PreviewSheet } from "@/components/ff/preview-sheet";
 import { EmptySlotFace, ShotNumber, ShotProgress, SHOTS_PER_GUEST } from "@/components/ff/shots";
@@ -134,6 +135,7 @@ export function DemoExperience() {
   return (
     <>
       <GuestShell
+        topLeft={<Wordmark tone="light" href="/" />}
         topRight={
           <StatusPill tone="frosted" icon="none">
             Demo · nothing is saved
