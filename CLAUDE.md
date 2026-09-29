@@ -49,10 +49,14 @@ change, not a refactor.
 13. Privileged operator mutations (confirming a manual payment, recording a manual refund) are
     server-authoritative and auditable, and happen only through the Operator Console — never a
     host-declared, ad hoc, or undocumented action.
-14. A keepsake is made only from the requesting guest's own committed, non-hidden capture. It
-    never contains another guest's content, the guest's display name, or the capture/gallery
-    link or QR, and making or sharing one never changes gallery access. Making a keepsake never
-    consumes a frame, counts as a capture, or adds a gallery item.
+14. A keepsake is a derivative, made only from the requesting guest's own committed, non-hidden
+    captures. A **Single-photo keepsake** uses one of them. A **Full Set keepsake** uses exactly
+    the five committed captures of the requesting session, all non-hidden, in commit order, with
+    no guest message. Hiding any of the five makes the Full Set unavailable until the capture is
+    unhidden, and deleting one makes it permanently unavailable. It is never made from four
+    captures. A keepsake never contains another guest's content, the guest's display name, or
+    the capture/gallery link or QR, and making or sharing one never changes gallery access.
+    Making a keepsake never consumes a frame, counts as a capture, or adds a gallery item.
 
 ## Engineering constraints
 
@@ -104,15 +108,22 @@ change, not a refactor.
   add a host-facing route, generic admin endpoint, or script that performs them in production.
 - **The Operator Console shows aggregate counts, never individual guest media.** Do not add a DAL
   function an operator route could use to obtain a capture's signed image URL.
-- **Event Theme & Keepsakes (decision D19, architecture §7a–§7c).**
+- **Event Theme & Keepsakes (decisions D19, D20; architecture §7a–§7c).**
   - The theme image is public-facing but **not publicly addressable**. It lives in the private
     `event-theme` bucket and reaches a browser only as a signed URL after that surface's own
     check (owner, valid event token, or granted gallery access). The Operator Console never gets
     one. Never accept SVG uploads.
-  - There is **one sharing system**: keepsakes, rendered on demand from a closed five-style
-    registry and never persisted. Do not reintroduce a share-card path, `share_path`, or a
-    stored keepsake cache without a new decision. The render input is a closed struct: never add
-    the display name, tokens, links or counts to it.
+  - There is **one sharing system**: keepsakes in two families (five Single-photo styles, five
+    Full Set styles) in one closed registry, rendered on demand and never persisted. Do not
+    reintroduce a share-card path, `share_path`, or a stored keepsake cache without a new
+    decision. The render inputs are closed structs: never add the display name, welcome message,
+    tokens, links or counts to them, and never add a message or per-photo metadata to the Full
+    Set input.
+  - **The server derives a Full Set's captures.** `getFullSetSources` selects by the cookie's
+    guest session **and** event, and requires exactly five committed, unhidden, undeleted
+    captures, ordered by `(committed_at, slot_index)`. Never accept capture ids from the client
+    for a Full Set, never build a partial one, and never reorder. Full Set crops are the
+    deterministic `coverCrop` rule. No smart crop, face detection or other content analysis.
   - Accent colors are registry keys. Never interpolate a host-entered string into CSS or SVG
     (SVG text always goes through `escapeXml`).
   - The signage QR plate is never themed: dark on light, untouched quiet zone, nothing inside it,
@@ -148,8 +159,10 @@ change, not a refactor.
   a guest sharing media already on their device.
 - No AI anywhere in the guest capture flow.
 - Keepsake designs are "keepsake styles", never "frames". Copy must not tie the five styles to
-  the five-photo allowance. Nobody gets an editor: the host sets image, accent and hashtag, and
-  the guest picks a style.
+  the five-photo allowance, and must never merge the two families ("ten styles"). Nobody gets an
+  editor: the host sets image, accent and hashtag, and the guest picks a style.
+- The Full Set is never a goal. Before a session has five committed, visible captures, it is
+  absent: no locked or teaser state, no "unlock", and no progress toward it.
 
 ## Verification
 

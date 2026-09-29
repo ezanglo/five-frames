@@ -2,7 +2,8 @@
 
 **Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
 pass, "Desktop and browser" below). **Event Theme & Keepsakes: designed 2026-09-30, not built,
-awaiting human visual approval** (see that section). The contracted FiveFrames
+awaiting human visual approval** (see that section). **Full Set keepsakes: not yet designed.
+They need a bounded `/design-app` amendment** (see "Full Set keepsakes" in that section). The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24
@@ -290,6 +291,9 @@ and the label beside it names the color, so selection is never shown by color al
 
 ### The five keepsake styles (`lib/keepsakes/`)
 
+These are the **Single-photo** family (product.md §10.2.1). The Full Set family is separate and
+not yet designed (see "Full Set keepsakes" below).
+
 Canvas **1080 × 1350 (4:5)** for all five. Order and ids: `print` (preselected), `booth`,
 `poster`, `journal`, `album`.
 
@@ -339,6 +343,42 @@ Rules for all five:
   shows only "Download original".
 - **Motion:** on open the photo settles into the preselected style (240ms `--ease-settle`), and
   style changes cross-fade in 160ms. Under reduced motion both are instant.
+
+### Full Set keepsakes (awaiting `/design-app` amendment)
+
+**Status: not designed.** Product: product.md §10.2.2 and criteria 54–66. Architecture: D20 and
+architecture §7b. The Single-photo styles above are unchanged. Nothing here is a design decision
+yet.
+
+**The amendment must decide:**
+
+- the five Full Set compositions and their names;
+- the preselected style;
+- the exact geometry of the signature brandmark-derived style (two landscape, two portrait, then
+  the closing square; no four corners meeting; capture 5 in the square);
+- the one shared Full Set canvas size;
+- mixed-orientation rules and the crop focus bias;
+- the picker information architecture (a separate choice from the Single-photo picker, never ten
+  in one list);
+- where the Full Set appears in the own view and the completion state (calm, and absent until
+  available);
+- the Full Set previews in the host Look studio;
+- mobile and desktop presentation.
+
+**Constraints it inherits from architecture (not open):**
+
+- The Satori CSS subset, as for the Single-photo styles.
+- One canvas for all five Full Set styles, at or below about 2.5 MP.
+- Each style declares five slot rectangles in commit order.
+- Every slot is a deterministic cover crop with a per-template focus, never content-aware.
+- The theme image never occupies or resembles a slot.
+- No guest message, display name, welcome message or per-photo metadata. The event date is
+  optional per style.
+
+**Crop note for the design:** at the logo's literal frame ratio (76:36, about 2.1:1), a portrait
+capture in a landscape slot shows only about 35% of its height. The construction is canonical,
+but the design should choose slot ratios and compositions that still look intentional with
+ordinary mixed-orientation sets.
 
 ### Signage (`lib/media/signage.ts`)
 

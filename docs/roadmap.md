@@ -366,10 +366,12 @@ the two outputs that consume it. Slices 16 and 17 depend only on 15 and could sw
 change. Slices 1–14 are unaffected, apart from Slice 16 replacing Slice 10's share-card code path.
 
 **Prerequisite for all three: the design pass** (`/design-app`) for the Look step and Settings →
-Look, themed guest screens, the five keepsake styles and the picker, the curated accent set, and
-themed signage layouts (see `docs/design-direction.md` → "Event Theme & Keepsakes"). Each slice can
-build its server side before its visuals are final, but it is not complete until its screens and
-outputs match the approved design.
+Look, themed guest screens, the five Single-photo keepsake styles and the picker, the curated accent
+set, and themed signage layouts (see `docs/design-direction.md` → "Event Theme & Keepsakes"). Each
+slice can build its server side before its visuals are final, but it is not complete until its
+screens and outputs match the approved design. **Full Set keepsakes** (product.md §10.2.2, D20,
+added the same day) need a further bounded `/design-app` amendment before Slice 16 Phase B. It
+does not block Slice 15, Slice 16 Phase A or Slice 17.
 
 ---
 
@@ -403,36 +405,128 @@ visual check of themed guest screens with and without an image, each accent, lon
 
 ---
 
-## Slice 16 — Keepsakes (replacing share cards)
+## Slice 16 — Keepsakes, both families (replacing share cards)
 
-**Objective:** A guest turns one of their own photos into a themed keepsake in one of exactly five
-styles and shares or saves it, with the original untouched. This is the only sharing system.
+**Objective:** A guest turns their own photos into themed keepsakes and shares or saves them. There
+are two families: **Single-photo** (any one capture, five styles) and **Full Set** (once their
+session has five committed, visible captures: all five together, five styles). Originals stay
+untouched, and this is the only sharing system (architecture §7b, D19, D20).
 
-- `lib/keepsakes/` registry of exactly five styles (JSX, Satori subset), preselected style constant;
-  the current share-card layout moves in or is retired per design.
-- `KeepsakeInput` builder (closed struct; no display name, links, tokens).
-- `GET /e/[token]/keepsake/[captureId]/[styleId]` (architecture §7b): per-request authorization,
-  sharing toggle, lifecycle/expiry, JPEG output, `?download=1` for save.
-- Guest picker from the own view: **share** and **save keepsake** open one style choice with five
-  DOM-rendered previews on the guest's photo; the selected style's bytes are fetched on selection,
-  so the Share tap calls `navigator.share` immediately; save fallback. Original download unchanged.
-- Host Look page gains keepsake style previews (sample photos, the event's theme), in every editable
-  state including Draft.
-- Retire the share-card path: remove the `getShareCard` action and `lib/dal/share-cards.ts`; stop
-  using `captures.share_path`; idempotent cleanup of existing `…/share` objects, then a migration
-  drops the column and D18 stops listing it.
+**One slice, two internal phases.** Both phases share one registry, one render pipeline, one DAL
+module, one picker pattern and one sharing toggle. Splitting them into two slices would mean
+building the renderer twice.
 
-**Criteria:** 29, 30, 31, 44, 45, 46, 47, 48, plus the keepsake portions of 40 and 41
-**Dependencies:** Slice 15.
-**Verification:** Unit: exactly five styles; input builder excludes display name/links/tokens.
-Integration: another guest's capture, a hidden or deleted capture, sharing off, an expired event,
-and an unknown style are all refused (generic not-found except sharing-off); pre-reveal keepsake
-exposes no gallery data; the original is byte-identical after keepsakes are made in every style; no
-frame is consumed and no gallery item appears; no storage object is written. Rendered samples of
-every style for portrait/landscape/square × theme image on/off × hashtag on/off × message on/off,
-human-inspected against the DOM previews. **Real devices (human, not emulation):** share sheet on
-iPhone Safari and Android Chrome; save in Facebook/Messenger/Instagram in-app browsers; cancel the
-share sheet and retry. This supersedes Slice 14 §7's share-card checks.
+- Phase A must pass its own verification before Phase B starts.
+- Phase A is shippable alone. If `/build-app` finds the combined slice too large when it starts,
+  Phase B can become its own slice at this boundary without any architecture change.
+
+### Phase A — Single-photo keepsakes
+
+- `lib/keepsakes/` registry with `family`, stable ids unique across both families, one canvas
+  constant per family, and one preselected-style constant per family. Five Single-photo styles
+  (JSX, Satori subset). The current share-card layout moves in or is retired, per design.
+- Shared `KeepsakeContext` builder, plus `SingleKeepsakeInput` (closed struct; no display name,
+  links or tokens).
+- `GET /e/[token]/keepsake/photo/[captureId]/[styleId]`:
+  - per-request authorization;
+  - sharing toggle;
+  - lifecycle/expiry check;
+  - re-confirm before responding;
+  - JPEG output;
+  - `?download=1` for save.
+- Guest picker from the own view:
+  - **share** and **save keepsake** open one style choice, with five DOM-rendered previews on the
+    guest's photo;
+  - only the selected style's bytes are fetched, on selection, and changing style aborts the
+    previous fetch;
+  - the Share tap calls `navigator.share` with bytes already in hand;
+  - save is the fallback;
+  - original download is unchanged.
+- Host Look page gains Single-photo style previews (sample photos, the event's theme) in every
+  editable state, including Draft.
+- Retire the share-card path:
+  - remove the `getShareCard` action and `lib/dal/share-cards.ts`;
+  - stop using `captures.share_path`;
+  - run an idempotent cleanup of existing `…/share` objects;
+  - then a migration drops the column, and D18 stops listing it.
+- **Measure** the Single-photo render against D19's target (architecture §7b).
+
+**Phase A criteria:** 29, 30, 31, 44, 45, 46, 47, 48, plus the keepsake portions of 40 and 41.
+
+### Phase B — Full Set keepsakes
+
+**Prerequisite:** the Full Set `/design-app` amendment (`docs/design-direction.md` → "Full Set
+keepsakes"). It must supply the five compositions and their slot rectangles, the family canvas,
+the preselected style and the crop focus bias.
+
+- Five Full Set registry entries, each declaring five slot rectangles, including the signature
+  brandmark-derived style (slots 1 and 3 landscape, 2 and 4 portrait, 5 the closing square).
+- `coverCrop` (a pure function with CSS `object-position` semantics), plus the `sharp` pre-crop to
+  each slot's pixel box.
+- `FullSetKeepsakeInput`: no message field and no per-photo metadata. The theme image is a
+  separate input.
+- `getFullSetSources(eventId, guestSessionId)` in `lib/dal/keepsakes.ts`:
+  - selects the committed captures of the cookie's session and event, including hidden and
+    deleted rows;
+  - ordered by `(committed_at, slot_index)`;
+  - eligible only if there are exactly five rows and all are visible with display derivatives;
+  - no partial result.
+- `GET /e/[token]/keepsake/set/[styleId]`: no capture ids and no session id in the request; the
+  same checks, re-confirm and response contract as Phase A.
+- Availability flag from the same DAL function (plus `sharing_enabled`):
+  - the Full Set entry point in the guest's own view, and on the completion state where design
+    places it;
+  - absent (not disabled) when unavailable;
+  - no locked, teaser or progress state.
+- Full Set picker: DOM previews from the five captures' thumbnail derivatives, the same
+  prepare-on-selection behavior, and the same share/save.
+- Host Look page gains Full Set style previews on five bundled mixed-orientation sample photos,
+  in every editable state.
+- **Measurement gate** (architecture §7b): Full Set p95 ≤ 2.5 s warm and ≤ 5 s cold, peak memory
+  ≤ half the configured memory, JPEG ≤ ~800 KB, measured on a Vercel preview. Record the results
+  in progress. If the gate is missed after tuning, stop and raise the D19 runner-up (persisted,
+  content-addressed Full Sets) as a new decision. Don't adopt it silently.
+
+**Phase B criteria:** 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, plus 29 for the Full Set
+family.
+
+**Dependencies:** Slice 15. The Single-photo design (done, awaiting approval) is needed for Phase
+A. The Full Set design amendment is needed for Phase B.
+
+**Verification:**
+
+- **Unit:**
+  - exactly five styles per family, with ids unique across both;
+  - both input builders exclude display name, welcome message, links and tokens, and the Full Set
+    input has no message;
+  - each Full Set style has five in-bounds, non-overlapping slots;
+  - the signature style's slot geometry is correct (2 landscape, 2 portrait, square last, no four
+    corners meeting);
+  - `coverCrop` is deterministic and matches CSS semantics.
+- **Integration against real Postgres + Storage, refused requests:**
+  - Both families: another guest's capture, sharing off, an expired event, and an unknown style,
+    or a style from the other family, are all refused. Every refusal is a generic not-found,
+    except sharing-off.
+  - Single-photo: a hidden or deleted capture is refused.
+  - Full Set: fewer than five committed captures, one hidden, one deleted, and another session's
+    or event's captures are all refused.
+- **Integration against real Postgres + Storage, what must hold:**
+  - hide → refused; unhide → the same five captures in the same order;
+  - equal `committed_at` values order by `slot_index`;
+  - a hide landing between render and response returns not-found;
+  - a pre-reveal keepsake of either family exposes no gallery data;
+  - originals are byte-identical after keepsakes are made in every style of both families;
+  - no frame is consumed, no gallery item appears, and no row or storage object is written.
+- **Rendered samples, human-inspected against the DOM previews:**
+  - Single-photo: portrait, landscape and square photos × theme image on/off × hashtag on/off ×
+    message on/off.
+  - Full Set: all-portrait, all-landscape and mixed sets (including a portrait photo in a
+    landscape slot) × theme image on/off × hashtag on/off.
+- **Real devices (human, not emulation), for both families:**
+  - the share sheet on iPhone Safari and Android Chrome;
+  - save in the Facebook, Messenger and Instagram in-app browsers;
+  - cancelling the share sheet and retrying.
+- These checks supersede Slice 14 §7's share-card checks.
 
 ---
 
@@ -466,5 +560,5 @@ preview is visibly a preview and does not scan to anything.
   cross the no-browser-Supabase-client boundary and require revisiting D4 (see architecture §9).
 - Custom reveal time.
 - Automated refund execution.
-- Keepsake styles in the public demo (product.md §7.1): the shared templates rendered client-side
-  with a fixed sample theme; D14 unchanged.
+- Keepsake styles of either family in the public demo (product.md §7.1): the shared templates
+  rendered client-side with a fixed sample theme; D14 unchanged.

@@ -4,7 +4,11 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-09-30 (Event Theme & Keepsakes, decision D19: theme config on `events`, a
+Last updated: 2026-09-30 (Full Set keepsakes, decision D20: a second keepsake family of five
+styles in the same registry and renderer; the server derives a session's five eligible captures
+in `(committed_at, slot_index)` order; deterministic geometric cover crops; one family canvas
+chosen by design; still on demand and never persisted — §7b, §10, §11, §13. Earlier the same day:
+Event Theme & Keepsakes, decision D19: theme config on `events`, a
 private `event-theme` bucket, keepsakes rendered on demand from a closed five-style registry and
 never persisted (replacing share cards and `share_path`), themed signage with a placeholder-QR
 Draft preview — §4, §7a–§7c, §10. **Architecture only; not yet implemented** (roadmap Slices
@@ -65,7 +69,7 @@ solving any requirement in the spec.
 | Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit); also normalizes the theme image (D19, planned) |
-| Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built for the share card (Slice 10); evolves into the five keepsake styles (D19, planned) |
+| Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built for the share card (Slice 10); evolves into the Single-photo and Full Set keepsake families (D19, D20, planned) |
 | Signage | Self-contained SVG strings + `qrcode` | Built — Slice 8; theming and Draft preview planned (D19) |
 | Scheduled work | Vercel Cron | Built — Slice 12 (`GET /api/cron/lifecycle`, daily, `vercel.json`) |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
@@ -94,8 +98,9 @@ lib/
   auth/                   Host session, guest session, operator authorization, token verification
   media/                  Storage paths, signed URLs, derivative generation, signage, QR
   theme/                  Curated accent registry + deriveAccentRoles (contrast safeguard) (D19)
-  keepsakes/              The five-style registry and its JSX templates, shared by the server
-                          renderer and browser previews; replaces media/share-card (D19)
+  keepsakes/              The keepsake registry (two families of five styles) and its JSX
+                          templates, shared by the server renderer and browser previews;
+                          replaces media/share-card (D19, D20)
 proxy.ts                  (if needed) — Next 16 renamed middleware to Proxy
 supabase/migrations/      SQL migrations, source of truth for schema
 ```
@@ -142,7 +147,9 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
   `message`, storage keys, moderation flags (`hidden_at`, `deleted_at`, `favorited_at`),
-  `committed_at`. There is no `kind` column: every capture is a photo. `share_path` (Slice 10's
+  `committed_at`. There is no `kind` column: every capture is a photo. `committed_at` is written
+  once, when the row becomes `committed`, and never rewritten; with `slot_index` it gives a
+  session's committed captures a total, stable order (Full Set photo order, §7b). `share_path` (Slice 10's
   share-card cache) is **retired** by D19: keepsakes are not persisted, so nothing replaces it
   (§7b).
 - **`payments`** — one row per event, source-agnostic (§8, D16). Not yet built (Slice 7/8 land
@@ -433,9 +440,9 @@ against real persisted data — only the guest capture interaction and a locally
 gallery. That is exactly the scope §7.1 asks for ("the core mechanic: capturing into five frames
 and seeing the resulting gallery experience"), not a limitation to work around.
 
-If the demo shows keepsake styles (product.md §7.1, MVP-optional), it renders the shared keepsake
-templates in the browser (§7b) with a fixed sample theme and sample/local photos. D14 is
-unchanged: no server call, no theme upload, no signage, no QR.
+If the demo shows keepsake styles of either family (product.md §7.1, MVP-optional), it renders
+the shared keepsake templates in the browser (§7b) with a fixed sample theme and sample/local
+photos. D14 is unchanged: no server call, no keepsake route, no theme upload, no signage, no QR.
 
 ---
 
@@ -478,8 +485,9 @@ reserve/commit gate, that makes "connection drops mid-upload" cheap for large fi
 - The original is stored untouched in a private bucket.
 - **Display** and **thumbnail** derivatives are generated server-side with `sharp` after commit
   and written as separate objects. **The original is never modified** (invariant 10).
-- **Keepsakes** (§7b) are further derived outputs, rendered on demand from the display derivative
-  and never stored. They replace Slice 10's share cards. Never a mutation of the original.
+- **Keepsakes** (§7b) are further derived outputs, rendered on demand from display derivatives
+  (one for a Single-photo keepsake, five for a Full Set) and never stored. They replace Slice
+  10's share cards. Never a mutation of the original.
 - **HEIC/HEIF:** accepted on upload; `sharp` decodes it into the JPEG display derivative with no
   separate conversion step (validated on a real iPhone in Slice 2).
 
@@ -584,108 +592,356 @@ after a partial failure is still a no-op-safe sweep.
 
 ---
 
-## 7b. Keepsakes (one sharing system)
+## 7b. Keepsakes (one sharing system, two families)
 
-product.md §10.2–§10.3, invariants 10 and 14; decision D19. A keepsake is Slice 10's share card
-generalized to five styles, and **it replaces that code path**. There is one sharing system.
+product.md §10.2–§10.3, invariants 10 and 14; decisions D19 and D20. A keepsake is Slice 10's
+share card generalized, and **it replaces that code path**. There is one sharing system. It has
+two families:
+
+| Family | Source | Styles | Route |
+|---|---|---|---|
+| Single-photo | One committed capture, chosen by the guest | 5 | `GET /e/[token]/keepsake/photo/[captureId]/[styleId]` |
+| Full Set | The requesting session's five committed captures, **derived by the server** | 5 | `GET /e/[token]/keepsake/set/[styleId]` |
+
+Both families use the same registry, render pipeline, DAL module (`lib/dal/keepsakes.ts`),
+response contract, sharing toggle and preview approach. They differ only in how the source photos
+are resolved and in the shape of the render input.
 
 ### Style registry
 
-`lib/keepsakes/` holds a closed registry: exactly five entries, each `{ id, label, canvas, Template }`
-with a stable string `id`, plus one registry constant for the preselected style. A unit test
-asserts the count is exactly five. There is no template engine, no host/guest template data, and no
-per-event style configuration (product.md §10.4). Styles are ordinary code, reviewed like code.
+`lib/keepsakes/` holds one closed registry: two families, each with exactly five entries.
+
+```
+Single-photo entry: { family: "single",  id, label, Template }
+Full Set entry:     { family: "fullSet", id, label, slots: [SlotRect × 5], Template }
+```
+
+- **`id`** is a stable string, unique across **both** families, so a style id identifies its
+  family. A route refuses an id that belongs to the other family. Product-facing code never lists
+  the ten together (product.md §10.2).
+- **Canvas is set per family, not per style.** `SINGLE_CANVAS` is 1080 × 1350, set by the design
+  pass. `FULL_SET_CANVAS` is one fixed size shared by all five Full Set styles. The `/design-app`
+  amendment chooses it. No canvas is ever set per event or per guest. The Full Set canvas stays
+  at or below about 2.5 megapixels, so a Full Set's render cost and output size stay close to a
+  Single-photo keepsake's.
+- **A Full Set entry declares its five slot rectangles** in canvas pixels, in canonical order. The
+  template draws `photos[i]` in `slots[i]` and puts nothing else in a slot. The server pre-crop and
+  the browser preview (below) read the same rectangles.
+- There is one preselected-style constant per family.
+- Unit tests assert that each family has exactly five entries and that ids are unique across both
+  families. For every Full Set entry, they assert five in-bounds, non-overlapping slots.
+- There is no template language, no host or guest template data, and no per-event style
+  configuration (product.md §10.4). Styles are ordinary code, reviewed like code.
+
+**The signature Full Set style** (product.md §10.2.2) is one entry of this registry. It has two
+landscape slots, two portrait slots and a closing square, with no four corners meeting, and slot 5
+is the square. That geometry lives only in the entry's slot rectangles and template. It may derive
+from the construction in `lib/brand/logo.ts`, and it gets the same kind of geometry test that
+`logo.test.ts` applies to the symbol. Nothing about it is stored in the database, and the routes
+know nothing about it.
 
 Each `Template` is a pure JSX component limited to the CSS subset Satori supports (flexbox,
-absolute positioning, borders, radius, `object-fit`, bundled fonts). It renders identically in two
-places:
+absolute positioning, borders, radius, `object-fit`/`object-position`, bundled fonts). It renders
+identically in two places:
 
-- **Server, for the exported keepsake:** `ImageResponse` (Satori + resvg) at the style's fixed
-  canvas, then `sharp` → JPEG (quality ~88, no metadata). Photographic output as JPEG is roughly
-  5–10× smaller than resvg's PNG, which matters on venue networks.
-- **Browser, for previews:** the same component rendered by React DOM inside a fixed-size box scaled
-  to fit. It is used by the guest's style picker, the host's Look previews (with bundled sample
-  photos), and optionally the demo (D14: client-only, fixed sample theme, no server).
+- **Server, for the exported keepsake:** `ImageResponse` (Satori + resvg) at the family canvas,
+  then `sharp` → JPEG (quality ~88, no metadata). Photographic output as JPEG is roughly 5–10×
+  smaller than resvg's PNG, which matters on venue networks.
+- **Browser, for previews:** the same component, rendered by React DOM inside a fixed-size box
+  scaled to fit (see "Previews" below).
 
-### Render input: a closed struct
+### Render inputs: closed structs
 
 ```
-KeepsakeInput = {
-  style: KeepsakeStyleId
-  photo: { bytes, width, height }         // the capture's display derivative (auto-oriented, ≤1600px)
-  event: { name, dateLabel, hashtag|null } // dateLabel from event_date
+KeepsakeContext = {                                // shared by both families
+  event: { name, dateLabel|null, hashtag|null }    // dateLabel from event_date
   theme: { accent: AccentRoles, image: bytes|null }
-  message: string|null                     // the capture's committed message
 }
+SingleKeepsakeInput = KeepsakeContext & {
+  style: SingleStyleId
+  photo: { bytes, width, height }                  // the capture's display derivative
+  message: string|null                             // the capture's committed message
+}
+FullSetKeepsakeInput = KeepsakeContext & {
+  style: FullSetStyleId
+  photos: [SlotPhoto, SlotPhoto, SlotPhoto, SlotPhoto, SlotPhoto]  // canonical order, cropped to slot
+}
+SlotPhoto = { bytes, width, height }
 ```
 
-The builder that creates it takes the event row and the capture row, and copies only these fields.
-It never copies the guest display name, tokens, links, counts, timezone, lifecycle, payment or host
-data, and a unit test asserts that (invariant 14, product.md §10.2 "never contains"). No QR or URL
-can appear because none is an input. Text reaches Satori as React text nodes, never parsed markup,
-so HTML injection through the event name, message or hashtag is structurally impossible. Templates
-truncate to their layout bounds and must degrade cleanly on glyphs the bundled fonts lack.
+One context builder copies only these fields from the event row. It never copies the guest display
+name, the welcome message, tokens, links, counts, timezone, lifecycle, payment or host data. A unit
+test asserts the exact keys of each builder's output (invariant 14, product.md §10.2 "never
+contains").
 
-**Orientation:** each template classifies the photo as portrait / square / landscape from its
-dimensions. It lays out with `contain`, or a modest crop that applies only inside the keepsake, and
-never overlays the theme image on the photo. The original and its derivatives are only read.
+- **The Full Set input has no message field**, so no guest message can reach a Full Set template.
+  It has no per-photo metadata either: a `SlotPhoto` is pixels and dimensions only, with no
+  timestamp, id or capture reference.
+- Each template decides whether it shows `dateLabel`. Showing the date is optional per template.
+- The theme image is a separate field and never an element of `photos`. A template therefore has
+  no way to put it in a capture slot, and it is never a sixth source image.
+- No QR or URL can appear, because none is an input.
+- Text reaches Satori as React text nodes, never as parsed markup, so HTML injection through the
+  event name, message or hashtag is structurally impossible.
+- Templates truncate text to their layout bounds and must degrade cleanly on glyphs the bundled
+  fonts lack.
+
+### Full Set sources and order
+
+The DAL function `getFullSetSources(eventId, guestSessionId)` is the **only** way to obtain a Full
+Set's photos. It never accepts capture ids from the client.
+
+- **Selection:** every `committed` capture where `guest_session_id = $session AND event_id =
+  $event`, **including hidden and deleted rows**, ordered by `committed_at, slot_index`. Both
+  predicates always apply, so no capture from another session or another event can appear.
+- **Eligibility:** the set is eligible only if exactly five rows come back and every row has
+  `hidden_at IS NULL`, `deleted_at IS NULL` and a display derivative. Otherwise the result is "not
+  available". There is no partial result, so nothing downstream can build a four-photo Full Set or
+  fill a gap.
+- **Order is `(committed_at ASC, slot_index ASC)`:**
+  - `committed_at` is set exactly once, in the guarded `pending → committed` update (§6), and never
+    rewritten. Moderation only writes `hidden_at`, `deleted_at` and `favorited_at`.
+  - `slot_index` is unique among one session's committed rows (the D5 partial unique index), so it
+    breaks any timestamp tie. The order is total, and it is stable across reloads, hide/unhide and
+    time.
+  - **No schema change is needed.**
+  - The order never uses upload-start order, `created_at`, storage paths or anything the client
+    sends. Position 5, the fifth committed capture, is the closing square in the signature style.
+- **Hidden vs. deleted needs no extra state:**
+  - Moderation never changes `status` (§6), so a deleted capture stays a committed row and keeps
+    holding its slot. A session with a deleted capture can never again have five visible committed
+    captures, so its Full Set is **permanently** unavailable by construction. No flag has to be
+    maintained, and the frame is not restored.
+  - A hidden capture blocks the Full Set only while `hidden_at` is set. Unhiding restores
+    eligibility, with the same five captures in the same order.
+- **The same function drives availability in the UI:** it plus `sharing_enabled` sets the flag on
+  the guest's own view and completion screen, so the page and the route cannot disagree. Where the
+  flag is false, the Full Set is **absent** from the page, not shown disabled (product.md §10.2.2).
+
+### Crop and orientation
+
+- **Sources are the display derivatives** (≤ 1600 px JPEG). They were auto-oriented from EXIF with
+  `sharp().rotate()` at commit and carry no metadata, so their stored dimensions are the true
+  upright ones. Originals are never read or written.
+- **Single-photo:** unchanged. The photo is contained, never stretched, and never cropped more than
+  modestly (the design pass's rule).
+- **Full Set:** each slot is filled by a **cover crop** of its photo. The photo is scaled uniformly
+  until it covers the slot, and the overflow is trimmed. Nothing is ever stretched.
+  - The crop is a pure function, `coverCrop(photoW, photoH, slotW, slotH, focus)`, with CSS
+    `object-position` semantics: on each axis, the trimmed amount is split `focus : (1 − focus)`.
+  - **The focus is a template constant, not a per-photo value.** Horizontally it is centred.
+    Vertically it is centred, except when a taller photo is cropped into a wider slot. Then the
+    focus is biased toward the top, because people's heads usually sit in the upper part of a
+    portrait frame. The exact bias is tuned in design.
+  - That is the whole strategy: deterministic, orientation-aware, testable, and with no image
+    analysis.
+- **No AI and no content analysis.** There is no face or subject detection, and not libvips'
+  `attention`/`entropy` smart crop either. Those are content-dependent, the browser preview cannot
+  reproduce them (so preview and export would disagree), and they can lock onto a bright
+  background. No per-capture focal point is stored, because nobody is allowed to set one
+  (product.md §10.5).
+- **Honest limitation:** a geometric crop doesn't know where the people are.
+  - A portrait photo in a landscape slot keeps only part of its height. That is about 50% of a 3:4
+    portrait in a 3:2 slot, and about 35% at the brandmark's literal 76:36 frame ratio.
+  - A subject that isn't near the focus can be cut off.
+  - Design reduces this by avoiding extreme slot ratios and compositions that depend on a perfect
+    crop. Only content analysis could remove it, and MVP excludes that.
+- **Server:** before composition, `sharp` crops each source to its `coverCrop` rectangle and
+  resizes it to the slot's pixel box (`extract` + `resize`). Satori/resvg then embed five
+  slot-sized images, not five 1600 px ones.
+- **Browser:** the same template draws the uncropped image with `object-fit: cover` and the same
+  `object-position`. By definition, that is the same crop.
+- A unit test checks `coverCrop` against the CSS rule for portrait, landscape and square inputs in
+  every slot shape, and checks that the same inputs always produce the same rectangles.
 
 ### Request, authorization, response
 
-`GET /e/[token]/keepsake/[captureId]/[styleId]` (Route Handler). It is side-effect free, so it is a
-GET and needs no CSRF token. Every request re-checks, in the DAL:
+Both routes are Route Handlers under `/e/[token]/keepsake/`. They are side-effect free, so they
+are GETs and need no CSRF token.
+
+- The Full Set URL contains no guest session id and no capture ids. The session comes from the
+  signed guest cookie, and the captures come from `getFullSetSources`.
+- The client sends only the event token (already in the path), its cookie, and the selected style.
+
+Every request re-checks, in the DAL:
 
 1. `event_token` resolves to an event whose lifecycle is not expired/archived;
 2. the signed guest cookie holds a session for **this** event;
-3. the capture matches `(id, guest_session_id, event_id)`, is `committed`, not hidden, not
-   deleted, and has a display derivative;
-4. `sharing_enabled` is true;
-5. `styleId` is in the registry.
+3. `sharing_enabled` is true;
+4. `styleId` is in the registry **for this route's family**;
+5. the sources resolve:
+   - **Single-photo:** the capture matches `(id, guest_session_id, event_id)`, is `committed`, is
+     not hidden or deleted, and has a display derivative;
+   - **Full Set:** `getFullSetSources` returns an eligible set.
 
-Any failure of 1–3 or 5 returns the same generic not-found (no oracle for probing other guests'
-capture ids, as today). A failure of 4 returns "sharing disabled". It never loads sibling captures
-and never consults gallery visibility, so it works identically before and after reveal without
-exposing either.
+The server then renders and **re-confirms before it responds**. One indexed query checks that the
+source capture ids are still committed, not hidden and not deleted. If a host's hide lands while a
+render is in flight, the guest gets not-found, not the bytes. The check is cheap and shared by
+both families.
 
-Response: `image/jpeg`, `Cache-Control: private, no-store`, filename
-`fiveframes-{event-slug}-{style}.jpg` (no guest name). `?download=1` adds
-`Content-Disposition: attachment` for the **save** action, so saving works by plain navigation in
-in-app browsers where blob downloads are unreliable. **Share vs. save** is otherwise a client
-concern over the same bytes. The client fetches the selected style's bytes **when the style is
-selected** (including the preselected one when the picker opens), so the Share tap calls
-`navigator.share({ files })` with the bytes already in hand, inside the user gesture. Save is the
-fallback wherever the share sheet is unavailable.
+Responses:
+
+- A failure of check 1, 2, 4 or 5, or of the re-confirm, returns the same generic not-found. There
+  is no oracle for probing other guests' capture ids or eligibility, as today.
+- A failure of check 3 returns "sharing disabled".
+- Neither route loads another session's captures or consults gallery visibility. Both work
+  identically before and after reveal without exposing either.
+
+A successful response is `image/jpeg` with `Cache-Control: private, no-store` and the filename
+`fiveframes-{event-slug}-{style}.jpg` (no guest name).
+
+- `?download=1` adds `Content-Disposition: attachment` for the **save** action, so saving works by
+  plain navigation in in-app browsers where blob downloads are unreliable.
+- Otherwise, **share vs. save** is a client concern over the same bytes.
+
+**Prepare before the Share tap (both families).**
+
+- The client fetches **only the selected style's** bytes, when that style is selected. That
+  includes the preselected style when the picker opens.
+- Changing style aborts the previous fetch (`AbortController`) and prepares the newly selected
+  style.
+- The Share tap calls `navigator.share({ files })` with the bytes already in hand, inside the user
+  gesture. Save is the fallback wherever the share sheet is unavailable.
+- Other styles are never rendered speculatively.
+
+**What a prepared file can and can't do.**
+
+- Authorization is evaluated when the server renders and re-confirmed just before it responds.
+  Once the bytes reach the guest's device, they cannot be revoked.
+- Suppose the host hides one of the five after a Full Set was prepared but before the guest taps
+  Share. The tap shares the bytes the device already holds. Re-checking at tap time would put a
+  network round trip inside the gesture `navigator.share` needs, which defeats the reason for
+  preparing.
+- The exposure is bounded to one open picker:
+  - prepared bytes live only in memory and are dropped when the picker closes;
+  - they are never written to Cache Storage, IndexedDB or a service worker;
+  - every new selection, save navigation or reopen is re-authorized against current state.
+- This is the same boundary as product.md §10.3's "exported keepsakes can't be recalled" (an
+  accepted risk). The architecture claims no revocation beyond it.
+
+### Previews
+
+Picker thumbnails and host Look previews are the real templates rendered by React DOM (§7c). They
+are never server renders.
+
+- **Guest, Single-photo:** the previews use the capture's image, which the own view has already
+  loaded.
+- **Guest, Full Set:** the five style thumbnails use the **thumbnail derivatives** of the five
+  captures, which the own view already holds. All five style thumbnails share the same five URLs,
+  so the browser loads each image once. A larger preview stage may use the display derivatives.
+  Opening the Full Set picker therefore costs one server render (the preselected style's export),
+  not 5 × 5 compositions.
+- **Host Look:** both families, drawn on bundled sample photos with the event's theme, in every
+  editable state. The Full Set needs five samples of mixed orientation, including a portrait
+  photo that lands in a landscape slot. No guest data and no token are involved.
+- **Demo (D14):** DOM previews of either family, with a fixed sample theme and sample or in-memory
+  local photos, and no server call. If the demo ever offers a save, it rasterizes in the browser
+  and marks the image as a demo sample. It never calls the keepsake routes.
+- **Parity:** DOM vs. Satori output is checked visually per style, for both families, in Slice 16.
+  - The Full Set's crops can't drift, because both paths use `coverCrop`'s rule.
+  - If parity is poor, the fallback is small server-rendered previews from the same templates.
+    That is reversible and needs no new decision.
+  - For the Full Set, that fallback reads five sources per thumbnail, so it is a last resort there.
 
 ### Caching and invalidation
 
-**None persisted.** Every export renders from the current event row and theme (product.md §10.2).
-Changing the theme image, accent, hashtag, name, date or the style design therefore can never leave
-a stale branded output on the server. Exported keepsakes on guests' devices are out of reach by
-product decision (§10.3, accepted risk). Browser previews use the theme loaded when the picker opens.
-The export is always server-current. The server may keep an in-memory, per-instance cache of theme
-image bytes keyed by `theme_image_path`. Paths are immutable (each upload gets a new UUID), so that
-cache is correct without invalidation.
+**Nothing is persisted, for either family.** Every export renders from the current event row,
+theme and capture rows (product.md §10.2).
+
+- Changing the theme image, accent, hashtag, name, date or a style design can never leave a stale
+  branded output on the server.
+- A hide, unhide or delete takes effect on the next request with no invalidation step.
+- Deleting a source capture needs no keepsake cleanup, because there is nothing to clean up.
+- Exported keepsakes on guests' devices are out of reach by product decision (§10.3, accepted
+  risk).
+- Browser previews use the theme loaded when the picker opens. The export always reflects the
+  server's current state.
+- The server may keep an in-memory, per-instance cache of theme image bytes keyed by
+  `theme_image_path`. Paths are immutable (each upload gets a new UUID), so that cache is correct
+  without invalidation.
 
 ### Cost and performance shape
 
-Server renders happen only on selection or export, never eagerly. The worst case per event is
-250 sessions × 5 captures × a few style selections: low thousands of sub-second renders on
-event day, with zero keepsake storage. Picker and host previews cost no server renders, because
-they reuse the display image already on the device. Theme storage is one ≤ ~2 MB object per event.
-Assumptions to verify in the pilot: render p95, function memory/duration with a 1600 px photo plus
-a 2400 px theme image, JPEG keepsake size, and how many renders a real guest triggers.
+| Per render | Single-photo | Full Set |
+|---|---|---|
+| Source reads | 1 display derivative (~0.2–0.5 MB) | 5 display derivatives (~1–2.5 MB), fetched in parallel |
+| Server work | Decode, compose, JPEG | 5 × (decode, crop, resize), compose, JPEG |
+| Decoded pixels in memory | A few MB | A few tens of MB (five 1600 px sources before cropping), plus the canvas |
+| Theme image | Per-instance cache | Same |
+| Output | One canvas JPEG | One canvas JPEG |
+
+These are estimates, not measurements.
+
+**Demand per guest who opens a picker:**
+
+- previews: 0 renders;
+- opening the picker: 1 render (the preselected style);
+- each further style selected: 1 render;
+- Share: 0 renders (the bytes are already held);
+- Save: 1 render (the `?download=1` navigation);
+- a repeat visit: the same again, because nothing is cached.
+
+Renders happen only on demand, never eagerly, and a Full Set is offered only to sessions that
+already have five eligible captures.
+
+- A realistic event (≤ 250 sessions under D13, some reaching five, a few renders each) produces
+  hundreds of Full Set renders, which means low thousands of source reads.
+- The ceiling, with every session rendering every Full Set style twice, is 2,500 Full Set renders
+  and 12,500 source reads.
+- Both are small at launch scale. **D19's on-demand, never-persisted strategy therefore holds for
+  both families** (D20).
+
+**Slice 16 measurement gate.** Measure on a Vercel preview against the development storage, cold
+and warm:
+
+- Full Set render p95, using five 1600 px sources plus a 2400 px theme image: target ≤ 2.5 s
+  warm and ≤ 5 s cold;
+- peak function memory: at most half the configured function memory;
+- Full Set JPEG size: ≤ ~800 KB;
+- Single-photo: D19's existing target (p95 well under ~2 s, output a few hundred KB).
+
+In the pilot, also record: renders per guest per family, the share of sessions that reach five
+captures, and storage egress per event.
+
+**If the Full Set misses the gate** after ordinary tuning (slot-sized pre-crop, parallel reads,
+JPEG quality), the fallback is D19's recorded runner-up, applied to the Full Set family only:
+content-addressed persisted output.
+
+- The key is a hash of the style, the template version, the five capture ids with their display
+  paths, and every event and theme field in the input.
+- Authorization and the re-confirm still run on every request before stored bytes are served.
+- D18 deletion must remove those objects.
+- Adopting the fallback needs a new decision entry. Nothing is reserved for it now.
+
+### Failure semantics
+
+| Situation | Outcome |
+|---|---|
+| Fewer than five committed captures | No Full Set anywhere in the UI; the route returns generic not-found |
+| One of the five hidden | Same, until the capture is unhidden; then available again, in the same order |
+| One of the five deleted | Same, permanently for that session; no frame restored |
+| Missing cookie/session, bad token, expired lifecycle, or failed re-confirm | Generic not-found |
+| Sharing off | "Sharing disabled" |
+| Unknown style id, or an id from the other family | Generic not-found |
+| A source's bytes missing or undecodable | Retryable server error ("couldn't prepare, try again"). Never a partial Full Set, and never a substituted image |
+| Theme image object missing or undecodable | Render with the style's no-image treatment (every style must already look complete without one) and log it |
+| Satori/resvg/`sharp` error or timeout | Retryable server error |
+
+**The routes write nothing: no row and no object.** So no failure can consume a frame, change a
+capture's state, or touch an original.
 
 ### Migration from share cards
 
-- `lib/media/share-card.tsx` → `lib/keepsakes/` (its layout may become one of the five styles; that
-  is the design pass's call). `lib/dal/share-cards.ts` → `lib/dal/keepsakes.ts` with the same
-  ownership predicate plus the expiry and style checks. The `getShareCard` server action (base64
-  data URL) → the Route Handler above. `use-share-capture.ts` → the picker flow.
+- `lib/media/share-card.tsx` → `lib/keepsakes/` (its layout may become one of the Single-photo
+  styles; that is the design pass's call). `lib/dal/share-cards.ts` → `lib/dal/keepsakes.ts`, with
+  the same ownership predicate plus the expiry and style checks, and `getFullSetSources`. The
+  `getShareCard` server action (base64 data URL) → the two Route Handlers above.
+  `use-share-capture.ts` → the picker flow.
 - `captures.share_path` is retired. Stop reading and writing it. An idempotent cleanup deletes the
   existing `…/share` objects and nulls the column. Then a forward migration drops the column, and
   D18 deletion stops listing it. Until the drop, deletion keeps handling it.
-- `events.sharing_enabled` is unchanged and now governs making, sharing and saving keepsakes
-  (product.md §10.3). It never affects original downloads.
+- `events.sharing_enabled` is unchanged. It now governs making, sharing and saving keepsakes of
+  both families (product.md §10.3), and it never affects original downloads.
 
 ---
 
@@ -741,7 +997,7 @@ sibling inline route; an implementation choice). It is never a separate mock-up.
 | Preview | Rendered by |
 |---|---|
 | Guest screens | The real guest shell components, with sample content and the event's theme, inside a scaled frame on a host-authenticated page. No token and no guest DAL call, so nothing a guest could reach is created |
-| Five keepsake styles | The real keepsake templates in the DOM (§7b), with bundled sample photos (portrait + landscape) |
+| Keepsake styles, both families (five Single-photo, five Full Set) | The real keepsake templates in the DOM (§7b), with bundled sample photos (portrait + landscape; five mixed-orientation samples for the Full Set) |
 | Four signage formats | The real signage renderer, server-side (above) |
 
 Nothing here is a screenshot, so previews cannot drift from production output except through
@@ -880,7 +1136,7 @@ by the DAL) keeps the current boundary intact and should be weighed first.
 | Capture gate | Server-side re-check of paid/active/open on **reserve and commit**, not just page render |
 | Media privacy | Short-lived signed URLs minted after an access check; private buckets (`captures`, `event-theme`) |
 | Theme image | Private bucket; signed URL only after the surface's own check (§7a table); never for the Operator Console; server-chosen paths; SVG never accepted |
-| Keepsake isolation | Per-request check of own committed, non-hidden capture + sharing toggle + lifecycle (§7b); closed render input (no display name, links, tokens) |
+| Keepsake isolation | Per-request check of own committed, non-hidden capture (Single-photo) or the server-derived five eligible captures of the cookie's own session (Full Set), + sharing toggle + lifecycle, re-confirmed before responding (§7b); closed render inputs (no display name, links, tokens; no message in a Full Set) |
 | Signage / preview QR | Live QR only from an activated event's token; Draft previews use the URL-less `preview` type (§7c) |
 | Link secrecy | 128-bit tokens, unique-indexed, rotatable |
 | Secrets | Server-only env vars, read only in `lib/dal/` and `lib/auth/`; no secret is ever `NEXT_PUBLIC_` |
@@ -910,15 +1166,18 @@ secret in the system.
 
 ### Keepsake, theme and preview threat model
 
-The keepsake route takes a capture id and authorizes it against the requesting guest's own
-session. It never loads sibling captures and never consults gallery visibility, so making a
-keepsake before reveal cannot leak the gallery (invariant 14, criterion 29). The paths this
+The Single-photo route takes a capture id and authorizes it against the requesting guest's own
+session. The Full Set route takes no capture ids at all: the server derives the five from the
+cookie's session. Neither loads another session's captures or consults gallery visibility, so
+making a keepsake before reveal cannot leak the gallery (invariant 14, criteria 29 and 56). The paths this
 feature adds, and what closes each one:
 
 | Threat | Mitigation |
 |---|---|
 | Reading another event's theme image | Private bucket, UUID path, signed URLs only after owner/token/granted-gallery check; the locked gallery never loads it |
 | Keepsake of another guest's, hidden, or another event's photo | DAL predicate on `(capture id, guest session, event)` + committed/not hidden/not deleted, re-checked every request; generic not-found |
+| Full Set mixing sessions or events, or substituting another guest's photo | No client-supplied capture ids; `getFullSetSources` selects by both `guest_session_id` (from the signed cookie) and `event_id`, and requires exactly five eligible rows, with no partial result |
+| Stale Full Set after a hide | Eligibility re-derived from current rows on every request and re-confirmed after the render, before responding. Bytes already on the guest's device can't be revoked (bounded to one open picker, §7b) |
 | Bypassing the sharing toggle | Checked server-side in the route, not only by hiding the button |
 | Enumerating cached derivatives | None exist — keepsakes and signage are never persisted |
 | Stale signed URLs | Existing short TTL; replace/remove prunes the object, so old URLs die then |
@@ -927,7 +1186,7 @@ feature adds, and what closes each one:
 | Cross-host theme edits | Ownership predicate on every theme mutation; server-generated upload path; commit verifies the path is under that event's folder |
 | Text injection into images | Satori takes React text nodes (no markup parsing); SVG interpolation always via `escapeXml`; hashtag charset-validated; accent is a registry key, never raw CSS |
 | Hostile image files | SVG never accepted; decode-pixel cap; single-frame check; Storage-enforced size/MIME limits |
-| Render-endpoint abuse | Bounded work per request, cookie + capture authorization; no dedicated limiter in MVP (product.md allows ordinary fair use). Watch pilot logs and add a simple per-session limit if needed |
+| Render-endpoint abuse | Bounded work per request (a Full Set reads five sources, so about 5× a Single-photo render's I/O), cookie + capture authorization; no dedicated limiter in MVP (product.md allows ordinary fair use). Watch pilot logs and add a simple per-session limit if needed |
 
 ---
 
@@ -948,6 +1207,18 @@ Weighted toward the invariants, not toward coverage percentage.
   deletion (D18) emptying the theme folder; originals are byte-identical after keepsakes are made.
   Each style is rendered to image for portrait/landscape/square, with and without theme image,
   hashtag and message, then human-inspected against its DOM preview.
+- **Full Set keepsakes** (D20): exactly five Full Set styles, and style ids are unique across both
+  families; every Full Set entry has five in-bounds, non-overlapping slots; the signature style has
+  two landscape, two portrait and one square slot, with slot 5 square and no four corners meeting;
+  `coverCrop` is deterministic and matches CSS `object-position` semantics; the Full Set input has
+  no message field and none of the forbidden keys. Integration against real Postgres: fewer than
+  five committed captures, one hidden, one deleted, another session's or event's captures, sharing
+  off, an expired event, and a Single-photo style id on the set route are all refused; hide →
+  refused, unhide → the same five in the same order; order is stable under equal `committed_at`
+  (falls back to `slot_index`); a hide between render and response returns not-found; no row or
+  object is written and no frame is consumed. Each Full Set style is rendered for all-portrait,
+  all-landscape and mixed sets, with and without theme image and hashtag, then human-inspected
+  against its DOM preview.
 - **`pnpm typecheck` and `pnpm lint`** on every change.
 - **Manual device validation** on real iPhone and Android hardware, including in-app browsers,
   starting in the first capture slice rather than at final QA (see roadmap). It is human-run and
@@ -987,7 +1258,8 @@ traffic to track, not before.
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |
 | Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | MVP ships sequential signed-URL downloads; server-side archive is a known follow-up |
-| Keepsake render latency/cost higher than assumed (target: p95 well under ~2 s, output a few hundred KB) | Slow share/save on venue networks | Pilot-measure render time, function duration and output size. If needed, add content-addressed persistence (D19's runner-up); the render input is already deterministic |
+| Keepsake render latency/cost higher than assumed (Single-photo target: p95 well under ~2 s, output a few hundred KB; Full Set gate in §7b: p95 ≤ 2.5 s warm, ≤ 5 s cold, ≤ ~800 KB) | Slow share/save on venue networks | Slice 16 measurement gate (§7b). If the Full Set misses it after tuning, add content-addressed persistence for that family (D19's runner-up) via a new decision; the render input is already deterministic |
+| Geometric Full Set crops cut people out (a portrait photo in a landscape slot keeps about half its height, or less at extreme ratios) | Full Sets look careless | Deterministic cover crop with a top-biased focus (§7b); design avoids extreme slot ratios and compositions that need a perfect crop; human review of mixed-orientation renders in Slice 16. No content analysis in MVP |
 | DOM preview ≠ Satori export for a style | Guest/host sees one thing, gets another | Satori-subset CSS only; per-style visual parity check in Slice 16; fallback to small server-rendered previews from the same templates |
 | iOS/in-app browsers reject `navigator.share` after async work, or block blob saves | Share/save fails for some guests | Bytes fetched on style selection, before the Share tap; `?download=1` navigation for save; verified on real devices in Slice 16 |
 | Theme image degrades signage scannability | Guests can't join | Fixed QR plate outside theming; per-format geometry tests; human print-and-scan in Slice 17 |

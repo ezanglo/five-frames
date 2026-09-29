@@ -1,8 +1,10 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-30 (Event Theme & Keepsakes: product spec accepted, architecture/roadmap
-prepared as D19 + Slices 15–17, **design pass done — awaiting human visual approval**,
-implementation **not started** — see the section below. Earlier the same day: brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
+Last updated: 2026-09-30 (Full Set keepsakes: product amendment accepted, architecture amended as
+**D20 (proposed)** and Slice 16 Phases A/B; **Full Set design amendment pending**. Before that
+the same day, Event Theme & Keepsakes: product spec accepted, architecture/roadmap prepared as D19
++ Slices 15–17, **design pass done — awaiting human visual approval**, implementation **not
+started** — see the section below. Earlier the same day: brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
 `awaiting human visual approval`, see "UI/UX redesign — contracted designer handoff" below. Slice
 14 — full-flow real-device and venue-condition validation — is still `awaiting human
 verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
@@ -17,20 +19,30 @@ History and reasoning live in [docs/decisions.md](./decisions.md) (consequential
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
 
-## Event Theme & Keepsakes (2026-09-30): `designed — awaiting human visual approval; implementation not started`
+## Event Theme & Keepsakes (2026-09-30): `designed (Single-photo) — awaiting human visual approval; Full Set design pending; implementation not started`
 
-- **Product:** accepted in product.md §10 / §11.3 (theme image, curated accent, hashtag; five
-  keepsake styles replacing the share card; themed signage; host-only Draft previews; invariant 14).
-- **Architecture:** decision D19; architecture §7a (theme), §7b (keepsakes: on-demand, never
-  persisted, one sharing system), §7c (themed signage, placeholder-QR previews), §10 threat model.
+- **Product:** accepted in product.md §10 / §11.3 (theme image, curated accent, hashtag; keepsakes
+  replacing the share card; themed signage; host-only Draft previews; invariant 14). **Amended
+  the same day:** two keepsake families, five **Single-photo** styles and five **Full Set** styles
+  that combine a session's five committed captures in commit order, one of them built on the
+  brandmark (§10.2.2, criteria 54–66).
+- **Architecture:** decision D19, extended by **D20 (Full Set; status Proposed, awaiting
+  approval)**. Architecture §7a (theme), §7b (keepsakes: two families in one registry and renderer;
+  the Full Set route derives the five captures server-side, ordered `(committed_at, slot_index)`
+  with no schema change; deterministic cover crops; on demand, never persisted; Slice 16
+  measurement gate), §7c (themed signage, placeholder-QR previews), §10 threat model.
 - **Design:** `docs/design-direction.md` → "Event Theme & Keepsakes" (the rules) and
   `docs/design-handoff/FiveFrames_Theme_Keepsakes_v1.0/` (the rendered board: HTML + one PNG per
   section). It covers the seven curated colors with contrast-verified roles (no custom picker),
   the Look studio for Create and Settings, control states, five keepsake styles (Print
   (preselected), Booth, Poster, Journal, Album), the one-step guest picker, and the four themed
   signage formats with the Draft placeholder QR.
-- **Roadmap:** Slice 15 (theme foundation) → Slice 16 (keepsakes, retires share cards and
-  `share_path`) and Slice 17 (themed signage + previews).
+- **Full Set design: not started.** It needs a bounded `/design-app` amendment
+  (`docs/design-direction.md` → "Full Set keepsakes" lists what it must decide). It blocks only
+  Slice 16 Phase B.
+- **Roadmap:** Slice 15 (theme foundation) → Slice 16 (keepsakes; Phase A Single-photo, retires
+  share cards and `share_path`; Phase B Full Set) and Slice 17 (themed signage + previews). Slices
+  15 and 17 are unchanged by the Full Set amendment.
 - **Code:** unchanged. The build still has no theme, one share card, and unthemed signage. The
   current signage draws accent brackets inside the QR plate's padding and pads with fewer than 4
   modules, which the design (and architecture §7c) forbid. Slice 17 fixes this.
@@ -48,7 +60,9 @@ appending narrative.
   the Draft preview QR (obviously not a working code). Printing and scanning real signage, and
   real-device share sheets, stay human checks in Slices 16–17. They can't be judged from the
   board.
-- **Next:** approve (or adjust) the design, then `/build-app` Slice 15.
+- **Next:** approve (or adjust) D20 and the Single-photo design, then run the Full Set
+  `/design-app` amendment. `/build-app` Slice 15 does not depend on the Full Set design and can
+  start once the existing design is approved.
 
 ## Brand identity rollout (2026-09-30): `awaiting human visual approval`
 

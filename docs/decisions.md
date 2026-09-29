@@ -469,7 +469,8 @@ implied by this one.
 
 ## D19 — Event Theme & Keepsakes: private theme media, one on-demand keepsake renderer, no persisted keepsakes
 
-**Status:** Accepted (2026-09-30)
+**Status:** Accepted (2026-09-30). Extended by D20 (Full Set keepsakes), which applies items 3–4
+to a second keepsake family and replaces this entry's cost figure; everything else here stands.
 **Context:** product.md §10 (accepted 2026-09-30) adds an optional event theme (one image, one
 curated accent color, one optional hashtag), exactly five FiveFrames keepsake styles that
 **replace** the single branded share card ("one sharing system, not two"), themed signage, and
@@ -550,3 +551,118 @@ per session, mostly never used); making `event-theme` a public bucket because th
 publicly (it would make theme media guessable-URL-reachable, which invariant 8 forbids); a
 separate share-card path kept next to keepsakes (two sharing systems); minting a temporary real
 token for Draft signage previews (a working link before payment, which invariant 7 forbids).
+
+---
+
+## D20 — Full Set keepsakes: a second family in D19's renderer, sources derived server-side, deterministic crops
+
+**Status:** Proposed (2026-09-30). Awaiting approval of this architecture amendment.
+**Context:** product.md §10.2 was amended on 2026-09-30. Keepsakes now come in two families of
+exactly five styles each:
+
+- **Single-photo:** unchanged from D19.
+- **Full Set:** combines all five committed captures of one guest session in commit order, with
+  no guest message.
+
+A Full Set is available only while all five captures are committed and unhidden, and never after
+one is deleted. One Full Set style must follow the brandmark's construction: two landscape slots,
+two portrait slots and a closing square, with capture 5 in the square. Product leaves several
+questions to architecture (product.md §17): how a render proves the five captures, how commit
+order is established, output dimensions, how crops work across mixed orientations, and the cost
+of five-source renders.
+
+D19 assumed one capture per render and costed "five captures × five styles" per session. That no
+longer describes the workload.
+
+**Decision:**
+
+1. **One system, two families.** Both families use one registry (`lib/keepsakes/`), one render
+   pipeline, one DAL module, one response contract, one sharing toggle and one preview approach.
+   - Registry entries carry `family`. Ids are stable and unique across both families.
+   - Canvas is set per family, not per style. The Full Set canvas is a single constant that the
+     design amendment chooses, at or below about 2.5 MP.
+   - A Full Set entry declares its five slot rectangles. The brandmark geometry lives only in the
+     signature style's slots and template, never in the database or the routes.
+2. **The server derives the Full Set's sources.** `GET /e/[token]/keepsake/set/[styleId]` takes
+   no capture ids and no session id.
+   - `getFullSetSources` selects the committed captures of the signed cookie's session **and**
+     event, including hidden and deleted rows.
+   - The set is eligible only if there are exactly five rows and all are unhidden, undeleted and
+     have a display derivative. There is no partial result.
+   - The same function sets the UI's availability flag.
+   - The Single-photo route becomes `…/keepsake/photo/[captureId]/[styleId]`. Its checks are
+     unchanged.
+   - Both routes re-confirm their sources after rendering and before responding.
+3. **Order is `(committed_at, slot_index)`, with no schema change.** `committed_at` is written
+   once, in the guarded commit update. `slot_index` is unique among a session's committed rows
+   (D5). Together they give a total, stable order.
+4. **Crops are deterministic and geometric.** A Full Set slot is filled by a cover crop, computed
+   by one pure function with CSS `object-position` semantics and a per-template focus (centred,
+   biased toward the top when a taller photo fills a wider slot).
+   - The server pre-crops the display derivatives with `sharp`, and browser previews apply the
+     same rule in CSS.
+   - There is no content analysis of any kind.
+5. **Still on demand, still never persisted.** D19's reasoning holds for Full Sets.
+   - Only the selected style is prepared.
+   - Picker thumbnails are DOM renders from thumbnail derivatives the device already holds.
+   - Slice 16 carries a concrete measurement gate (architecture §7b). If the Full Set misses it,
+     D19's content-addressed runner-up is the fallback for that family only, adopted by a new
+     entry.
+6. **The Full Set render input has no message field and no per-photo metadata.** The theme image
+   stays a separate input and never a slot.
+7. **Unchanged:** one sharing system; private source media; originals never modified; keepsakes
+   made only by guests from their own session; D11 original downloads; D14 (the demo stays
+   client-only, with DOM previews of either family).
+
+**Reasoning:**
+
+- *Deriving the five captures on the server* makes the product rule the query:
+  - Client-supplied ids would need a validation step that re-derives the same set anyway, and
+    they would open a substitution surface.
+  - Selecting hidden and deleted rows too, then requiring five eligible ones, makes "never four,
+    never a gap" structural.
+  - Deletion is permanent by construction: moderation never changes `status`, so a deleted row
+    holds its slot forever. No new state is needed.
+- *`(committed_at, slot_index)`* is enough because both columns are immutable once committed and
+  the pair is unique within a session. A migration (a sequence column, or a DB-clock default)
+  would change nothing observable.
+- *Geometric crop, not smart crop:*
+  - libvips `attention`/`entropy` and face detection are content-dependent, so the browser preview
+    could not reproduce them.
+  - Face detection would add ML infrastructure, and product rules out AI in the flow.
+  - A fixed, top-biased focus is predictable, testable, and identical in preview and export. Its
+    limitation is stated honestly (architecture §7b, §13), and design is asked to avoid layouts
+    that need a perfect crop.
+- *On demand, still:*
+  - Estimated demand: a realistic event produces hundreds of Full Set renders, with a ceiling of
+    about 2,500 renders (12,500 source reads) if every session rendered every style twice.
+  - Persisting outputs would reintroduce everything D19 removed — invalidation on theme change,
+    D18 cleanup, orphans — plus an extra hazard: a stored Full Set that outlives a hide.
+  - Measure first, cache only if needed.
+- *Re-confirming after the render* costs one indexed query. It makes a hide that lands during an
+  in-flight render take effect, which is the strongest guarantee available without breaking the
+  share gesture. Bytes already on the device can't be revoked, and that is recorded rather than
+  papered over.
+
+**Consequences:**
+
+- Slice 16 grows a second phase (Full Set) but stays one slice around one renderer (roadmap).
+- The Full Set's design (the five compositions, names, preselected style, the canvas, the exact
+  brandmark-derived geometry and the crop focus bias) is a prerequisite for Phase B, not for
+  Phase A.
+- D18 needs no change while outputs stay unpersisted.
+- Accepted limitation: a prepared-but-unshared Full Set on the device survives a later hide, for
+  as long as the picker stays open.
+
+**Rejected:**
+
+- client-supplied capture ids (a substitution surface, and redundant with server derivation);
+- a partial or padded Full Set after a hide or delete (product forbids it);
+- a new ordering column or a DB-clock `committed_at` migration (the existing pair is already total
+  and stable);
+- smart crop, face/subject detection or stored focal points (content-dependent, preview drift, AI
+  or editor surface);
+- eager rendering of all five Full Set styles when the picker opens (5 × 5 source compositions,
+  mostly unused);
+- a per-style canvas (arbitrary output sizes with no product need);
+- a separate Full Set sharing path or decision system (two sharing systems).
