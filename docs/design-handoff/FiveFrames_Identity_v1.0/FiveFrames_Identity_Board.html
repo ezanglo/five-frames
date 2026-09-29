@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FiveFrames Identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap">
+<style>
+/* Layout: a 3×3 presentation board of 4:3 panels on a pale neutral canvas; every panel scales
+   with its own width (container units), so the board reads like one printed sheet at any size.
+   A single light look by design: the product is light and photographic. */
+:root {
+  --canvas: #E7E5EA;
+  --paper: #FFFFFF;
+  --paper-2: #F7F6F9;
+  --ink: #15141A;
+  --ink-2: #4E4B57;
+  --muted: #8B8894;
+  --violet: #6B2BD9;
+  --tint: #F3EDFE;
+  --hi: #B58CFF;
+  --dark: #141414;
+  --stone: #D8D1C8;
+  --line: rgba(21, 20, 26, .12);
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --ui: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--ui); padding-inline: 16px; }
+.wrap { max-width: 1360px; margin-inline: auto; padding-block: 28px 64px; }
+
+/* page header */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-block: 4px 22px; flex-wrap: wrap; }
+.top .brand { display: flex; align-items: center; gap: 14px; color: var(--ink); --centre: var(--violet); }
+.top .brand svg { height: 20px; width: auto; aspect-ratio: 6788 / 939; }
+.top .meta { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
+
+/* board */
+.board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 900px) { .board { grid-template-columns: minmax(0, 1fr); gap: 12px; } }
+.p { position: relative; aspect-ratio: 4 / 3; max-width: 100%; container-type: inline-size; overflow: hidden; border-radius: 4px; background: var(--paper); }
+.lbl { position: absolute; z-index: 5; top: 4.4cqw; left: 4.8cqw; display: flex; gap: .9em; font-size: clamp(9px, 2.3cqw, 12px); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.lbl b { color: var(--ink); font-weight: 700; }
+.lbl.on-dark, .lbl.on-dark b { color: rgba(255, 255, 255, .62); }
+.lbl.on-dark b { color: #fff; }
+.foot { position: absolute; z-index: 5; bottom: 4.2cqw; right: 4.8cqw; font-size: clamp(9px, 2cqw, 11px); font-weight: 600; letter-spacing: .04em; color: var(--muted); }
+.mk { display: block; aspect-ratio: 1; }
+.use-lockup { display: block; aspect-ratio: 6788 / 939; }
+
+/* 01 primary */
+.p1 { display: grid; place-items: center; --centre: var(--violet); color: var(--ink); }
+.p1 .use-lockup { width: 64cqw; }
+
+/* 02 construction */
+.p2 { background: var(--paper-2); }
+.p2 svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.p2 .g { stroke: var(--violet); stroke-opacity: .28; stroke-width: .6; stroke-dasharray: 2 2.5; }
+.p2 .pf { fill: var(--paper); stroke: var(--ink); stroke-width: 1.3; }
+.p2 .pc { fill: var(--violet); }
+.p2 .chip { fill: var(--ink); }
+.p2 .chip5 { fill: #fff; }
+.p2 .n { fill: #fff; font: 700 9.5px var(--ui); text-anchor: middle; }
+.p2 .n5 { fill: var(--violet); }
+.p2 .dim { stroke: var(--ink-2); stroke-width: .7; fill: none; }
+.p2 .dt { fill: var(--ink-2); font: 600 8.5px var(--ui); text-anchor: middle; letter-spacing: .02em; }
+.p2 .h { fill: var(--ink); font: 600 21px var(--display); }
+.p2 .s { fill: var(--muted); font: 600 8.6px var(--ui); letter-spacing: .01em; }
+.p2 .rule { stroke: var(--line); stroke-width: .8; }
+
+/* 03 small scale */
+/* A container can't measure itself: cqw on the panel's own padding would resolve against the viewport, so padding uses % (of the panel's width). */
+.p3 { background: var(--paper-2); display: flex; flex-direction: column; justify-content: center; padding: 11% 5% 4%; }
+.p3 .ladder { margin-top: 6cqw; }
+.p3 > * { flex: none; }
+.chrome { border-radius: 8px; overflow: hidden; background: var(--paper); box-shadow: 0 0 0 1px var(--line), 0 8px 24px -14px rgba(21,20,26,.35); }
+.tabs { display: flex; align-items: flex-end; gap: 6px; background: #E4E2E8; padding: 7px 8px 0; }
+.dots { display: flex; gap: 5px; padding: 0 6px 9px 2px; }
+.dots i { width: 8px; height: 8px; border-radius: 50%; background: #C9C6CF; }
+.tab { display: flex; align-items: center; gap: 7px; background: var(--paper); border-radius: 7px 7px 0 0; padding: 7px 10px; font-size: 11.5px; font-weight: 600; color: var(--ink); min-width: 0; }
+.tab svg { width: 16px; height: 16px; flex: none; color: var(--ink); --centre: var(--violet); }
+.tab span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tab em { font-style: normal; color: var(--muted); margin-left: 6px; }
+.tab.dim { background: transparent; color: var(--muted); }
+.tab.dim svg { color: #fff; --centre: var(--hi); background: var(--dark); border-radius: 3px; }
+.nav { display: flex; align-items: center; gap: 14px; padding: 11px 12px; border-top: 1px solid var(--line); }
+.nav .use-lockup { height: 18px; width: auto; color: var(--ink); --centre: var(--violet); }
+.nav .links { margin-left: auto; display: flex; gap: 12px; font-size: 11px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.nav .cta { font-size: 11px; font-weight: 700; color: #fff; background: var(--violet); border-radius: 999px; padding: 6px 11px; white-space: nowrap; }
+@container (max-width: 380px) { .nav .links { display: none; } .nav .cta { margin-left: auto; } }
+.ladder { display: flex; align-items: flex-end; gap: clamp(12px, 4.5cqw, 26px); }
+.ladder figure { margin: 0; display: grid; justify-items: center; gap: 7px; }
+.ladder figcaption { font-size: 10px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ladder .mk { color: var(--ink); --centre: var(--violet); }
+.appicon { display: grid; place-items: center; border-radius: 22.5%; background: var(--violet); color: #fff; }
+.appicon .mk { width: 58%; color: #fff; --centre: #fff; }
+.darktile { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; background: var(--dark); }
+.darktile svg { width: 16px; height: 16px; color: #fff; --centre: var(--hi); }
+
+/* 04 essence */
+.p4 { background: var(--tint); }
+.p4 blockquote { position: absolute; left: 4.8cqw; bottom: 4.4cqw; margin: 0; font: 600 9.6cqw/1.0 var(--display); letter-spacing: -.02em; color: var(--ink); font-variation-settings: "opsz" 120; }
+.p4 blockquote span { display: block; }
+.p4 blockquote .v { color: var(--violet); }
+.p4 .mk { position: absolute; top: 4.4cqw; right: 4.8cqw; width: 7cqw; color: var(--ink); --centre: var(--violet); }
+
+/* 05 colour */
+.p5 { display: flex; }
+.sw { position: relative; display: grid; place-items: center; }
+.sw .mk { width: 12cqw; }
+.sw dl { position: absolute; left: 3.6cqw; bottom: 3.8cqw; margin: 0; font-size: clamp(9px, 2.1cqw, 12px); line-height: 1.35; }
+.sw dt { font-weight: 700; }
+.sw dd { margin: 0; font-weight: 500; opacity: .7; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.sw.v { flex: 30; background: var(--violet); color: #fff; --centre: #fff; }
+.sw.i { flex: 25; background: var(--ink); color: #fff; --centre: var(--hi); }
+.sw.w { flex: 25; background: var(--paper); color: var(--ink); --centre: var(--violet); box-shadow: inset 1px 0 0 var(--line); }
+.sw.t { flex: 20; background: var(--tint); color: var(--violet); --centre: var(--violet); }
+.sw.t dl { color: var(--ink); }
+
+/* 06 typography */
+.p6 { display: flex; flex-direction: column; padding: 11% 4.8% 2.4%; }
+.p6 > .row { flex: 1 1 0; }
+.row { display: grid; grid-template-columns: 30cqw 1fr; align-items: center; border-top: 1px solid var(--line); min-width: 0; }
+.row .k { font-size: clamp(9px, 2.1cqw, 12px); line-height: 1.35; color: var(--muted); font-weight: 600; }
+.row .k b { display: block; color: var(--ink); font-weight: 700; }
+.row .word { width: 50cqw; height: auto; aspect-ratio: 5474 / 745; color: var(--ink); --centre: var(--violet); }
+.row .fr { font: 600 7.4cqw/1 var(--display); letter-spacing: -.015em; color: var(--ink); white-space: nowrap; }
+.row .ui { display: flex; align-items: center; gap: 2.6cqw; flex-wrap: wrap; }
+.row .btn { font: 700 2.8cqw/1 var(--ui); color: #fff; background: var(--violet); border-radius: 999px; padding: 1.9cqw 3.4cqw; }
+.row .count { font: 600 3.4cqw/1 var(--ui); color: var(--ink); font-variant-numeric: tabular-nums; }
+.row .count span { color: var(--muted); }
+
+/* 07 signage */
+.p7 { background: var(--stone); }
+.p7::before { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 90% at 30% 20%, rgba(255,255,255,.45), transparent 60%); }
+.grain::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .32; mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .45 0 0 0 0 .42 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.card { position: absolute; left: 22cqw; top: 9cqw; width: 40cqw; aspect-ratio: 1 / 1.4; background: #FFFEFC; border-radius: 1cqw; transform: rotate(-2.5deg);
+  box-shadow: 0 .3cqw .6cqw rgba(40,30,20,.12), 0 4cqw 7cqw -3cqw rgba(40,30,20,.45); display: flex; flex-direction: column; align-items: center; padding: 4.6cqw 4cqw 3.8cqw; text-align: center; }
+.card .use-lockup { width: 22cqw; color: var(--ink); --centre: var(--violet); }
+.card h3 { margin: 4.2cqw 0 0; font: 600 4.6cqw/1.05 var(--display); letter-spacing: -.01em; color: var(--ink); }
+.card .when { margin-top: 1cqw; font-size: 1.9cqw; font-weight: 600; color: var(--muted); }
+.card .qr { width: 17cqw; height: 17cqw; margin-top: 3.4cqw; }
+.card .scan { margin-top: 3cqw; font-size: 2.3cqw; font-weight: 800; color: var(--ink); }
+.card .small { margin-top: .8cqw; font-size: 1.75cqw; font-weight: 600; color: var(--ink-2); line-height: 1.35; }
+.sticker { position: absolute; right: 13cqw; bottom: 10cqw; width: 15cqw; aspect-ratio: 1; border-radius: 50%; background: var(--violet); display: grid; place-items: center;
+  transform: rotate(9deg); box-shadow: 0 .3cqw .5cqw rgba(40,30,20,.18), 0 2.4cqw 4cqw -2cqw rgba(40,30,20,.5); }
+.sticker .mk { width: 7.2cqw; color: #fff; --centre: #fff; }
+
+/* 08 photography */
+.p8 { background: var(--dark); }
+.p8 .photo { position: absolute; inset: 0; width: 100%; height: 100%; }
+.p8.grain::after { opacity: .5; mix-blend-mode: overlay; }
+.p8 .sig { position: absolute; z-index: 4; left: 4.8cqw; bottom: 4.4cqw; display: flex; align-items: center; gap: 2.2cqw; color: #fff; --centre: #fff; }
+.p8 .sig .mk { width: 6.4cqw; }
+.p8 .sig span { font-size: clamp(9px, 2.2cqw, 12px); font-weight: 600; color: rgba(255,255,255,.86); letter-spacing: .01em; }
+.p8 .foot { color: rgba(255,255,255,.5); }
+
+/* 09 product */
+.p9 { background: var(--paper-2); }
+.phone { position: absolute; left: 9cqw; top: 11cqw; width: 36cqw; height: 80cqw; background: var(--dark); border-radius: 6cqw; padding: 1.6cqw;
+  box-shadow: 0 4cqw 8cqw -4cqw rgba(21,20,26,.45); }
+.screen { height: 100%; background: var(--paper); border-radius: 4.6cqw; overflow: hidden; padding: 3.6cqw 2.8cqw; display: flex; flex-direction: column; gap: 2.4cqw; }
+.bar { display: flex; align-items: center; gap: 1.8cqw; }
+.bar .mk { width: 3.6cqw; color: var(--ink); --centre: var(--violet); }
+.bar b { font: 600 2.8cqw/1 var(--display); color: var(--ink); white-space: nowrap; }
+.bar em { margin-left: auto; white-space: nowrap; font-style: normal; font-size: 1.9cqw; font-weight: 700; color: var(--violet); background: var(--tint); padding: .8cqw 1.6cqw; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.shot { aspect-ratio: 4 / 5; border-radius: 2.2cqw; background-size: cover; background-position: center; }
+.slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.2cqw; }
+.slots i { aspect-ratio: 4 / 5; border-radius: 1cqw; background-size: cover; background-position: center; }
+.slots .now { box-shadow: inset 0 0 0 .45cqw var(--violet); }
+.slots .open { box-shadow: inset 0 0 0 .25cqw var(--line); background: var(--paper-2); }
+.share { position: absolute; right: 7cqw; top: 17cqw; width: 38cqw; background: #fff; border-radius: 1.4cqw; padding: 2.6cqw 2.6cqw 3cqw; transform: rotate(2deg);
+  box-shadow: 0 .3cqw .6cqw rgba(21,20,26,.08), 0 4cqw 7cqw -3cqw rgba(21,20,26,.4); }
+.collage { display: block; width: 100%; height: auto; }
+.share .cap { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 2.6cqw; gap: 2cqw; }
+.share b { display: block; font: 600 3.4cqw/1.05 var(--display); color: var(--ink); }
+.share small { display: block; margin-top: .6cqw; font-size: 1.8cqw; font-weight: 600; color: var(--muted); }
+.share .mk { width: 3.8cqw; flex: none; color: var(--ink); --centre: var(--violet); }
+
+/* founder notes */
+.notes { margin-top: 56px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
+@media (max-width: 900px) { .notes { grid-template-columns: minmax(0, 1fr); gap: 32px; } }
+.notes h2 { font: 600 clamp(28px, 3.4vw, 40px)/1.08 var(--display); letter-spacing: -.015em; margin: 0 0 18px; text-wrap: balance; }
+.notes h3 { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 14px; }
+.notes p { font-size: 15.5px; line-height: 1.62; color: var(--ink-2); margin: 0 0 14px; max-width: 62ch; }
+.notes p strong { color: var(--ink); font-weight: 700; }
+.checks { list-style: none; padding: 0; margin: 0 0 30px; display: grid; gap: 0; }
+.checks li { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 16px; padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.checks li b { color: var(--ink); font-weight: 700; }
+@media (max-width: 480px) { .checks li { grid-template-columns: minmax(0, 1fr); gap: 2px; } }
+.pill { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; }
+.pill.ok { background: var(--tint); color: var(--violet); }
+.pill.open { background: #EDEBEF; color: var(--ink-2); }
+</style>
+</head>
+<body style="margin:0">
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="ff-mark" viewBox="0 0 120 120"><rect x="0" y="0" width="76" height="36" rx="7" fill="currentColor"/><rect x="84" y="0" width="36" height="76" rx="7" fill="currentColor"/><rect x="44" y="84" width="76" height="36" rx="7" fill="currentColor"/><rect x="0" y="44" width="36" height="76" rx="7" fill="currentColor"/><rect x="44" y="44" width="32" height="32" rx="7" fill="currentColor" style="fill:var(--centre,currentColor)"/></symbol>
+<symbol id="ff-word" viewBox="0 0 5474 745"><g transform="translate(0 745)"><path d="M66 0V-745H576V-610H221V-421H526V-286H221V0Z M628 0V-546H778V0Z M1045 0 830 -546H992L1141 -133H1079L1228 -546H1390L1175 0Z M1695 12Q1608 12 1544.0 -26.5Q1480 -65 1445.0 -130.0Q1410 -195 1410 -274Q1410 -356 1446.5 -420.0Q1483 -484 1545.0 -521.0Q1607 -558 1685 -558Q1750 -558 1800.0 -537.5Q1850 -517 1884.5 -480.0Q1919 -443 1937.0 -394.5Q1955 -346 1955 -289Q1955 -273 1953.5 -257.5Q1952 -242 1948 -231H1539V-341H1863L1792 -289Q1802 -332 1791.0 -365.5Q1780 -399 1752.5 -418.5Q1725 -438 1685 -438Q1646 -438 1618.0 -419.0Q1590 -400 1576.0 -363.0Q1562 -326 1565 -273Q1561 -227 1576.0 -192.0Q1591 -157 1622.0 -137.5Q1653 -118 1697 -118Q1737 -118 1765.5 -134.0Q1794 -150 1810 -178L1930 -121Q1914 -81 1879.5 -51.0Q1845 -21 1798.0 -4.5Q1751 12 1695 12Z M2040 0V-745H2550V-610H2195V-421H2500V-286H2195V0Z M2572 0V-546H2712V-415L2702 -434Q2720 -503 2761.5 -527.5Q2803 -552 2860 -552H2892V-422H2845Q2790 -422 2756.0 -388.5Q2722 -355 2722 -294V0Z M3113 12Q3054 12 3011.0 -7.0Q2968 -26 2945.0 -61.5Q2922 -97 2922 -146Q2922 -192 2943.0 -227.5Q2964 -263 3007.5 -287.0Q3051 -311 3116 -321L3283 -348V-238L3143 -213Q3111 -207 3094.0 -192.5Q3077 -178 3077 -151Q3077 -126 3096.0 -112.0Q3115 -98 3143 -98Q3180 -98 3208.0 -114.0Q3236 -130 3251.5 -157.5Q3267 -185 3267 -218V-360Q3267 -391 3242.5 -412.0Q3218 -433 3176 -433Q3136 -433 3105.5 -411.0Q3075 -389 3061 -353L2941 -410Q2957 -456 2992.0 -489.0Q3027 -522 3076.0 -540.0Q3125 -558 3183 -558Q3252 -558 3305.0 -533.0Q3358 -508 3387.5 -463.5Q3417 -419 3417 -360V0H3277V-88L3311 -94Q3287 -58 3258.0 -34.5Q3229 -11 3193.0 0.5Q3157 12 3113 12Z M3513 0V-546H3653V-413L3638 -435Q3650 -498 3696.0 -528.0Q3742 -558 3806 -558Q3874 -558 3925.5 -523.5Q3977 -489 3990 -431L3947 -427Q3974 -494 4024.0 -526.0Q4074 -558 4141 -558Q4200 -558 4245.5 -532.0Q4291 -506 4317.0 -459.5Q4343 -413 4343 -351V0H4193V-319Q4193 -351 4181.5 -374.0Q4170 -397 4149.0 -410.0Q4128 -423 4098 -423Q4069 -423 4047.5 -410.0Q4026 -397 4014.5 -374.0Q4003 -351 4003 -319V0H3853V-319Q3853 -351 3841.5 -374.0Q3830 -397 3809.0 -410.0Q3788 -423 3758 -423Q3729 -423 3707.5 -410.0Q3686 -397 3674.5 -374.0Q3663 -351 3663 -319V0Z M4691 12Q4604 12 4540.0 -26.5Q4476 -65 4441.0 -130.0Q4406 -195 4406 -274Q4406 -356 4442.5 -420.0Q4479 -484 4541.0 -521.0Q4603 -558 4681 -558Q4746 -558 4796.0 -537.5Q4846 -517 4880.5 -480.0Q4915 -443 4933.0 -394.5Q4951 -346 4951 -289Q4951 -273 4949.5 -257.5Q4948 -242 4944 -231H4535V-341H4859L4788 -289Q4798 -332 4787.0 -365.5Q4776 -399 4748.5 -418.5Q4721 -438 4681 -438Q4642 -438 4614.0 -419.0Q4586 -400 4572.0 -363.0Q4558 -326 4561 -273Q4557 -227 4572.0 -192.0Q4587 -157 4618.0 -137.5Q4649 -118 4693 -118Q4733 -118 4761.5 -134.0Q4790 -150 4806 -178L4926 -121Q4910 -81 4875.5 -51.0Q4841 -21 4794.0 -4.5Q4747 12 4691 12Z M5239 12Q5149 12 5082.5 -30.5Q5016 -73 4992 -145L5102 -197Q5123 -153 5159.0 -128.0Q5195 -103 5239 -103Q5271 -103 5288.0 -116.0Q5305 -129 5305 -152Q5305 -164 5299.0 -172.5Q5293 -181 5281.0 -188.0Q5269 -195 5251 -200L5158 -226Q5091 -245 5055.0 -287.5Q5019 -330 5019 -388Q5019 -439 5045.0 -477.0Q5071 -515 5118.0 -536.5Q5165 -558 5226 -558Q5306 -558 5366.5 -520.5Q5427 -483 5452 -415L5341 -363Q5329 -397 5297.5 -417.5Q5266 -438 5226 -438Q5197 -438 5180.5 -426.0Q5164 -414 5164 -393Q5164 -382 5170.0 -373.0Q5176 -364 5189.5 -357.0Q5203 -350 5223 -344L5310 -318Q5378 -298 5414.0 -257.5Q5450 -217 5450 -158Q5450 -107 5423.5 -69.0Q5397 -31 5350.0 -9.5Q5303 12 5239 12Z" fill="currentColor"/><path d="M628 -745h150v150h-150Z" fill="currentColor" style="fill:var(--centre,currentColor)"/></g></symbol>
+<symbol id="ff-lockup" viewBox="0 0 6788.18 938.7"><use href="#ff-mark" x="0" y="0" width="938.7" height="938.7"/><use href="#ff-word" x="1314.18" y="96.85" width="5474" height="745"/></symbol>
+<symbol id="ff-stacked" viewBox="0 0 5474 3238.95"><use href="#ff-mark" x="1806.42" y="0" width="1861.16" height="1861.16"/><use href="#ff-word" x="0" y="2493.95" width="5474" height="745"/></symbol>
+<symbol id="ff-fav" viewBox="0 0 16 16"><rect x="1" y="1" width="9" height="4" rx=".6" fill="currentColor"/><rect x="11" y="1" width="4" height="9" rx=".6" fill="currentColor"/><rect x="6" y="11" width="9" height="4" rx=".6" fill="currentColor"/><rect x="1" y="6" width="4" height="9" rx=".6" fill="currentColor"/><rect x="6" y="6" width="4" height="4" rx=".6" fill="currentColor" style="fill:var(--centre,currentColor)"/></symbol>
+</defs></svg>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><svg viewBox="0 0 6788.18 938.7" role="img" aria-label="FiveFrames"><use href="#ff-lockup"/></svg></div>
+    <div class="meta"><span>Identity system</span><span>v1.0</span><span>30 Sep 2026</span></div>
+  </header>
+
+  <main class="board">
+    <!-- 01 -->
+    <section class="p p1" aria-label="Primary identity">
+      <div class="lbl"><b>01</b>Primary identity</div>
+      <svg class="use-lockup" viewBox="0 0 6788.18 938.7" role="img" aria-label="FiveFrames logo"><use href="#ff-lockup"/></svg>
+      <div class="foot">Symbol + wordmark</div>
+    </section>
+
+    <!-- 02 -->
+    <section class="p p2" aria-label="Construction">
+      <div class="lbl"><b>02</b>Construction</div>
+      <svg viewBox="0 0 400 300" role="img" aria-label="Construction: four 2:1 frames turn around a square fifth frame on a 3 by 3 unit grid">
+        <g transform="translate(0 16)"><line x1="40" y1="46" x2="40" y2="254" class="g"/>
+<line x1="100" y1="46" x2="100" y2="254" class="g"/>
+<line x1="160" y1="46" x2="160" y2="254" class="g"/>
+<line x1="220" y1="46" x2="220" y2="254" class="g"/>
+<line x1="26" y1="60" x2="234" y2="60" class="g"/>
+<line x1="26" y1="120" x2="234" y2="120" class="g"/>
+<line x1="26" y1="180" x2="234" y2="180" class="g"/>
+<line x1="26" y1="240" x2="234" y2="240" class="g"/>
+<rect x="40" y="60" width="114" height="54" rx="10.5" class="pf"/>
+<circle cx="51" cy="71" r="7.5" class="chip"/><text x="51" y="74.3" class="n">1</text>
+<rect x="166" y="60" width="54" height="114" rx="10.5" class="pf"/>
+<circle cx="177" cy="71" r="7.5" class="chip"/><text x="177" y="74.3" class="n">2</text>
+<rect x="106" y="186" width="114" height="54" rx="10.5" class="pf"/>
+<circle cx="117" cy="197" r="7.5" class="chip"/><text x="117" y="200.3" class="n">3</text>
+<rect x="40" y="126" width="54" height="114" rx="10.5" class="pf"/>
+<circle cx="51" cy="137" r="7.5" class="chip"/><text x="51" y="140.3" class="n">4</text>
+<rect x="106" y="126" width="48" height="48" rx="10.5" class="pc"/>
+<circle cx="117" cy="137" r="7.5" class="chip chip5"/><text x="117" y="140.3" class="n n5">5</text>
+<path d="M40 34v8M220 34v8M40 38h180" class="dim"/><text x="130" y="30" class="dt">3u</text>
+<path d="M154 50v6M166 50v6" class="dim"/><text x="160" y="46" class="dt">g = u/5</text></g>
+        <text x="262" y="118" class="h">Five frames</text>
+        <text x="262" y="136" class="s">2 landscape · 2 portrait</text>
+        <text x="262" y="148" class="s">1 square</text>
+        <line x1="262" y1="166" x2="372" y2="166" class="rule"/>
+        <text x="262" y="198" class="h">One square</text>
+        <text x="262" y="216" class="s">Frame 5 closes it.</text>
+        <text x="262" y="228" class="s">No four corners meet.</text>
+      </svg>
+    </section>
+
+    <!-- 03 -->
+    <section class="p p3" aria-label="Small-scale digital use">
+      <div class="lbl"><b>03</b>Small scale</div>
+      <div class="chrome">
+        <div class="tabs">
+          <div class="dots"><i></i><i></i><i></i></div>
+          <div class="tab"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#ff-fav"/></svg><span>Dani’s 40th<em>FiveFrames</em></span></div>
+          <div class="tab dim"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#ff-fav"/></svg><span>Gallery</span></div>
+        </div>
+        <div class="nav">
+          <svg class="use-lockup" viewBox="0 0 6788.18 938.7" role="img" aria-label="FiveFrames"><use href="#ff-lockup"/></svg>
+          <div class="links"><span>How it works</span><span>Pricing</span></div>
+          <span class="cta">Create event</span>
+        </div>
+      </div>
+      <div class="ladder">
+        <figure><span class="appicon" style="width:48px;height:48px"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg></span><figcaption>48</figcaption></figure>
+        <figure><svg class="mk" style="width:32px" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><figcaption>32</figcaption></figure>
+        <figure><svg class="mk" style="width:24px" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><figcaption>24</figcaption></figure>
+        <figure><svg class="mk" style="width:20px" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><figcaption>20</figcaption></figure>
+        <figure><svg class="mk" style="width:16px" viewBox="0 0 16 16" aria-hidden="true"><use href="#ff-fav"/></svg><figcaption>16</figcaption></figure>
+        <figure><span class="darktile"><svg viewBox="0 0 16 16" aria-hidden="true"><use href="#ff-fav"/></svg></span><figcaption>16 dark</figcaption></figure>
+      </div>
+    </section>
+
+    <!-- 04 -->
+    <section class="p p4" aria-label="Brand essence">
+      <div class="lbl"><b>04</b>Essence</div>
+      <svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg>
+      <blockquote><span>Every guest.</span><span class="v">Five frames.</span><span>One shared story.</span></blockquote>
+    </section>
+
+    <!-- 05 -->
+    <section class="p p5" aria-label="Colour">
+      <div class="lbl on-dark"><b>05</b>Colour</div>
+      <div class="sw v"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><dl><dt>Violet</dt><dd>#6B2BD9</dd></dl></div>
+      <div class="sw i"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><dl><dt>Ink</dt><dd>#15141A</dd></dl></div>
+      <div class="sw w"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><dl><dt>White</dt><dd>#FFFFFF</dd></dl></div>
+      <div class="sw t"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><dl><dt>Tint</dt><dd>#F3EDFE</dd></dl></div>
+    </section>
+
+    <!-- 06 -->
+    <section class="p p6" aria-label="Typography">
+      <div class="lbl"><b>06</b>Typography</div>
+      <div class="row"><div class="k"><b>Wordmark</b>Drawn, never typed</div><svg class="word" viewBox="0 0 5474 745" role="img" aria-label="FiveFrames wordmark"><use href="#ff-word"/></svg></div>
+      <div class="row"><div class="k"><b>Fraunces</b>Events and big moments</div><div class="fr">Dani turns forty</div></div>
+      <div class="row"><div class="k"><b>Plus Jakarta Sans</b>Everything you tap</div><div class="ui"><span class="btn">Keep this one</span><span class="count">Frame 3 <span>of 5</span></span></div></div>
+    </section>
+
+    <!-- 07 -->
+    <section class="p p7 grain" aria-label="Event signage">
+      <div class="lbl"><b>07</b>Event signage</div>
+      <div class="card">
+        <svg class="use-lockup" viewBox="0 0 6788.18 938.7" role="img" aria-label="FiveFrames"><use href="#ff-lockup"/></svg>
+        <h3>Dani’s 40th</h3>
+        <div class="when">Saturday · The Garden Room</div>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 29 29" class="qr" aria-hidden="true"><path class="qrline" stroke="#15141a" d="M0 0.5h7m3 0h2m6 0h1m3 0h7m-29 1h1m5 0h1m2 0h1m1 0h1m1 0h3m2 0h3m1 0h1m5 0h1m-29 1h1m1 0h3m1 0h1m1 0h2m1 0h1m5 0h1m1 0h1m2 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m2 0h1m1 0h1m1 0h4m1 0h1m3 0h1m1 0h3m1 0h1m-29 1h1m1 0h3m1 0h1m1 0h3m1 0h2m1 0h1m4 0h1m1 0h1m1 0h3m1 0h1m-29 1h1m5 0h1m1 0h1m1 0h3m1 0h1m4 0h1m2 0h1m5 0h1m-29 1h7m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h1m1 0h7m-20 1h4m1 0h1m1 0h2m1 0h1m-19 1h1m2 0h1m1 0h1m1 0h2m1 0h5m2 0h2m1 0h1m1 0h2m1 0h1m-27 1h2m1 0h1m4 0h1m4 0h1m2 0h1m1 0h1m3 0h5m1 0h1m-26 1h1m2 0h1m2 0h2m1 0h1m7 0h4m4 0h1m-28 1h2m1 0h1m5 0h4m1 0h1m1 0h2m2 0h1m2 0h2m1 0h1m-28 1h1m1 0h1m1 0h3m1 0h1m1 0h1m1 0h2m2 0h2m1 0h1m1 0h1m1 0h1m3 0h1m-27 1h1m1 0h3m1 0h1m3 0h3m4 0h1m3 0h4m2 0h1m-29 1h3m2 0h2m1 0h2m1 0h1m3 0h1m1 0h1m2 0h1m1 0h4m1 0h2m-29 1h2m2 0h2m1 0h1m1 0h1m1 0h4m2 0h1m2 0h1m1 0h1m2 0h1m2 0h1m-29 1h4m2 0h1m1 0h2m4 0h1m3 0h3m6 0h1m-28 1h1m1 0h1m1 0h1m2 0h4m2 0h1m2 0h1m1 0h1m3 0h3m1 0h1m-25 1h5m4 0h2m3 0h2m2 0h5m3 0h1m-27 1h2m6 0h1m2 0h2m2 0h3m2 0h2m1 0h1m1 0h2m-29 1h2m2 0h1m1 0h1m5 0h1m1 0h2m1 0h1m1 0h7m1 0h2m-21 1h4m3 0h6m3 0h1m1 0h1m1 0h1m-29 1h7m2 0h1m1 0h1m1 0h1m1 0h2m1 0h3m1 0h1m1 0h1m1 0h1m1 0h1m-29 1h1m5 0h1m3 0h1m1 0h1m2 0h2m2 0h2m3 0h2m1 0h2m-29 1h1m1 0h3m1 0h1m1 0h5m3 0h1m2 0h7m1 0h2m-29 1h1m1 0h3m1 0h1m2 0h2m2 0h2m2 0h2m1 0h2m2 0h4m-28 1h1m1 0h3m1 0h1m3 0h2m3 0h1m1 0h5m3 0h1m1 0h2m-29 1h1m5 0h1m1 0h1m6 0h4m1 0h3m2 0h1m1 0h2m-29 1h7m2 0h2m1 0h1m3 0h2m2 0h1m2 0h3m1 0h1"/></svg>
+
+        <div class="scan">Scan to take your five</div>
+        <div class="small">No app. No account.<br>Five frames per phone browser.</div>
+      </div>
+      <div class="sticker"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg></div>
+      <div class="foot">Sample QR, not a live link</div>
+    </section>
+
+    <!-- 08 -->
+    <section class="p p8 grain" aria-label="Photography">
+      <div class="lbl on-dark"><b>08</b>Photography</div>
+      <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" class="photo" aria-hidden="true"><defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2"/></filter><filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7"/></filter><filter id="fig" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter><radialGradient id="spill" cx=".38" cy=".62" r=".6"><stop offset="0" stop-color="#ff9f5a" stop-opacity=".42"/><stop offset="1" stop-color="#ff9f5a" stop-opacity="0"/></radialGradient><linearGradient id="base" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1d1419"/><stop offset=".6" stop-color="#2a1a17"/><stop offset="1" stop-color="#0e0a0b"/></linearGradient></defs><rect width="400" height="300" fill="url(#base)"/><rect width="400" height="300" fill="url(#spill)"/><circle cx="102" cy="81" r="20" fill="#ffe0a8" opacity="0.36" filter="url(#soft)"/><circle cx="12" cy="99" r="25" fill="#ffe0a8" opacity="0.30" filter="url(#soft)"/><circle cx="45" cy="100" r="12" fill="#ffb36b" opacity="0.27" filter="url(#soft)"/><circle cx="100" cy="144" r="15" fill="#ffe0a8" opacity="0.17" filter="url(#soft)"/><circle cx="64" cy="156" r="10" fill="#b58cff" opacity="0.29" filter="url(#soft)"/><circle cx="53" cy="185" r="8" fill="#ffb36b" opacity="0.34" filter="url(#soft)"/><circle cx="349" cy="69" r="25" fill="#ffb36b" opacity="0.27" filter="url(#soft)"/><circle cx="73" cy="185" r="12" fill="#ffb36b" opacity="0.39" filter="url(#soft)"/><circle cx="120" cy="81" r="11" fill="#b58cff" opacity="0.16" filter="url(#soft)"/><circle cx="133" cy="159" r="19" fill="#ffc978" opacity="0.29" filter="url(#soft)"/><circle cx="26" cy="80" r="14" fill="#ff8fa3" opacity="0.31" filter="url(#soft)"/><circle cx="192" cy="140" r="9" fill="#ffb36b" opacity="0.39" filter="url(#soft)"/><circle cx="380" cy="81" r="15" fill="#ffc978" opacity="0.27" filter="url(#soft)"/><circle cx="146" cy="118" r="8" fill="#b58cff" opacity="0.13" filter="url(#soft)"/><circle cx="249" cy="182" r="10" fill="#ffb36b" opacity="0.19" filter="url(#soft)"/><circle cx="138" cy="80" r="17" fill="#b58cff" opacity="0.34" filter="url(#soft)"/><circle cx="236" cy="153" r="15" fill="#ffc978" opacity="0.20" filter="url(#soft)"/><circle cx="378" cy="36" r="14" fill="#b58cff" opacity="0.29" filter="url(#soft)"/><circle cx="136" cy="177" r="18" fill="#ffb36b" opacity="0.21" filter="url(#soft)"/><circle cx="122" cy="156" r="19" fill="#ff8fa3" opacity="0.32" filter="url(#soft)"/><circle cx="399" cy="47" r="9" fill="#ff8fa3" opacity="0.40" filter="url(#soft)"/><circle cx="369" cy="25" r="21" fill="#ffe0a8" opacity="0.22" filter="url(#soft)"/><circle cx="182" cy="92" r="9" fill="#ff8fa3" opacity="0.38" filter="url(#soft)"/><circle cx="321" cy="77" r="12" fill="#ffc978" opacity="0.39" filter="url(#soft)"/><circle cx="380" cy="127" r="22" fill="#ffe0a8" opacity="0.15" filter="url(#soft)"/><circle cx="149" cy="30" r="16" fill="#b58cff" opacity="0.16" filter="url(#soft)"/><path d="M-10.0 35.3 L8.3 42.0 L26.5 47.6 L44.8 54.9 L63.0 61.8 L81.3 65.9 L99.6 68.9 L117.8 72.3 L136.1 75.6 L154.3 79.0 L172.6 78.1 L190.9 80.9 L209.1 80.0 L227.4 78.3 L245.7 79.1 L263.9 76.8 L282.2 72.0 L300.4 69.5 L318.7 65.3 L337.0 60.6 L355.2 54.9 L373.5 47.3 L391.7 42.5 L410.0 33.6" stroke="#000" stroke-opacity=".35" stroke-width=".8" fill="none"/><circle cx="-10.0" cy="38.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="-10.0" cy="38.3" r="1.5" fill="#fff4dd"/><circle cx="8.3" cy="45.0" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="8.3" cy="45.0" r="1.5" fill="#fff4dd"/><circle cx="26.5" cy="50.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="26.5" cy="50.6" r="1.5" fill="#fff4dd"/><circle cx="44.8" cy="57.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="44.8" cy="57.9" r="1.5" fill="#fff4dd"/><circle cx="63.0" cy="64.8" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="63.0" cy="64.8" r="1.5" fill="#fff4dd"/><circle cx="81.3" cy="68.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="81.3" cy="68.9" r="1.5" fill="#fff4dd"/><circle cx="99.6" cy="71.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="99.6" cy="71.9" r="1.5" fill="#fff4dd"/><circle cx="117.8" cy="75.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="117.8" cy="75.3" r="1.5" fill="#fff4dd"/><circle cx="136.1" cy="78.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="136.1" cy="78.6" r="1.5" fill="#fff4dd"/><circle cx="154.3" cy="82.0" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="154.3" cy="82.0" r="1.5" fill="#fff4dd"/><circle cx="172.6" cy="81.1" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="172.6" cy="81.1" r="1.5" fill="#fff4dd"/><circle cx="190.9" cy="83.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="190.9" cy="83.9" r="1.5" fill="#fff4dd"/><circle cx="209.1" cy="83.0" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="209.1" cy="83.0" r="1.5" fill="#fff4dd"/><circle cx="227.4" cy="81.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="227.4" cy="81.3" r="1.5" fill="#fff4dd"/><circle cx="245.7" cy="82.1" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="245.7" cy="82.1" r="1.5" fill="#fff4dd"/><circle cx="263.9" cy="79.8" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="263.9" cy="79.8" r="1.5" fill="#fff4dd"/><circle cx="282.2" cy="75.0" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="282.2" cy="75.0" r="1.5" fill="#fff4dd"/><circle cx="300.4" cy="72.5" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="300.4" cy="72.5" r="1.5" fill="#fff4dd"/><circle cx="318.7" cy="68.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="318.7" cy="68.3" r="1.5" fill="#fff4dd"/><circle cx="337.0" cy="63.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="337.0" cy="63.6" r="1.5" fill="#fff4dd"/><circle cx="355.2" cy="57.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="355.2" cy="57.9" r="1.5" fill="#fff4dd"/><circle cx="373.5" cy="50.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="373.5" cy="50.3" r="1.5" fill="#fff4dd"/><circle cx="391.7" cy="45.5" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="391.7" cy="45.5" r="1.5" fill="#fff4dd"/><circle cx="410.0" cy="36.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="410.0" cy="36.6" r="1.5" fill="#fff4dd"/><path d="M-10.0 18.3 L8.3 28.2 L26.5 39.6 L44.8 49.9 L63.0 58.7 L81.3 66.6 L99.6 71.3 L117.8 78.7 L136.1 82.2 L154.3 86.1 L172.6 86.3 L190.9 86.9 L209.1 88.9 L227.4 86.7 L245.7 85.5 L263.9 81.0 L282.2 76.6 L300.4 71.4 L318.7 65.6 L337.0 58.7 L355.2 49.3 L373.5 39.6 L391.7 29.2 L410.0 19.3" stroke="#000" stroke-opacity=".35" stroke-width=".8" fill="none"/><circle cx="-10.0" cy="21.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="-10.0" cy="21.3" r="1.5" fill="#fff4dd"/><circle cx="8.3" cy="31.2" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="8.3" cy="31.2" r="1.5" fill="#fff4dd"/><circle cx="26.5" cy="42.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="26.5" cy="42.6" r="1.5" fill="#fff4dd"/><circle cx="44.8" cy="52.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="44.8" cy="52.9" r="1.5" fill="#fff4dd"/><circle cx="63.0" cy="61.7" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="63.0" cy="61.7" r="1.5" fill="#fff4dd"/><circle cx="81.3" cy="69.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="81.3" cy="69.6" r="1.5" fill="#fff4dd"/><circle cx="99.6" cy="74.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="99.6" cy="74.3" r="1.5" fill="#fff4dd"/><circle cx="117.8" cy="81.7" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="117.8" cy="81.7" r="1.5" fill="#fff4dd"/><circle cx="136.1" cy="85.2" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="136.1" cy="85.2" r="1.5" fill="#fff4dd"/><circle cx="154.3" cy="89.1" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="154.3" cy="89.1" r="1.5" fill="#fff4dd"/><circle cx="172.6" cy="89.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="172.6" cy="89.3" r="1.5" fill="#fff4dd"/><circle cx="190.9" cy="89.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="190.9" cy="89.9" r="1.5" fill="#fff4dd"/><circle cx="209.1" cy="91.9" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="209.1" cy="91.9" r="1.5" fill="#fff4dd"/><circle cx="227.4" cy="89.7" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="227.4" cy="89.7" r="1.5" fill="#fff4dd"/><circle cx="245.7" cy="88.5" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="245.7" cy="88.5" r="1.5" fill="#fff4dd"/><circle cx="263.9" cy="84.0" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="263.9" cy="84.0" r="1.5" fill="#fff4dd"/><circle cx="282.2" cy="79.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="282.2" cy="79.6" r="1.5" fill="#fff4dd"/><circle cx="300.4" cy="74.4" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="300.4" cy="74.4" r="1.5" fill="#fff4dd"/><circle cx="318.7" cy="68.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="318.7" cy="68.6" r="1.5" fill="#fff4dd"/><circle cx="337.0" cy="61.7" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="337.0" cy="61.7" r="1.5" fill="#fff4dd"/><circle cx="355.2" cy="52.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="355.2" cy="52.3" r="1.5" fill="#fff4dd"/><circle cx="373.5" cy="42.6" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="373.5" cy="42.6" r="1.5" fill="#fff4dd"/><circle cx="391.7" cy="32.2" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="391.7" cy="32.2" r="1.5" fill="#fff4dd"/><circle cx="410.0" cy="22.3" r="4.6" fill="#ffd9a0" opacity=".55" filter="url(#glow)"/><circle cx="410.0" cy="22.3" r="1.5" fill="#fff4dd"/><g filter="url(#fig)" fill="#0b0708" opacity=".92"><ellipse cx="70" cy="183" rx="24" ry="30"/><path d="M-1 310 Q3 220 70 216 Q137 220 141 310Z"/></g><g filter="url(#fig)" fill="#0b0708" opacity=".92"><ellipse cx="212" cy="187" rx="27" ry="34"/><path d="M131 310 Q137 228 212 223 Q287 228 293 310Z"/></g><g filter="url(#fig)" fill="#0b0708" opacity=".92"><ellipse cx="345" cy="186" rx="21" ry="26"/><path d="M283 310 Q287 218 345 214 Q403 218 407 310Z"/></g><g filter="url(#fig)" fill="#0b0708" opacity=".9"><path d="M262 300 L272 150 Q276 132 286 138 L284 170 L276 300Z"/><ellipse cx="282" cy="130" rx="11" ry="13"/></g></svg>
+      <div class="sig"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><span>Dani’s 40th · 21:48</span></div>
+      <div class="foot">Stand-in until real event photography</div>
+    </section>
+
+    <!-- 09 -->
+    <section class="p p9" aria-label="Product application">
+      <div class="lbl"><b>09</b>In the product</div>
+      <div class="phone"><div class="screen">
+        <div class="bar"><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg><b>Dani’s 40th</b><em>3 of 5</em></div>
+        <div class="shot" style="background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%231c1830%22%2F%3E%3Cpath%20d%3D%22M-10%2090%20Q100%20170%20200%20110%20T410%20120%22%20stroke%3D%22%236d6690%22%20stroke-width%3D%222%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M-10%20230%20Q120%20300%20210%20240%20T410%20250%22%20stroke%3D%22%236d6690%22%20stroke-width%3D%222%22%20fill%3D%22none%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%22120%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%22120%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%22284%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%22284%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%2266%22%20cy%3D%22140.36649965031458%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%2266%22%20cy%3D%22140.36649965031458%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%2286%22%20cy%3D%22277.3275476056376%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%2286%22%20cy%3D%22277.3275476056376%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22112%22%20cy%3D%22145.32003840283306%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22112%22%20cy%3D%22145.32003840283306%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22132%22%20cy%3D%22261.3576105093716%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22132%22%20cy%3D%22261.3576105093716%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22158%22%20cy%3D%22131.11187688607959%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22158%22%20cy%3D%22131.11187688607959%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22178%22%20cy%3D%22245.77733825809258%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22178%22%20cy%3D%22245.77733825809258%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22204%22%20cy%3D%22108.49446847433384%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22204%22%20cy%3D%22108.49446847433384%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22224%22%20cy%3D%22240.03751493251542%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22224%22%20cy%3D%22240.03751493251542%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22250%22%20cy%3D%2294.58421694070748%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22250%22%20cy%3D%2294.58421694070748%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22270%22%20cy%3D%22247.61984034100053%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22270%22%20cy%3D%22247.61984034100053%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22296%22%20cy%3D%2299.90812332354433%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22296%22%20cy%3D%2299.90812332354433%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22316%22%20cy%3D%22263.92497763566786%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22316%22%20cy%3D%22263.92497763566786%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22342%22%20cy%3D%22120.4371614125931%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22342%22%20cy%3D%22120.4371614125931%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22362%22%20cy%3D%22279.0624493272255%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22362%22%20cy%3D%22279.0624493272255%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22388%22%20cy%3D%22140.635364460078%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22388%22%20cy%3D%22140.635364460078%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22408%22%20cy%3D%22283.85006821268024%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22408%22%20cy%3D%22283.85006821268024%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Crect%20x%3D%2270%22%20y%3D%22360%22%20width%3D%2280%22%20height%3D%22140%22%20rx%3D%2236%22%20fill%3D%22%232c2548%22%2F%3E%3Ccircle%20cx%3D%22110%22%20cy%3D%22345%22%20r%3D%2228%22%20fill%3D%22%232c2548%22%2F%3E%3Crect%20x%3D%22240%22%20y%3D%22370%22%20width%3D%2290%22%20height%3D%22130%22%20rx%3D%2240%22%20fill%3D%22%232c2548%22%2F%3E%3Ccircle%20cx%3D%22285%22%20cy%3D%22350%22%20r%3D%2230%22%20fill%3D%22%232c2548%22%2F%3E%3C%2Fsvg%3E')"></div>
+        <div class="slots"><i style="background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%232f6f6a%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22170%22%20r%3D%22130%22%20fill%3D%22%23ffffff%22%20fill-opacity%3D%22.06%22%2F%3E%3Cg%20transform%3D%22rotate(-14%20150%20260)%22%3E%3Cpath%20d%3D%22M115%20150%20L185%20150%20L178%20260%20Q150%20280%20122%20260%20Z%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Cpath%20d%3D%22M119%20190%20L181%20190%20L178%20260%20Q150%20280%20122%20260%20Z%22%20fill%3D%22%23ffc34d%22%2F%3E%3Crect%20x%3D%22146%22%20y%3D%22272%22%20width%3D%228%22%20height%3D%2290%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Crect%20x%3D%22118%22%20y%3D%22358%22%20width%3D%2264%22%20height%3D%2210%22%20rx%3D%225%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22rotate(14%20250%20260)%22%3E%3Cpath%20d%3D%22M215%20150%20L285%20150%20L278%20260%20Q250%20280%20222%20260%20Z%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Cpath%20d%3D%22M219%20190%20L281%20190%20L278%20260%20Q250%20280%20222%20260%20Z%22%20fill%3D%22%23ff8fa3%22%2F%3E%3Crect%20x%3D%22246%22%20y%3D%22272%22%20width%3D%228%22%20height%3D%2290%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Crect%20x%3D%22218%22%20y%3D%22358%22%20width%3D%2264%22%20height%3D%2210%22%20rx%3D%225%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22128%22%20r%3D%225%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22182%22%20cy%3D%22110%22%20r%3D%223.5%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22220%22%20cy%3D%22106%22%20r%3D%223.5%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E')"></i><i style="background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%232a2140%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22170%22%20r%3D%22150%22%20fill%3D%22%23ffb347%22%20fill-opacity%3D%22.18%22%2F%3E%3Crect%20x%3D%2295%22%20y%3D%22300%22%20width%3D%22210%22%20height%3D%22120%22%20rx%3D%2214%22%20fill%3D%22%23f7e3d3%22%2F%3E%3Crect%20x%3D%2295%22%20y%3D%22300%22%20width%3D%22210%22%20height%3D%2234%22%20rx%3D%2214%22%20fill%3D%22%23f4a3b8%22%2F%3E%3Crect%20x%3D%22120%22%20y%3D%22250%22%20width%3D%22160%22%20height%3D%2260%22%20rx%3D%2212%22%20fill%3D%22%23fff1e6%22%2F%3E%3Crect%20x%3D%22120%22%20y%3D%22250%22%20width%3D%22160%22%20height%3D%2220%22%20rx%3D%2210%22%20fill%3D%22%23f4a3b8%22%2F%3E%3Crect%20x%3D%22155%22%20y%3D%22200%22%20width%3D%228%22%20height%3D%2252%22%20rx%3D%223%22%20fill%3D%22%23b99cff%22%2F%3E%3Crect%20x%3D%22196%22%20y%3D%22192%22%20width%3D%228%22%20height%3D%2260%22%20rx%3D%223%22%20fill%3D%22%238ee0c2%22%2F%3E%3Crect%20x%3D%22237%22%20y%3D%22200%22%20width%3D%228%22%20height%3D%2252%22%20rx%3D%223%22%20fill%3D%22%23ffd166%22%2F%3E%3Cellipse%20cx%3D%22159%22%20cy%3D%22190%22%20rx%3D%227%22%20ry%3D%2212%22%20fill%3D%22%23ffcf5a%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22181%22%20rx%3D%227%22%20ry%3D%2212%22%20fill%3D%22%23ffcf5a%22%2F%3E%3Cellipse%20cx%3D%22241%22%20cy%3D%22190%22%20rx%3D%227%22%20ry%3D%2212%22%20fill%3D%22%23ffcf5a%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%22415%22%20width%3D%22280%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.25%22%2F%3E%3C%2Fsvg%3E')"></i><i class="now" style="background-image:url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%231c1830%22%2F%3E%3Cpath%20d%3D%22M-10%2090%20Q100%20170%20200%20110%20T410%20120%22%20stroke%3D%22%236d6690%22%20stroke-width%3D%222%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M-10%20230%20Q120%20300%20210%20240%20T410%20250%22%20stroke%3D%22%236d6690%22%20stroke-width%3D%222%22%20fill%3D%22none%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%22120%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%2220%22%20cy%3D%22120%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%22284%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%22284%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%2266%22%20cy%3D%22140.36649965031458%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%2266%22%20cy%3D%22140.36649965031458%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%2286%22%20cy%3D%22277.3275476056376%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%2286%22%20cy%3D%22277.3275476056376%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22112%22%20cy%3D%22145.32003840283306%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22112%22%20cy%3D%22145.32003840283306%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22132%22%20cy%3D%22261.3576105093716%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22132%22%20cy%3D%22261.3576105093716%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22158%22%20cy%3D%22131.11187688607959%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22158%22%20cy%3D%22131.11187688607959%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22178%22%20cy%3D%22245.77733825809258%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22178%22%20cy%3D%22245.77733825809258%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22204%22%20cy%3D%22108.49446847433384%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22204%22%20cy%3D%22108.49446847433384%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22224%22%20cy%3D%22240.03751493251542%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22224%22%20cy%3D%22240.03751493251542%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22250%22%20cy%3D%2294.58421694070748%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22250%22%20cy%3D%2294.58421694070748%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22270%22%20cy%3D%22247.61984034100053%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22270%22%20cy%3D%22247.61984034100053%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22296%22%20cy%3D%2299.90812332354433%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22296%22%20cy%3D%2299.90812332354433%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22316%22%20cy%3D%22263.92497763566786%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22316%22%20cy%3D%22263.92497763566786%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22342%22%20cy%3D%22120.4371614125931%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22342%22%20cy%3D%22120.4371614125931%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22362%22%20cy%3D%22279.0624493272255%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22362%22%20cy%3D%22279.0624493272255%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Ccircle%20cx%3D%22388%22%20cy%3D%22140.635364460078%22%20r%3D%2216%22%20fill%3D%22%23ffd27a%22%20fill-opacity%3D%22.22%22%2F%3E%3Ccircle%20cx%3D%22388%22%20cy%3D%22140.635364460078%22%20r%3D%226%22%20fill%3D%22%23ffe3a3%22%2F%3E%3Ccircle%20cx%3D%22408%22%20cy%3D%22283.85006821268024%22%20r%3D%2216%22%20fill%3D%22%23ffb3c7%22%20fill-opacity%3D%22.2%22%2F%3E%3Ccircle%20cx%3D%22408%22%20cy%3D%22283.85006821268024%22%20r%3D%226%22%20fill%3D%22%23ffd0dc%22%2F%3E%3Crect%20x%3D%2270%22%20y%3D%22360%22%20width%3D%2280%22%20height%3D%22140%22%20rx%3D%2236%22%20fill%3D%22%232c2548%22%2F%3E%3Ccircle%20cx%3D%22110%22%20cy%3D%22345%22%20r%3D%2228%22%20fill%3D%22%232c2548%22%2F%3E%3Crect%20x%3D%22240%22%20y%3D%22370%22%20width%3D%2290%22%20height%3D%22130%22%20rx%3D%2240%22%20fill%3D%22%232c2548%22%2F%3E%3Ccircle%20cx%3D%22285%22%20cy%3D%22350%22%20r%3D%2230%22%20fill%3D%22%232c2548%22%2F%3E%3C%2Fsvg%3E')"></i><i class="open"></i><i class="open"></i></div>
+      </div></div>
+      <div class="share">
+        <svg viewBox="0 0 120 120" class="collage" aria-hidden="true"><defs><clipPath id="cp-top"><rect x="0" y="0" width="76" height="36" rx="3"/></clipPath><clipPath id="cp-right"><rect x="84" y="0" width="36" height="76" rx="3"/></clipPath><clipPath id="cp-bottom"><rect x="44" y="84" width="76" height="36" rx="3"/></clipPath><clipPath id="cp-left"><rect x="0" y="44" width="36" height="76" rx="3"/></clipPath><clipPath id="cp-centre"><rect x="44" y="44" width="32" height="32" rx="3"/></clipPath></defs><image href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22s%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23ff9a8b%22%2F%3E%3Cstop%20offset%3D%22.55%22%20stop-color%3D%22%23ffcf8a%22%2F%3E%3Cstop%20offset%3D%22.56%22%20stop-color%3D%22%233d5a8a%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2323355c%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22url(%23s)%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22275%22%20r%3D%2262%22%20fill%3D%22%23fff4d6%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%22278%22%20width%3D%22400%22%20height%3D%22222%22%20fill%3D%22%232f4a78%22%2F%3E%3Crect%20x%3D%22140%22%20y%3D%22300%22%20width%3D%22120%22%20height%3D%226%22%20rx%3D%223%22%20fill%3D%22%23ffe0a3%22%20fill-opacity%3D%22.7%22%2F%3E%3Crect%20x%3D%22160%22%20y%3D%22320%22%20width%3D%2280%22%20height%3D%225%22%20rx%3D%222.5%22%20fill%3D%22%23ffe0a3%22%20fill-opacity%3D%22.5%22%2F%3E%3Crect%20x%3D%22175%22%20y%3D%22338%22%20width%3D%2250%22%20height%3D%224%22%20rx%3D%222%22%20fill%3D%22%23ffe0a3%22%20fill-opacity%3D%22.35%22%2F%3E%3Ccircle%20cx%3D%2295%22%20cy%3D%22410%22%20r%3D%2216%22%20fill%3D%22%231a2744%22%2F%3E%3Crect%20x%3D%2280%22%20y%3D%22424%22%20width%3D%2230%22%20height%3D%2276%22%20rx%3D%2214%22%20fill%3D%22%231a2744%22%2F%3E%3Ccircle%20cx%3D%22135%22%20cy%3D%22416%22%20r%3D%2214%22%20fill%3D%22%231a2744%22%2F%3E%3Crect%20x%3D%22122%22%20y%3D%22428%22%20width%3D%2226%22%20height%3D%2272%22%20rx%3D%2212%22%20fill%3D%22%231a2744%22%2F%3E%3C%2Fsvg%3E" x="0" y="0" width="76" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp-top)"/><image href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%232f6f6a%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22170%22%20r%3D%22130%22%20fill%3D%22%23ffffff%22%20fill-opacity%3D%22.06%22%2F%3E%3Cg%20transform%3D%22rotate(-14%20150%20260)%22%3E%3Cpath%20d%3D%22M115%20150%20L185%20150%20L178%20260%20Q150%20280%20122%20260%20Z%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Cpath%20d%3D%22M119%20190%20L181%20190%20L178%20260%20Q150%20280%20122%20260%20Z%22%20fill%3D%22%23ffc34d%22%2F%3E%3Crect%20x%3D%22146%22%20y%3D%22272%22%20width%3D%228%22%20height%3D%2290%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Crect%20x%3D%22118%22%20y%3D%22358%22%20width%3D%2264%22%20height%3D%2210%22%20rx%3D%225%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3C%2Fg%3E%3Cg%20transform%3D%22rotate(14%20250%20260)%22%3E%3Cpath%20d%3D%22M215%20150%20L285%20150%20L278%20260%20Q250%20280%20222%20260%20Z%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Cpath%20d%3D%22M219%20190%20L281%20190%20L278%20260%20Q250%20280%20222%20260%20Z%22%20fill%3D%22%23ff8fa3%22%2F%3E%3Crect%20x%3D%22246%22%20y%3D%22272%22%20width%3D%228%22%20height%3D%2290%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3Crect%20x%3D%22218%22%20y%3D%22358%22%20width%3D%2264%22%20height%3D%2210%22%20rx%3D%225%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.85%22%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22128%22%20r%3D%225%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22182%22%20cy%3D%22110%22%20r%3D%223.5%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22220%22%20cy%3D%22106%22%20r%3D%223.5%22%20fill%3D%22%23fff%22%2F%3E%3C%2Fsvg%3E" x="84" y="0" width="36" height="76" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp-right)"/><image href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%23f3e6da%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22330%22%20rx%3D%22210%22%20ry%3D%22120%22%20fill%3D%22%23c98b5e%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%22300%22%20r%3D%2246%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%22300%22%20r%3D%2230%22%20fill%3D%22%23f4c26b%22%2F%3E%3Ccircle%20cx%3D%22280%22%20cy%3D%22300%22%20r%3D%2246%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22280%22%20cy%3D%22300%22%20r%3D%2230%22%20fill%3D%22%238cc084%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22370%22%20r%3D%2250%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22370%22%20r%3D%2234%22%20fill%3D%22%23e8795b%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%2280%22%20width%3D%2270%22%20height%3D%22140%22%20rx%3D%2232%22%20fill%3D%22%236b4e9b%22%2F%3E%3Ccircle%20cx%3D%2295%22%20cy%3D%2262%22%20r%3D%2228%22%20fill%3D%22%238a5a3c%22%2F%3E%3Crect%20x%3D%22270%22%20y%3D%2280%22%20width%3D%2270%22%20height%3D%22140%22%20rx%3D%2232%22%20fill%3D%22%233f7fb4%22%2F%3E%3Ccircle%20cx%3D%22305%22%20cy%3D%2262%22%20r%3D%2228%22%20fill%3D%22%235a3a26%22%2F%3E%3Crect%20x%3D%22165%22%20y%3D%2260%22%20width%3D%2270%22%20height%3D%22150%22%20rx%3D%2232%22%20fill%3D%22%23e0607e%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%2242%22%20r%3D%2228%22%20fill%3D%22%236e4a32%22%2F%3E%3C%2Fsvg%3E" x="44" y="84" width="76" height="36" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp-bottom)"/><image href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22a%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20offset%3D%220%22%20stop-color%3D%22%23fbd6c2%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23f2a98f%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22url(%23a)%22%2F%3E%3Cpath%20d%3D%22M150%20250%20Q160%20330%20140%20420%20M250%20230%20Q245%20330%20262%20430%20M205%20190%20Q215%20300%20200%20440%22%20stroke%3D%22%23ffffff%22%20stroke-opacity%3D%22.7%22%20stroke-width%3D%223%22%20fill%3D%22none%22%2F%3E%3Cellipse%20cx%3D%22150%22%20cy%3D%22200%22%20rx%3D%2258%22%20ry%3D%2270%22%20fill%3D%22%238a5cf6%22%2F%3E%3Cellipse%20cx%3D%22250%22%20cy%3D%22175%22%20rx%3D%2262%22%20ry%3D%2274%22%20fill%3D%22%23f06b8b%22%2F%3E%3Cellipse%20cx%3D%22205%22%20cy%3D%22125%22%20rx%3D%2254%22%20ry%3D%2264%22%20fill%3D%22%23ffc94d%22%2F%3E%3Cellipse%20cx%3D%22132%22%20cy%3D%22178%22%20rx%3D%2212%22%20ry%3D%2220%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.35%22%2F%3E%3Cellipse%20cx%3D%22232%22%20cy%3D%22150%22%20rx%3D%2212%22%20ry%3D%2220%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.35%22%2F%3E%3Cellipse%20cx%3D%22190%22%20cy%3D%22105%22%20rx%3D%2210%22%20ry%3D%2217%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.4%22%2F%3E%3C%2Fsvg%3E" x="0" y="44" width="36" height="76" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp-left)"/><image href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20500%22%20preserveAspectRatio%3D%22xMidYMid%20slice%22%3E%3Crect%20width%3D%22400%22%20height%3D%22500%22%20fill%3D%22%232a2140%22%2F%3E%3Ccircle%20cx%3D%22200%22%20cy%3D%22170%22%20r%3D%22150%22%20fill%3D%22%23ffb347%22%20fill-opacity%3D%22.18%22%2F%3E%3Crect%20x%3D%2295%22%20y%3D%22300%22%20width%3D%22210%22%20height%3D%22120%22%20rx%3D%2214%22%20fill%3D%22%23f7e3d3%22%2F%3E%3Crect%20x%3D%2295%22%20y%3D%22300%22%20width%3D%22210%22%20height%3D%2234%22%20rx%3D%2214%22%20fill%3D%22%23f4a3b8%22%2F%3E%3Crect%20x%3D%22120%22%20y%3D%22250%22%20width%3D%22160%22%20height%3D%2260%22%20rx%3D%2212%22%20fill%3D%22%23fff1e6%22%2F%3E%3Crect%20x%3D%22120%22%20y%3D%22250%22%20width%3D%22160%22%20height%3D%2220%22%20rx%3D%2210%22%20fill%3D%22%23f4a3b8%22%2F%3E%3Crect%20x%3D%22155%22%20y%3D%22200%22%20width%3D%228%22%20height%3D%2252%22%20rx%3D%223%22%20fill%3D%22%23b99cff%22%2F%3E%3Crect%20x%3D%22196%22%20y%3D%22192%22%20width%3D%228%22%20height%3D%2260%22%20rx%3D%223%22%20fill%3D%22%238ee0c2%22%2F%3E%3Crect%20x%3D%22237%22%20y%3D%22200%22%20width%3D%228%22%20height%3D%2252%22%20rx%3D%223%22%20fill%3D%22%23ffd166%22%2F%3E%3Cellipse%20cx%3D%22159%22%20cy%3D%22190%22%20rx%3D%227%22%20ry%3D%2212%22%20fill%3D%22%23ffcf5a%22%2F%3E%3Cellipse%20cx%3D%22200%22%20cy%3D%22181%22%20rx%3D%227%22%20ry%3D%2212%22%20fill%3D%22%23ffcf5a%22%2F%3E%3Cellipse%20cx%3D%22241%22%20cy%3D%22190%22%20rx%3D%227%22%20ry%3D%2212%22%20fill%3D%22%23ffcf5a%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%22415%22%20width%3D%22280%22%20height%3D%2214%22%20rx%3D%227%22%20fill%3D%22%23fff%22%20fill-opacity%3D%22.25%22%2F%3E%3C%2Fsvg%3E" x="44" y="44" width="32" height="32" preserveAspectRatio="xMidYMid slice" clip-path="url(#cp-centre)"/></svg>
+        <div class="cap"><div><b>Maya’s five</b><small>Dani’s 40th</small></div><svg class="mk" viewBox="0 0 120 120" aria-hidden="true"><use href="#ff-mark"/></svg></div>
+      </div>
+    </section>
+  </main>
+
+  <section class="notes">
+    <div>
+      <h2>Five frames that close into one square</h2>
+      <p>Four frames turn around a fifth. Two are landscape and two are portrait, the way guests actually hold their phones. The fifth is square and sits in the middle. Together they tile one square with nothing left over. <strong>The tagline is the construction:</strong> every guest’s frames are separate pieces, and together they make one picture.</p>
+      <p><strong>How I got here.</strong> I worked through four other routes and dropped each one. A five-frame film strip was the brief’s “five boxes in a row”. An F monogram built from viewfinder corners read as a generic initial and fell apart at 16px. Stacked prints turned into a blob when small. A squared 5 drawn by one continuous five-frame strip read as an S on a digital clock. The square survived reduction: one silhouette, solid at every size, and it looks right before anyone explains it.</p>
+      <p><strong>The details that make it ownable.</strong> No four corners ever meet (the same rule as a tatami floor), so no seam cuts across the mark and it reads as one turning group, not a grid. The gutter is a fifth of a unit, and the corner radius matches the product’s printed photos. Colour lives in the centre: violet on white, highlight violet on ink, white on violet. The wordmark repeats that centre as the dot on the i.</p>
+      <p><strong>The wordmark</strong> is Plus Jakarta Sans ExtraBold, the weight the app already uses, converted to outlines, kerned and tracked 1.4% tighter. Its one custom change is a square dot on the i. It stays in the product’s type family so it sits beside Fraunces and Jakarta without competing. Its source is still a public typeface, so a type designer should redraw the letterforms before any trademark filing.</p>
+    </div>
+    <div>
+      <h3>Ownability tests</h3>
+      <ul class="checks">
+        <li><b>Without the name <span class="pill ok">Pass</span></b>A pinwheel square with a violet heart. One shape, easy to recall and redraw from memory.</li>
+        <li><b>16px <span class="pill ok">Pass</span></b>A hand-drawn favicon on the pixel grid: 4px frames, 1px gutters. A dark-tab version swaps to white.</li>
+        <li><b>One colour <span class="pill ok">Pass</span></b>Every version is solid shapes, with no gradients, outlines or tones.</li>
+        <li><b>Beside a QR <span class="pill ok">Pass</span></b>Its large flat planes contrast with the QR’s fine module texture, so it stays distinct at table-card size.</li>
+        <li><b>On a photograph <span class="pill ok">Pass</span></b>White, single colour, placed in a corner. It never sits over faces.</li>
+        <li><b>Birthday, wedding, offsite <span class="pill ok">Pass</span></b>No hearts, confetti or cameras, and nothing tied to one kind of occasion.</li>
+        <li><b>Trademark clearance <span class="pill open">Open</span></b>Pinwheel tilings are an old pattern, and layout apps use similar tiles. Ownership comes from these exact proportions, the violet centre and consistent use. It still needs a formal search.</li>
+        <li><b>Photography <span class="pill open">Open</span></b>Panel 08 is a drawn light study. The project’s rules rule out stock images, so real event photography comes later.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+</body>
+</html>
