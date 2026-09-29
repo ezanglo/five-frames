@@ -41,12 +41,18 @@ change, not a refactor.
 7. Payment must succeed before any event link or QR exists.
 8. Media is never at a guessable public URL; an unrevealed gallery is never viewable.
 9. A host can only reach events they own.
-10. Original media is never modified. Derivatives are additional files.
+10. Original media is never modified. Derivatives are additional files. The event theme, keepsake
+    styles and FiveFrames branding exist only in derived outputs (guest screens, keepsakes,
+    signage), never in a stored original, and never during capture/preview/commit.
 11. The host can download their media at any point before permanent deletion.
 12. The frame count (5 photos) is a constant. Never configurable, purchasable, or extendable.
 13. Privileged operator mutations (confirming a manual payment, recording a manual refund) are
     server-authoritative and auditable, and happen only through the Operator Console — never a
     host-declared, ad hoc, or undocumented action.
+14. A keepsake is made only from the requesting guest's own committed, non-hidden capture. It
+    never contains another guest's content, the guest's display name, or the capture/gallery
+    link or QR, and making or sharing one never changes gallery access. Making a keepsake never
+    consumes a frame, counts as a capture, or adds a gallery item.
 
 ## Engineering constraints
 
@@ -98,6 +104,22 @@ change, not a refactor.
   add a host-facing route, generic admin endpoint, or script that performs them in production.
 - **The Operator Console shows aggregate counts, never individual guest media.** Do not add a DAL
   function an operator route could use to obtain a capture's signed image URL.
+- **Event Theme & Keepsakes (decision D19, architecture §7a–§7c).**
+  - The theme image is public-facing but **not publicly addressable**. It lives in the private
+    `event-theme` bucket and reaches a browser only as a signed URL after that surface's own
+    check (owner, valid event token, or granted gallery access). The Operator Console never gets
+    one. Never accept SVG uploads.
+  - There is **one sharing system**: keepsakes, rendered on demand from a closed five-style
+    registry and never persisted. Do not reintroduce a share-card path, `share_path`, or a
+    stored keepsake cache without a new decision. The render input is a closed struct: never add
+    the display name, tokens, links or counts to it.
+  - Accent colors are registry keys. Never interpolate a host-entered string into CSS or SVG
+    (SVG text always goes through `escapeXml`).
+  - The signage QR plate is never themed: dark on light, untouched quiet zone, nothing inside it,
+    destination always the event's capture link. Draft previews use the URL-less `preview` QR
+    type. Never mint a real or temporary token for a preview.
+  - Host/guest original downloads and D11 bulk download are unaffected by keepsakes and by the
+    sharing toggle.
 - Schema changes are forward migrations in `supabase/migrations/`. No dashboard edits.
 
 ## Recurring implementation gotchas in this stack
@@ -125,6 +147,9 @@ change, not a refactor.
 - The sharing toggle governs FiveFrames' own sharing features only. Copy must not claim it stops
   a guest sharing media already on their device.
 - No AI anywhere in the guest capture flow.
+- Keepsake designs are "keepsake styles", never "frames". Copy must not tie the five styles to
+  the five-photo allowance. Nobody gets an editor: the host sets image, accent and hashtag, and
+  the guest picks a style.
 
 ## Verification
 
@@ -157,7 +182,7 @@ Browser automation does NOT count as verification of:
 - physical printed-QR scanning;
 - genuine venue Wi-Fi/mobile-network conditions.
 
-Those remain human/real-device verification (roadmap slices 2 and 14) unless actually exercised
+Those remain human/real-device verification (roadmap slices 2, 14, 16 and 17) unless actually exercised
 through an approved real-device testing system.
 
 Automated E2E results may reduce the manual checklist by proving application-level behavior, but

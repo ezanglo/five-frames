@@ -1,6 +1,8 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-30 (brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
+Last updated: 2026-09-30 (Event Theme & Keepsakes: product spec accepted, architecture/roadmap
+prepared as D19 + Slices 15–17, **design pass done — awaiting human visual approval**,
+implementation **not started** — see the section below. Earlier the same day: brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
 `awaiting human visual approval`, see "UI/UX redesign — contracted designer handoff" below. Slice
 14 — full-flow real-device and venue-condition validation — is still `awaiting human
 verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
@@ -14,6 +16,39 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Event Theme & Keepsakes (2026-09-30): `designed — awaiting human visual approval; implementation not started`
+
+- **Product:** accepted in product.md §10 / §11.3 (theme image, curated accent, hashtag; five
+  keepsake styles replacing the share card; themed signage; host-only Draft previews; invariant 14).
+- **Architecture:** decision D19; architecture §7a (theme), §7b (keepsakes: on-demand, never
+  persisted, one sharing system), §7c (themed signage, placeholder-QR previews), §10 threat model.
+- **Design:** `docs/design-direction.md` → "Event Theme & Keepsakes" (the rules) and
+  `docs/design-handoff/FiveFrames_Theme_Keepsakes_v1.0/` (the rendered board: HTML + one PNG per
+  section). It covers the seven curated colors with contrast-verified roles (no custom picker),
+  the Look studio for Create and Settings, control states, five keepsake styles (Print
+  (preselected), Booth, Poster, Journal, Album), the one-step guest picker, and the four themed
+  signage formats with the Draft placeholder QR.
+- **Roadmap:** Slice 15 (theme foundation) → Slice 16 (keepsakes, retires share cards and
+  `share_path`) and Slice 17 (themed signage + previews).
+- **Code:** unchanged. The build still has no theme, one share card, and unthemed signage. The
+  current signage draws accent brackets inside the QR plate's padding and pads with fewer than 4
+  modules, which the design (and architecture §7c) forbid. Slice 17 fixes this.
+- **Design dependencies the slices must pick up:** Slice 15 needs new guest-scope tokens
+  `--brand-ink` (accent text; today's guest `text-brand` usages fail contrast with marigold) and
+  `--brand-foreground` (button text, which is ink on marigold). It also moves reveal/visibility
+  from Create → Look to Create → Details, splits Settings into Event & gallery · Look · Links, and
+  updates the stale "share card" copy on the hashtag and sharing fields. Slice 16 builds the
+  five templates in the Satori subset the board uses. Slice 17 builds the field + scan-side
+  layouts.
+- **Human visual approval needed (before or during Slice 15):** open the board and review, at
+  390 and 1440, Create → Look (Overview is the host's moment), Settings → Look, all five styles in
+  portrait and landscape (themed and default), the guest picker (original vs keepsake reads
+  clearly, a cancelled share is silent, sharing off shows nothing), the four signage formats, and
+  the Draft preview QR (obviously not a working code). Printing and scanning real signage, and
+  real-device share sheets, stay human checks in Slices 16–17. They can't be judged from the
+  board.
+- **Next:** approve (or adjust) the design, then `/build-app` Slice 15.
 
 ## Brand identity rollout (2026-09-30): `awaiting human visual approval`
 
@@ -150,8 +185,9 @@ text on violet). Tokens are now registered in `lib/utils.ts`; `lib/utils.test.ts
 `docs/design-direction.md` → "Known discrepancies". Items that need a **user decision** only if the
 product should change:
 
-1. Cover photo and event theme color (Create · Look, Settings) — not product capabilities today.
-2. Guest preview before payment — product.md §7.2 forbids it; shown only post-activation.
+1. ~~Cover photo and event theme color~~ — resolved: now product (§10.1), planned as Slice 15.
+2. ~~Guest preview before payment~~ — resolved: host-only Draft theme previews are now product
+   (§7.2), planned in Slices 15–17. There is still no reachable guest experience before payment.
 3. Delete event (Settings danger zone) — no host event-deletion capability exists yet.
 4. Photographer name/time in the *public* gallery viewer and the Join-screen guest count —
    withheld (data exposure / engagement nudge).
@@ -232,7 +268,8 @@ are also no longer in `.env.local`.
 ## Current phase
 
 **Slices 1–13: complete. Slice 14 (full-flow real-device and venue-condition validation,
-product.md, roadmap criteria 29/30) is `awaiting human verification` — status set 2026-09-23.**
+product.md, roadmap criteria 29/30) is `awaiting human verification` — status set 2026-09-23.
+Slices 15–17 (Event Theme & Keepsakes) are planned and not started, and wait on a design pass.**
 
 Slice 14 is defined by the roadmap itself as human-run, not automated ("Human-run on real
 devices. Not automated. ... this is a regression and end-to-end pass, not the first look at
@@ -1549,7 +1586,9 @@ supported, download fallback works where it isn't. Record exact limitations per 
 than guessing — e.g. if Instagram's in-app browser blocks the native camera picker, say so
 precisely rather than describing a workaround that wasn't actually exercised.
 
-**7. Web Share (folds in the previously separate Slice 10 checklist).** Capture a photo as a
+**7. Web Share (folds in the previously separate Slice 10 checklist).** *Slice 16 replaces the
+share card with keepsakes and re-runs these device checks against them. Running §7 now only
+validates code that is due to be replaced.* Capture a photo as a
 guest on a sharing-enabled event, tap the share icon:
 - iPhone Safari: native share sheet opens with the branded card (event name, date/hashtag,
   message, "FIVE FRAMES").
@@ -1616,9 +1655,12 @@ device available) will be recorded honestly as a known limitation rather than cl
 
 **Slice 14 — full-flow real-device and venue-condition validation: `awaiting human
 verification`.** Everything automatable is done and passing (see above). The checklist above is
-the exit condition; there is no further automatable work in this slice. Slice 14 is the last
-roadmap slice — do not begin `/release-review` or any production mutation until every item above
-is PASS or an honestly-recorded BLOCKED with no unresolved launch-blocking defect.
+the exit condition; there is no further automatable work in this slice.
+
+**Then: Event Theme & Keepsakes.** Design pass first, then Slice 15 → 16/17 (roadmap). MVP launch
+now also requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
+mutation until Slices 14–17 are PASS or honestly-recorded BLOCKED with no unresolved
+launch-blocking defect.
 
 ## Blockers and open items
 
@@ -1627,7 +1669,10 @@ is PASS or an honestly-recorded BLOCKED with no unresolved launch-blocking defec
 | Slice 14 full human verification checklist not yet run (see above) — this is now the single gating item for MVP completion | Manual verification pending | Entire guest/host/operator flow on real devices; see checklist above |
 | Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
-| Handoff capabilities not in the product: cover photo, theme color, delete event, pre-payment guest preview, public photographer attribution | Product decision (only if the product should change) | Create · Look, Settings, gallery viewer |
+| Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews are now product — Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
+| Event Theme & Keepsakes design pass not done (accent set, five keepsake styles, picker, Look step, themed guest screens/signage) | Design prerequisite | Slices 15–17 |
+| Whether hosts may pick a free custom accent color in addition to the curated set (product.md §19) | Open design question, non-blocking — architecture ships the curated set and allows adding custom colors later (D19) | Slice 15 |
+| Slice 16's legacy `…/share` object cleanup and `share_path` drop run against the dev Supabase project, which also backs Vercel Production today (see below) | Known interim state | Slice 16 |
 | Operator Console, share card, 404/error pages and app icons moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
 | Supabase Auth email templates (confirmation, password reset) still Supabase defaults — dashboard configuration, not repo code | Follow-up design task | Host signup and password-reset emails |
 | `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |

@@ -4,10 +4,11 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-09-23 (Slice 12: lifecycle automation and retention — see D18. `hosted_until`/
-`grace_until`/`safety_net_closes_at` are now actually stamped by the real activation/capture-open
-paths, not just the dev script; a new `events.media_deleted_at` column and a single daily Vercel
-Cron route handle permanent deletion after the grace period. No change to anything before D18.)
+Last updated: 2026-09-30 (Event Theme & Keepsakes, decision D19: theme config on `events`, a
+private `event-theme` bucket, keepsakes rendered on demand from a closed five-style registry and
+never persisted (replacing share cards and `share_path`), themed signage with a placeholder-QR
+Draft preview — §4, §7a–§7c, §10. **Architecture only; not yet implemented** (roadmap Slices
+15–17). Earlier: Slice 12 lifecycle automation and retention, D18.)
 
 ---
 
@@ -63,7 +64,9 @@ solving any requirement in the spec.
 | Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
 | Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
-| Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit) |
+| Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit); also normalizes the theme image (D19, planned) |
+| Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built for the share card (Slice 10); evolves into the five keepsake styles (D19, planned) |
+| Signage | Self-contained SVG strings + `qrcode` | Built — Slice 8; theming and Draft preview planned (D19) |
 | Scheduled work | Vercel Cron | Built — Slice 12 (`GET /api/cron/lifecycle`, daily, `vercel.json`) |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
 
@@ -77,7 +80,8 @@ Remaining rows not yet built are provisioned/installed in the slice that first n
 app/
   (host)/                 Host dashboard — Supabase Auth session required
   (operator)/             Operator Console — Supabase Auth session + operator grant required (§5a)
-  (guest)/e/[token]/      Guest capture — event token in path, guest cookie for session
+  (guest)/e/[token]/      Guest capture — event token in path, guest cookie for session;
+                          keepsake route lives under it (§7b)
   (gallery)/g/[token]/    Gallery viewer — gallery token in path
   (demo)/demo/            Public pre-purchase demo — client-only, no DAL calls (§6b, D14)
   api/
@@ -88,7 +92,10 @@ lib/
   dal/                    Data Access Layer — the ONLY place that touches the database
                           (lifecycle.ts: system-authoritative, no ownership predicate, D18)
   auth/                   Host session, guest session, operator authorization, token verification
-  media/                  Storage paths, signed URLs, derivative generation, share cards
+  media/                  Storage paths, signed URLs, derivative generation, signage, QR
+  theme/                  Curated accent registry + deriveAccentRoles (contrast safeguard) (D19)
+  keepsakes/              The five-style registry and its JSX templates, shared by the server
+                          renderer and browser previews; replaces media/share-card (D19)
 proxy.ts                  (if needed) — Next 16 renamed middleware to Proxy
 supabase/migrations/      SQL migrations, source of truth for schema
 ```
@@ -125,7 +132,8 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   the same `auth.users` a host session is issued against; a row's mere existence is the
   authorization.
 - **`events`** — owner, name, date, timezone, host message, lifecycle timestamps, config
-  (reveal mode, visibility, sharing enabled, hashtag), `event_token`, `gallery_token`,
+  (reveal mode, visibility, sharing enabled), theme (`theme_image_path`, `accent_color`,
+  `hashtag` — §7a, D19), `event_token`, `gallery_token`,
   `activated_at`, `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`,
   `hosted_until`, `grace_until`, `media_deleted_at` (Slice 12, D18 — the durable "permanent
   deletion actually completed" marker, distinct from `grace_until` merely having elapsed),
@@ -134,7 +142,9 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
   `message`, storage keys, moderation flags (`hidden_at`, `deleted_at`, `favorited_at`),
-  `committed_at`. There is no `kind` column: every capture is a photo.
+  `committed_at`. There is no `kind` column: every capture is a photo. `share_path` (Slice 10's
+  share-card cache) is **retired** by D19: keepsakes are not persisted, so nothing replaces it
+  (§7b).
 - **`payments`** — one row per event, source-agnostic (§8, D16). Not yet built (Slice 7/8 land
   it), so it is designed to carry provider and manual payment together from the start rather than
   retrofitted:
@@ -423,6 +433,10 @@ against real persisted data — only the guest capture interaction and a locally
 gallery. That is exactly the scope §7.1 asks for ("the core mechanic: capturing into five frames
 and seeing the resulting gallery experience"), not a limitation to work around.
 
+If the demo shows keepsake styles (product.md §7.1, MVP-optional), it renders the shared keepsake
+templates in the browser (§7b) with a fixed sample theme and sample/local photos. D14 is
+unchanged: no server call, no theme upload, no signage, no QR.
+
 ---
 
 ## 7. Media handling
@@ -464,16 +478,274 @@ reserve/commit gate, that makes "connection drops mid-upload" cheap for large fi
 - The original is stored untouched in a private bucket.
 - **Display** and **thumbnail** derivatives are generated server-side with `sharp` after commit
   and written as separate objects. **The original is never modified** (invariant 10).
-- **Share cards** are generated on demand and cached as a derivative — a new image containing the
-  photo plus event name, date, hashtag, message, and branding. Never a mutation of the original.
-- **HEIC/HEIF:** accepted on upload; whether conversion is required on current target devices is
-  an open question in the spec and is validated in the capture slice, not designed up front.
+- **Keepsakes** (§7b) are further derived outputs, rendered on demand from the display derivative
+  and never stored. They replace Slice 10's share cards. Never a mutation of the original.
+- **HEIC/HEIF:** accepted on upload; `sharp` decodes it into the JPEG display derivative with no
+  separate conversion step (validated on a real iPhone in Slice 2).
 
 ### Private delivery
 
 No media is reachable at a stable public URL (invariant 8). Photos are served through short-lived
 Supabase Storage signed URLs, minted by the DAL only after an access check. Signed URL generation
 is the *result* of authorization, never a substitute for it.
+
+---
+
+## 7a. Event theme
+
+product.md §10.1; decision D19. One theme per event, entirely optional. It is a few columns on
+the row the app already loads, not a new entity.
+
+### Representation
+
+| Column | Meaning | Default / unset |
+|---|---|---|
+| `theme_image_path` | Key of the normalized theme image in the `event-theme` bucket | `null` → default no-image treatment |
+| `accent_color` | A key into the curated registry in `lib/theme/` (e.g. `violet`) | `violet` |
+| `hashtag` | Existing column; stored without `#` | `null` → omitted everywhere, with no gap left |
+
+- **Accent colors are keys, not colors.** The registry maps each key to a human label (shown in UI,
+  never the raw key) and a base color. `deriveAccentRoles(color)` computes the applied shades
+  (text on light, text on dark, button fill + button text, tint). It is a pure function, and a unit
+  test asserts every curated key clears WCAG AA against the surfaces it is used on. That test is
+  the contrast safeguard (product.md §10.1). An unknown stored key renders as `violet`, so a
+  palette change can never break a render. A free custom color (open design question) would add a
+  validated column and reuse the same function; nothing is reserved for it now.
+- **Hashtag** is validated in the DAL on every write: optional leading `#` stripped; letters
+  (including accented), digits and underscore only; no spaces; at most 30 characters (a design
+  pass may tune this bound, but it stays one server-side constant). Existing free-text values are
+  normalized, or cleared if invalid, by the Slice 15 migration.
+- **Guest screens get the accent as scoped CSS custom properties** set server-side on the guest
+  shell from `deriveAccentRoles` output. Host chrome and the Operator Console never receive them.
+  No host-entered string is ever interpolated into CSS.
+- **What counts as a theme change for outputs:** image, accent, hashtag, plus the event name and
+  date that outputs also show. Because nothing themed is persisted (§7b, §7c), no invalidation
+  step exists. The next render reads the current row.
+
+### Theme image storage and upload
+
+- **Bucket:** a new private bucket, `event-theme` (`public = false`), created by migration. Its
+  own `file_size_limit` (**15 MB**) and `allowed_mime_types` (`image/jpeg`, `image/png`,
+  `image/webp`, `image/heic`, `image/heif`) are enforced by Storage at upload time. Kept separate
+  from `captures` so theme media can never be mistaken for, counted with, or downloaded as a
+  capture (product.md §10.1).
+- **Layout:** flat, one folder per event: `{event_id}/{upload_id}.upload` (the raw upload, transient)
+  and `{event_id}/{upload_id}.{jpg|png}` (the normalized image). `upload_id` is a server-generated
+  UUID. The browser never chooses a path.
+- **Flow (host-authenticated, ownership-scoped, only while settings are editable):**
+  1. *Begin*: server action mints a signed upload URL for a fresh `…/{upload_id}.upload` path (the
+     D7 mechanism). Theme files are small enough that the standard signed PUT is the normal path.
+     The existing TUS-above-6 MB client helper may be reused unchanged.
+  2. *Commit*: the server verifies the object exists, then normalizes it with `sharp`. It decodes,
+     rejects anything with more than one frame/page (animated WebP/PNG, multi-image HEIC) or over a
+     ~40-megapixel decode cap, rejects a shortest edge under 600 px, auto-orients, strips all
+     metadata (EXIF/GPS never reaches a guest), and resizes to a ≤ 2400 px long edge. Output is
+     JPEG, or PNG only when the source has transparency.
+  3. *Swap*: one ownership-predicated `UPDATE events SET theme_image_path = $new`.
+  4. *Prune*: list the event's folder and delete every object other than the current
+     `theme_image_path`. This includes the raw upload and any previous image.
+  - *Remove* = set `theme_image_path = null`, then prune (deletes everything in the folder).
+  - Any failure before step 3 leaves the previous image in place (product.md §13). Leftovers from a
+    crash or a concurrent upload are just "not current" objects, and the next prune removes them.
+    No lock or saga is needed.
+- **Formats (engineering constraint, product.md §10.1/§19):** JPEG, PNG, HEIC/HEIF (decoded by the
+  same `sharp` build captures already use), and static WebP. **Not accepted:** SVG (script-capable
+  markup, never ingested), GIF, animated images, PDF/multi-page, RAW, video. Recommended source:
+  ≥ 1600 px on the long edge so the poster format prints cleanly. Whether to warn below that is a
+  design copy question.
+
+### Delivery: public-facing, not publicly addressable
+
+The theme image is *meant* to be seen by guests, on signage, and on shared keepsakes. That makes it
+**public-facing presentation**. It is still **not publicly addressable storage**: the bucket is
+private, the path is a random UUID, and no stable URL exists. Browser reads are short-lived signed
+URLs minted by the DAL **after the surface's own access check**:
+
+| Surface | Access check before a signed URL is minted |
+|---|---|
+| Host event pages and Look previews | Host ownership predicate (any lifecycle state, incl. Draft) |
+| Guest event screens (`/e/[token]`) | Valid, current `event_token` (so it is only reachable after activation, and a rotated or revoked token stops it) |
+| Gallery pages (`/g/[token]`) | Only in the branch where gallery access is actually granted. The locked/"only me" branch never loads it (criterion 43) |
+| Keepsake and signage renderers | None to the browser; the server reads bytes with the service client |
+| Operator Console | **Never.** No operator DAL function selects or signs it |
+
+A signed URL copied out of a page expires on the existing short TTL. Replacing or removing the
+image deletes the object on prune, so a URL minted earlier stops resolving then, not just at
+expiry.
+
+### Lifecycle
+
+Theme edits are allowed in exactly the states where other event settings are editable, and never
+change payment, activation, tokens or lifecycle state. A refund leaves the theme as configuration.
+**Permanent deletion (D18)** gains one step in its storage-first order: delete the capture objects
+**and** every object in the event's `event-theme` folder → hard-delete `captures` rows → set
+`media_deleted_at` (and clear `theme_image_path`) under the existing atomic guard. Re-running it
+after a partial failure is still a no-op-safe sweep.
+
+---
+
+## 7b. Keepsakes (one sharing system)
+
+product.md §10.2–§10.3, invariants 10 and 14; decision D19. A keepsake is Slice 10's share card
+generalized to five styles, and **it replaces that code path**. There is one sharing system.
+
+### Style registry
+
+`lib/keepsakes/` holds a closed registry: exactly five entries, each `{ id, label, canvas, Template }`
+with a stable string `id`, plus one registry constant for the preselected style. A unit test
+asserts the count is exactly five. There is no template engine, no host/guest template data, and no
+per-event style configuration (product.md §10.4). Styles are ordinary code, reviewed like code.
+
+Each `Template` is a pure JSX component limited to the CSS subset Satori supports (flexbox,
+absolute positioning, borders, radius, `object-fit`, bundled fonts). It renders identically in two
+places:
+
+- **Server, for the exported keepsake:** `ImageResponse` (Satori + resvg) at the style's fixed
+  canvas, then `sharp` → JPEG (quality ~88, no metadata). Photographic output as JPEG is roughly
+  5–10× smaller than resvg's PNG, which matters on venue networks.
+- **Browser, for previews:** the same component rendered by React DOM inside a fixed-size box scaled
+  to fit. It is used by the guest's style picker, the host's Look previews (with bundled sample
+  photos), and optionally the demo (D14: client-only, fixed sample theme, no server).
+
+### Render input: a closed struct
+
+```
+KeepsakeInput = {
+  style: KeepsakeStyleId
+  photo: { bytes, width, height }         // the capture's display derivative (auto-oriented, ≤1600px)
+  event: { name, dateLabel, hashtag|null } // dateLabel from event_date
+  theme: { accent: AccentRoles, image: bytes|null }
+  message: string|null                     // the capture's committed message
+}
+```
+
+The builder that creates it takes the event row and the capture row, and copies only these fields.
+It never copies the guest display name, tokens, links, counts, timezone, lifecycle, payment or host
+data, and a unit test asserts that (invariant 14, product.md §10.2 "never contains"). No QR or URL
+can appear because none is an input. Text reaches Satori as React text nodes, never parsed markup,
+so HTML injection through the event name, message or hashtag is structurally impossible. Templates
+truncate to their layout bounds and must degrade cleanly on glyphs the bundled fonts lack.
+
+**Orientation:** each template classifies the photo as portrait / square / landscape from its
+dimensions. It lays out with `contain`, or a modest crop that applies only inside the keepsake, and
+never overlays the theme image on the photo. The original and its derivatives are only read.
+
+### Request, authorization, response
+
+`GET /e/[token]/keepsake/[captureId]/[styleId]` (Route Handler). It is side-effect free, so it is a
+GET and needs no CSRF token. Every request re-checks, in the DAL:
+
+1. `event_token` resolves to an event whose lifecycle is not expired/archived;
+2. the signed guest cookie holds a session for **this** event;
+3. the capture matches `(id, guest_session_id, event_id)`, is `committed`, not hidden, not
+   deleted, and has a display derivative;
+4. `sharing_enabled` is true;
+5. `styleId` is in the registry.
+
+Any failure of 1–3 or 5 returns the same generic not-found (no oracle for probing other guests'
+capture ids, as today). A failure of 4 returns "sharing disabled". It never loads sibling captures
+and never consults gallery visibility, so it works identically before and after reveal without
+exposing either.
+
+Response: `image/jpeg`, `Cache-Control: private, no-store`, filename
+`fiveframes-{event-slug}-{style}.jpg` (no guest name). `?download=1` adds
+`Content-Disposition: attachment` for the **save** action, so saving works by plain navigation in
+in-app browsers where blob downloads are unreliable. **Share vs. save** is otherwise a client
+concern over the same bytes. The client fetches the selected style's bytes **when the style is
+selected** (including the preselected one when the picker opens), so the Share tap calls
+`navigator.share({ files })` with the bytes already in hand, inside the user gesture. Save is the
+fallback wherever the share sheet is unavailable.
+
+### Caching and invalidation
+
+**None persisted.** Every export renders from the current event row and theme (product.md §10.2).
+Changing the theme image, accent, hashtag, name, date or the style design therefore can never leave
+a stale branded output on the server. Exported keepsakes on guests' devices are out of reach by
+product decision (§10.3, accepted risk). Browser previews use the theme loaded when the picker opens.
+The export is always server-current. The server may keep an in-memory, per-instance cache of theme
+image bytes keyed by `theme_image_path`. Paths are immutable (each upload gets a new UUID), so that
+cache is correct without invalidation.
+
+### Cost and performance shape
+
+Server renders happen only on selection or export, never eagerly. The worst case per event is
+250 sessions × 5 captures × a few style selections: low thousands of sub-second renders on
+event day, with zero keepsake storage. Picker and host previews cost no server renders, because
+they reuse the display image already on the device. Theme storage is one ≤ ~2 MB object per event.
+Assumptions to verify in the pilot: render p95, function memory/duration with a 1600 px photo plus
+a 2400 px theme image, JPEG keepsake size, and how many renders a real guest triggers.
+
+### Migration from share cards
+
+- `lib/media/share-card.tsx` → `lib/keepsakes/` (its layout may become one of the five styles; that
+  is the design pass's call). `lib/dal/share-cards.ts` → `lib/dal/keepsakes.ts` with the same
+  ownership predicate plus the expiry and style checks. The `getShareCard` server action (base64
+  data URL) → the Route Handler above. `use-share-capture.ts` → the picker flow.
+- `captures.share_path` is retired. Stop reading and writing it. An idempotent cleanup deletes the
+  existing `…/share` objects and nulls the column. Then a forward migration drops the column, and
+  D18 deletion stops listing it. Until the drop, deletion keeps handling it.
+- `events.sharing_enabled` is unchanged and now governs making, sharing and saving keepsakes
+  (product.md §10.3). It never affects original downloads.
+
+---
+
+## 7c. Signage and previews
+
+product.md §10.1, §11.3; decision D19. Extends the Slice 8 signage renderer (`lib/media/signage.ts`):
+four formats of self-contained SVG, rendered on demand, never persisted.
+
+### Themed signage
+
+`renderEventSignageSvg(format, input)` takes `{ eventName, hashtag, accent: AccentRoles,
+themeImage: bytes|null, qr }`. The theme image is embedded as a base64 data URI of the normalized
+JPEG/PNG (no external reference), on the formats and in the regions the design pass assigns. Every
+interpolated string goes through the existing `escapeXml`. The accent comes only from the registry.
+
+**The QR plate is fixed, not themed:**
+
+- modules always `INK` on a white plate; accent never used inside the plate;
+- the plate's padding is ≥ 4 modules (the quiet zone) at every format size, and nothing (image,
+  tint, mark, bracket) is drawn inside the plate rectangle;
+- no logo is inserted into the modules; error-correction level stays fixed;
+- the encoded value is always `{origin}/e/{event_token}`, built server-side. There is no input for
+  a host-chosen destination.
+
+A unit test per format asserts plate color, quiet-zone size, and that no other element's bounds
+intersect the plate. Human print-and-scan checks cover the rest (roadmap Slice 17).
+
+### The QR input is a discriminated type
+
+```
+qr = { kind: "live", captureUrl }   // constructible only from an activated event with event_token
+   | { kind: "preview" }            // carries no URL at all
+```
+
+`preview` renders a **static, bundled, non-decodable placeholder** the same size as a real QR. It is
+a fixed module pattern that is deliberately not a valid QR symbol, so no scanner resolves it, plus a
+visible "Preview — not a working code" mark. It is never derived from any event field, token or URL,
+and no temporary or real token is ever minted for it. That is the trust boundary: a preview
+contains nothing that can admit anyone, even if it is screenshotted.
+
+### Routes and gating
+
+| Output | Who | When | Response |
+|---|---|---|---|
+| Signage **download** (existing `/events/[id]/signage/[format]`) | Owning host | Only with `activated_at` and `event_token` (unchanged) | `attachment` SVG, `live` QR |
+| Signage **preview** | Owning host | Any editable state | Inline only (no download affordance). `preview` QR before activation, `live` QR after |
+
+The preview is rendered server-side by the production renderer (inline in the Look page or a
+sibling inline route; an implementation choice). It is never a separate mock-up.
+
+### What the Look page previews, and with what
+
+| Preview | Rendered by |
+|---|---|
+| Guest screens | The real guest shell components, with sample content and the event's theme, inside a scaled frame on a host-authenticated page. No token and no guest DAL call, so nothing a guest could reach is created |
+| Five keepsake styles | The real keepsake templates in the DOM (§7b), with bundled sample photos (portrait + landscape) |
+| Four signage formats | The real signage renderer, server-side (above) |
+
+Nothing here is a screenshot, so previews cannot drift from production output except through
+DOM/Satori rendering differences, which each style's visual check covers.
 
 ---
 
@@ -563,13 +835,9 @@ route and every server action — never by page-level UI hiding alone.
   unavailable entirely (product.md §5.1.2), so the Console cannot become the "god mode" admin tool
   product.md explicitly excludes.
 
-**Event signage (product.md §11.3).** Once `event_token` exists, the four signage formats
-(printable QR, table card, poster, digital/phone-screen) are rendered from the same token — no
-new identity or link concept. This is server-rendered output (e.g. an image/PDF response built
-from the event name, guest instruction copy, and the existing QR-encodable event link), not a
-new persisted asset and not a customizable design tool (product.md explicitly excludes that). It
-belongs in the same slice as activation because it has nothing to render before a real
-`event_token` exists.
+**Event signage (product.md §11.3)** is rendered from the event's `event_token`. Downloads exist
+only after activation. Theming and host-only Draft previews with a placeholder QR are covered in
+§7c.
 
 ---
 
@@ -610,7 +878,10 @@ by the DAL) keeps the current boundary intact and should be weighed first.
 | Operator/host conflict of interest | DAL equality check (`event.host_id !== operatorUserId`) on manual-payment confirm and manual-refund mutations (§5a) |
 | Guest scoped to one event | Signed cookie bound to `guest_session_id` + `event_id` |
 | Capture gate | Server-side re-check of paid/active/open on **reserve and commit**, not just page render |
-| Media privacy | Short-lived signed URLs minted after an access check; private buckets |
+| Media privacy | Short-lived signed URLs minted after an access check; private buckets (`captures`, `event-theme`) |
+| Theme image | Private bucket; signed URL only after the surface's own check (§7a table); never for the Operator Console; server-chosen paths; SVG never accepted |
+| Keepsake isolation | Per-request check of own committed, non-hidden capture + sharing toggle + lifecycle (§7b); closed render input (no display name, links, tokens) |
+| Signage / preview QR | Live QR only from an activated event's token; Draft previews use the URL-less `preview` type (§7c) |
 | Link secrecy | 128-bit tokens, unique-indexed, rotatable |
 | Secrets | Server-only env vars, read only in `lib/dal/` and `lib/auth/`; no secret is ever `NEXT_PUBLIC_` |
 | Server-only enforcement | `import 'server-only'` on DAL modules |
@@ -637,11 +908,26 @@ The practical consequence: **DAL discipline is the security model.** Ownership p
 `import 'server-only'` are load-bearing, and the service role key is the single most sensitive
 secret in the system.
 
-### Pre-reveal share isolation
+### Keepsake, theme and preview threat model
 
-The share-card endpoint takes a capture id and authorizes it against the requesting guest's own
-session. It never loads sibling captures and never consults gallery visibility, so generating a
-share card before reveal cannot leak the gallery (spec §10, acceptance criterion 19).
+The keepsake route takes a capture id and authorizes it against the requesting guest's own
+session. It never loads sibling captures and never consults gallery visibility, so making a
+keepsake before reveal cannot leak the gallery (invariant 14, criterion 29). The paths this
+feature adds, and what closes each one:
+
+| Threat | Mitigation |
+|---|---|
+| Reading another event's theme image | Private bucket, UUID path, signed URLs only after owner/token/granted-gallery check; the locked gallery never loads it |
+| Keepsake of another guest's, hidden, or another event's photo | DAL predicate on `(capture id, guest session, event)` + committed/not hidden/not deleted, re-checked every request; generic not-found |
+| Bypassing the sharing toggle | Checked server-side in the route, not only by hiding the button |
+| Enumerating cached derivatives | None exist — keepsakes and signage are never persisted |
+| Stale signed URLs | Existing short TTL; replace/remove prunes the object, so old URLs die then |
+| Private data leaking into a keepsake | Closed `KeepsakeInput` (no display name, tokens, links, counts, host data); JPEG re-encode carries no metadata; theme image EXIF stripped at ingest |
+| Preview becoming real access | URL-less `preview` QR type; no temporary token; preview responses are inline-only and host-owned |
+| Cross-host theme edits | Ownership predicate on every theme mutation; server-generated upload path; commit verifies the path is under that event's folder |
+| Text injection into images | Satori takes React text nodes (no markup parsing); SVG interpolation always via `escapeXml`; hashtag charset-validated; accent is a registry key, never raw CSS |
+| Hostile image files | SVG never accepted; decode-pixel cap; single-frame check; Storage-enforced size/MIME limits |
+| Render-endpoint abuse | Bounded work per request, cookie + capture authorization; no dedicated limiter in MVP (product.md allows ordinary fair use). Watch pilot logs and add a simple per-session limit if needed |
 
 ---
 
@@ -654,6 +940,14 @@ Weighted toward the invariants, not toward coverage percentage.
   retry-after-failure, abandoned reservation expiry, moderation-does-not-restore-a-frame. These
   are the tests that matter most.
 - **Unit tests** for lifecycle state derivation, token handling, and access decisions.
+- **Event Theme & Keepsakes** (D19): the registry has exactly five styles; the `KeepsakeInput`
+  builder never includes display name, links or tokens; every curated accent clears contrast;
+  hashtag validation; signage QR plate/quiet-zone/no-overlap per format; the `preview` QR carries no
+  URL and does not decode; integration tests for keepsake authorization (other guest, hidden,
+  deleted, sharing off, expired event) and for theme replace/remove leaving exactly one object and
+  deletion (D18) emptying the theme folder; originals are byte-identical after keepsakes are made.
+  Each style is rendered to image for portrait/landscape/square, with and without theme image,
+  hashtag and message, then human-inspected against its DOM preview.
 - **`pnpm typecheck` and `pnpm lint`** on every change.
 - **Manual device validation** on real iPhone and Android hardware, including in-app browsers,
   starting in the first capture slice rather than at final QA (see roadmap). It is human-run and
@@ -693,3 +987,7 @@ traffic to track, not before.
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |
 | Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | MVP ships sequential signed-URL downloads; server-side archive is a known follow-up |
+| Keepsake render latency/cost higher than assumed (target: p95 well under ~2 s, output a few hundred KB) | Slow share/save on venue networks | Pilot-measure render time, function duration and output size. If needed, add content-addressed persistence (D19's runner-up); the render input is already deterministic |
+| DOM preview ≠ Satori export for a style | Guest/host sees one thing, gets another | Satori-subset CSS only; per-style visual parity check in Slice 16; fallback to small server-rendered previews from the same templates |
+| iOS/in-app browsers reject `navigator.share` after async work, or block blob saves | Share/save fails for some guests | Bytes fetched on style selection, before the Share tap; `?download=1` navigation for save; verified on real devices in Slice 16 |
+| Theme image degrades signage scannability | Guests can't join | Fixed QR plate outside theming; per-format geometry tests; human print-and-scan in Slice 17 |

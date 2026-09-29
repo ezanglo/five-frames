@@ -464,3 +464,89 @@ recorded launch prerequisite**, not a silent gap: before a genuine production la
 to decide on an actual outbound channel (most likely transactional email to the host's account
 email, since Supabase Auth already has it) and that is new scope for its own slice/decision, not
 implied by this one.
+
+---
+
+## D19 — Event Theme & Keepsakes: private theme media, one on-demand keepsake renderer, no persisted keepsakes
+
+**Status:** Accepted (2026-09-30)
+**Context:** product.md §10 (accepted 2026-09-30) adds an optional event theme (one image, one
+curated accent color, one optional hashtag), exactly five FiveFrames keepsake styles that
+**replace** the single branded share card ("one sharing system, not two"), themed signage, and
+host-only previews of all of it — including in Draft, with a placeholder QR (§7.2, §11.3). It
+also adds invariant 14 and extends invariant 10. It leaves rendering, caching, theme-image
+storage and format limits to architecture (§17). The existing share card (Slice 10) is cached
+once per capture at a fixed `…/share` path with no invalidation, which would keep serving stale
+branded output after any theme change; it is also fetched *after* the guest's tap, which risks
+losing the user gesture `navigator.share` needs on iOS.
+**Decision:**
+1. **Theme config lives on `events`**: `theme_image_path` (nullable), `accent_color` (a key from a
+   curated code registry, default `violet`; never a raw host-supplied value), and the existing
+   `hashtag`, now validated server-side (stored without `#`; letters incl. accented, digits,
+   underscore; bounded length). No theme table, no revision counter, no design-document model.
+2. **The theme image lives in a new private bucket, `event-theme`**, flat per event
+   (`{event_id}/{upload_id}…`). The host uploads directly under a server-issued, path-scoped
+   signed upload URL (the D7 pattern); the server validates and normalizes it (single-frame
+   raster only, pixel cap, auto-orient, metadata stripped, bounded long edge) into one object and
+   points `theme_image_path` at it. Every theme write ends by pruning every other object in that
+   event's folder, so a replace/remove/crash leaves no durable orphan. It is **public-facing
+   presentation, not publicly addressable storage**: every browser read is a short-lived signed
+   URL minted after the same access check that governs the surface showing it (owner, valid event
+   token, or granted gallery access). Never minted for the Operator Console.
+3. **Keepsakes are rendered on demand and never persisted.** One route, authorized per request
+   against the requesting guest's own committed, non-hidden capture (invariant 14), the sharing
+   toggle, and the event's lifecycle, renders the chosen style from the capture's display
+   derivative plus the event's **current** theme and returns image bytes. No storage object, no
+   cache row, no path to enumerate or clean up. The existing share-card path **becomes** this
+   system: `share_path` and its stored `…/share` objects are retired, not kept alongside it.
+4. **Five styles are a closed code registry of JSX templates** restricted to the CSS subset
+   `next/og` (Satori) supports. The same template renders server-side for the exported keepsake
+   and in the browser (React DOM, scaled) for the guest's five-style picker, the host's Look
+   previews, and optionally the demo — one template definition, no screenshots.
+5. **Signage stays on-demand SVG** and takes the same theme input. The QR plate is fixed (dark on
+   light, untouched quiet zone, nothing inside it). Before activation, previews render the same
+   renderer with a static, non-decodable placeholder that carries no URL and is visibly marked as
+   a preview; the renderer's QR input is a type that cannot carry both.
+6. **D11 is unchanged.** Host and guest original downloads and sequential bulk original download
+   are untouched; keepsakes are a separate output with no ZIP or batch path.
+**Reasoning:**
+- *No persisted keepsakes* removes the stale-branding problem instead of managing it. "A keepsake
+  always uses the event theme as it is when the keepsake is made" (§10.2) holds by construction,
+  with no invalidation rule for theme image, color, hashtag, name, date or style changes to get
+  wrong. It also removes lifecycle-deletion and orphan handling for keepsakes. The cost is one
+  bounded render per share/save (at most five captures × five styles per session), which is small
+  at launch scale (≤ 250 sessions/event, D13).
+- *Content-addressed persisted caching* (key = hash of style + every render input) was the
+  runner-up. It is correct but adds per-capture storage objects, prefix listing in D18 deletion,
+  and orphaned variants after every theme change, all to save sub-second renders nobody has
+  measured as a problem. Because the render inputs are already a closed, deterministic struct,
+  adding it later is a contained change if pilot data asks for it.
+- *Shared DOM/Satori templates for previews* keep five picker thumbnails off a weak venue network
+  (they reuse the display image the guest already has, with no extra round trips) and make host
+  previews use the real templates. The alternative, five server renders per picker open, costs
+  about five image downloads each time on the worst networks in the product.
+- *A separate private bucket* lets Storage itself enforce the theme's smaller size limit and
+  format list at upload time, and keeps theme media structurally apart from guest captures, which
+  product.md requires to stay out of gallery, counts, downloads and the Console.
+- *Pruning the folder* instead of reading the old path and then deleting it is race- and
+  crash-tolerant without a lock: whatever isn't the current path is garbage.
+**Consequences:**
+- The keepsake picker renders the selected style's server bytes when the style is selected, so
+  the Share tap calls `navigator.share` with bytes already in hand. This fixes the latent
+  gesture-timing risk in today's flow.
+- Keepsakes are encoded as JPEG (they are photographic), not resvg's PNG, to keep downloads small
+  on venue networks.
+- DOM-preview vs. Satori-export parity must be checked visually per style (architecture §7b).
+  If parity proves poor, the fallback is small server-rendered previews from the same templates.
+  That is reversible and needs no new decision.
+- The accent safeguard is a pure function over a color (`deriveAccentRoles`), applied to the
+  curated set and unit-tested for contrast. A free custom color (an open design question,
+  product.md §19) would reuse it plus a new column. This decision does not model that now.
+- D18 permanent deletion gains one step: delete the event's `event-theme` folder with the capture
+  objects, before rows and the `media_deleted_at` marker.
+**Rejected:** a theme-revision counter (every write path must remember to bump it, and a forgotten
+bump is a silent stale output); eager generation of all five styles per capture (up to 25 renders
+per session, mostly never used); making `event-theme` a public bucket because the image is shown
+publicly (it would make theme media guessable-URL-reachable, which invariant 8 forbids); a
+separate share-card path kept next to keepsakes (two sharing systems); minting a temporary real
+token for Draft signage previews (a working link before payment, which invariant 7 forbids).

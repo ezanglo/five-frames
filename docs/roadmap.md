@@ -273,6 +273,9 @@ Original media unmodified.
 coverage only for Web Share behavior itself (real Safari/Android/in-app-browser share-sheet
 behavior is on the pending human-verification checklist in progress.md).
 
+**Superseded by Slice 16:** keepsakes replace the single share card (product.md §10.2, D19). The
+authorization predicate and sharing toggle carry over; the cached `share_path` output does not.
+
 ---
 
 ## Slice 11 — Downloads
@@ -355,9 +358,113 @@ integration broke, not to discover platform surprises.
 
 ---
 
+## Event Theme & Keepsakes (Slices 15–17)
+
+Added 2026-09-30 for product.md §10 / §11.3 (accepted the same day); architecture §7a–§7c,
+decision D19. Three slices, ordered by dependency: the theme data and delivery model first, then
+the two outputs that consume it. Slices 16 and 17 depend only on 15 and could swap if priorities
+change. Slices 1–14 are unaffected, apart from Slice 16 replacing Slice 10's share-card code path.
+
+**Prerequisite for all three: the design pass** (`/design-app`) for the Look step and Settings →
+Look, themed guest screens, the five keepsake styles and the picker, the curated accent set, and
+themed signage layouts (see `docs/design-direction.md` → "Event Theme & Keepsakes"). Each slice can
+build its server side before its visuals are final, but it is not complete until its screens and
+outputs match the approved design.
+
+---
+
+## Slice 15 — Event theme foundation
+
+**Objective:** A host can give an event a theme (image, accent, hashtag) or skip it, and guest
+screens show it through private, access-checked delivery.
+
+- Migration: `events.theme_image_path`, `events.accent_color` (default `violet`); normalize or clear
+  existing `hashtag` values; private `event-theme` bucket (15 MB, JPEG/PNG/WebP/HEIC/HEIF).
+- `lib/theme/`: curated accent registry with labels + `deriveAccentRoles`; hashtag validator.
+- Theme image begin/commit/swap/prune and remove (architecture §7a), ownership-scoped and limited to
+  editable states. Calm failure leaves the previous image.
+- Signed theme-image delivery for host pages, guest `/e/[token]` screens, and granted gallery pages
+  only; none for the locked gallery or the Operator Console.
+- Guest screens (join states, Your Five, completion, own view) use the theme: accent as scoped CSS
+  variables, theme image in place of the no-cover treatment. Capture/preview/commit photo surfaces
+  are untouched.
+- Create → Look step and Settings → Look (skippable), with a guest-screen preview built from the
+  real guest shell components.
+- D18 permanent deletion also empties the event's `event-theme` folder.
+
+**Criteria:** 39, 40 (guest-screen portion), 41 (guest-screen portion), 42 (configure portion), 43
+**Verification:** Typecheck, lint. Unit: accent contrast for every curated key; hashtag validation.
+Integration against real Postgres + Storage: another host cannot set, read or remove the theme;
+replace and remove leave exactly the current object (or none) in the folder; an unsupported,
+animated, oversized or SVG upload is refused and leaves the previous image; the locked gallery
+returns no theme image; permanent deletion removes theme objects; theme edits never change tokens,
+`activated_at` or lifecycle. Round trip: set, reload, display, and edit for every theme field. Human:
+visual check of themed guest screens with and without an image, each accent, long hashtag.
+
+---
+
+## Slice 16 — Keepsakes (replacing share cards)
+
+**Objective:** A guest turns one of their own photos into a themed keepsake in one of exactly five
+styles and shares or saves it, with the original untouched. This is the only sharing system.
+
+- `lib/keepsakes/` registry of exactly five styles (JSX, Satori subset), preselected style constant;
+  the current share-card layout moves in or is retired per design.
+- `KeepsakeInput` builder (closed struct; no display name, links, tokens).
+- `GET /e/[token]/keepsake/[captureId]/[styleId]` (architecture §7b): per-request authorization,
+  sharing toggle, lifecycle/expiry, JPEG output, `?download=1` for save.
+- Guest picker from the own view: **share** and **save keepsake** open one style choice with five
+  DOM-rendered previews on the guest's photo; the selected style's bytes are fetched on selection,
+  so the Share tap calls `navigator.share` immediately; save fallback. Original download unchanged.
+- Host Look page gains keepsake style previews (sample photos, the event's theme), in every editable
+  state including Draft.
+- Retire the share-card path: remove the `getShareCard` action and `lib/dal/share-cards.ts`; stop
+  using `captures.share_path`; idempotent cleanup of existing `…/share` objects, then a migration
+  drops the column and D18 stops listing it.
+
+**Criteria:** 29, 30, 31, 44, 45, 46, 47, 48, plus the keepsake portions of 40 and 41
+**Dependencies:** Slice 15.
+**Verification:** Unit: exactly five styles; input builder excludes display name/links/tokens.
+Integration: another guest's capture, a hidden or deleted capture, sharing off, an expired event,
+and an unknown style are all refused (generic not-found except sharing-off); pre-reveal keepsake
+exposes no gallery data; the original is byte-identical after keepsakes are made in every style; no
+frame is consumed and no gallery item appears; no storage object is written. Rendered samples of
+every style for portrait/landscape/square × theme image on/off × hashtag on/off × message on/off,
+human-inspected against the DOM previews. **Real devices (human, not emulation):** share sheet on
+iPhone Safari and Android Chrome; save in Facebook/Messenger/Instagram in-app browsers; cancel the
+share sheet and retry. This supersedes Slice 14 §7's share-card checks.
+
+---
+
+## Slice 17 — Themed signage and pre-activation previews
+
+**Objective:** All four signage formats carry the event's theme while staying reliably scannable,
+and the host can preview them, including before payment, without any working code existing.
+
+- `renderEventSignageSvg` takes accent, hashtag and theme image (embedded data URI) per the design;
+  the QR plate stays fixed (architecture §7c).
+- Discriminated `qr` input: `live` (activated event's token only) / `preview` (static,
+  non-decodable, visibly marked placeholder, no URL).
+- Host Look page gains signage previews for all four formats in every editable state. Downloads
+  stay activation-gated and unchanged in route and semantics.
+
+**Criteria:** 35, 42 (preview portion), 49, 50, 51, 52, 53, plus the signage portions of 40 and 41
+**Dependencies:** Slice 15.
+**Verification:** Unit per format: plate is white with dark modules, quiet zone ≥ 4 modules, no
+element intersects the plate, text escaped, accent never inside the plate; `preview` output contains
+no URL and fails to decode with a QR decoder; `live` decodes to `{origin}/e/{event_token}`.
+Integration: a Draft event's download route still 404s, and its preview contains no token; theme
+changes never alter the encoded value. **Human:** print each format (and show `digital` on a phone
+and a screen) with a busy theme image and each accent, then scan with real phones; confirm the Draft
+preview is visibly a preview and does not scan to anything.
+
+---
+
 ## MVP-optional (ship only if cheap)
 
 - Realtime dashboard updates. Note that client-side Supabase Realtime is not a drop-in: it would
   cross the no-browser-Supabase-client boundary and require revisiting D4 (see architecture §9).
 - Custom reveal time.
 - Automated refund execution.
+- Keepsake styles in the public demo (product.md §7.1): the shared templates rendered client-side
+  with a fixed sample theme; D14 unchanged.
