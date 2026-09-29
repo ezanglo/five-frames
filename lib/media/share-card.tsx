@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import sharp from "sharp";
 import { ImageResponse } from "next/og";
+import { LOGO_TONES, lockupSvg, lockupWidth, svgDataUri } from "@/lib/brand/logo";
 
 /**
  * The guest sharing flow's branded share-card asset (product.md §10, architecture §7 "share
@@ -15,7 +16,7 @@ import { ImageResponse } from "next/og";
  * (color/surface/base) with the photo on a night tile (color/surface/dark, radius/sheet) — the
  * same full-bleed dark treatment the photo viewer uses — then the event name in Fraunces 600,
  * meta and the guest's message in Plus Jakarta Sans (the message on surface/subtle in
- * text/on-tint, like the photo list row), and the text-only wordmark at the foot. The photo stays
+ * text/on-tint, like the photo list row), and the FiveFrames lockup (lib/brand/logo.ts) at the foot. The photo stays
  * the dominant object on the card.
  *
  * Rendered with `next/og`'s `ImageResponse` (Satori + resvg) rather than `sharp` compositing
@@ -49,6 +50,9 @@ const INK_MUTED = "#6B6A75"; // color/text/muted
 const INK_ON_TINT = "#5B5670"; // color/text/on-tint
 const BORDER = "#E6E4EE"; // color/border/subtle
 const BRAND = "#6B2BD9"; // brand/primary
+
+const BRAND_HEIGHT = 36;
+const BRAND_LOCKUP = svgDataUri(lockupSvg(LOGO_TONES.onLight));
 
 const MAX_NAME_LENGTH = 48;
 const MAX_MESSAGE_LENGTH = 140;
@@ -182,17 +186,13 @@ export async function renderShareCardPng(input: ShareCardInput): Promise<Buffer>
               borderTop: `1px solid ${BORDER}`,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                fontWeight: 800,
-                fontSize: 30,
-                letterSpacing: -0.3,
-                color: INK,
-              }}
-            >
-              FiveFrames
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders this JSX tree itself; next/image is not applicable here. */}
+            <img
+              src={BRAND_LOCKUP}
+              alt="FiveFrames"
+              width={Math.round(lockupWidth(BRAND_HEIGHT))}
+              height={BRAND_HEIGHT}
+            />
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div
                 style={{ display: "flex", width: 10, height: 10, borderRadius: 9999, backgroundColor: BRAND }}

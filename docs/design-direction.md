@@ -43,7 +43,9 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Labels for stored enums (reveal timing, visibility, payment method) — never show raw values | `lib/events/labels.ts` |
 | 404 and error screens (guest shell, any audience) | `app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx`, `components/ff/error-screen.tsx` |
 | Brand fonts shared by the root layout and `global-error` | `app/fonts.ts` |
-| App icons (violet tile, two tilted frames) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
+| Logo geometry: symbol, pixel-snapped favicon drawing, outlined wordmark, lockup, tones — one source for UI, images and signage | `lib/brand/logo.ts` |
+| Logo components: `BrandMark` (symbol), `BrandLockup`; `Wordmark` = lockup + Host/Operator tag | `components/ff/brand-mark.tsx`, `components/ff/wordmark.tsx` |
+| App icons (the symbol: adaptive SVG tab icon, violet-tile `.ico`, full-bleed violet Apple icon) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
 | Branded share card (Satori; tokens mirrored by hex, fonts as bundled TTFs) | `lib/media/share-card.tsx`, `lib/media/fonts/` |
 | Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
 
@@ -142,6 +144,27 @@ illustrated sample scenes (`lib/marketing/sample-scenes.ts`), never stock imager
   Tablet and mobile get a simple row of five prints with a CSS entrance and nothing continuous.
 - **Decorative only.** Motion layers are `aria-hidden`, never focusable, never carry information
   that isn't in the copy, and never overlap CTAs.
+
+## Brand identity (2026-09-30)
+
+The logo replaces the handoff's text-only wordmark (DS04) and the old two-tilted-frames app icon.
+The identity board with its rationale and ownability tests is a private claude.ai artifact
+(https://claude.ai/artifact/NN8bRGxt2v24xkK86K8tno); the geometry itself lives only in
+`lib/brand/logo.ts`.
+
+- **Symbol:** four frames (two landscape, two portrait) turn around a fifth, square frame and
+  tile one square. No four corners meet. It is always drawn from `SYMBOL_FRAMES`; at 16–32px use
+  the hand-snapped `FAVICON_FRAMES` (`<BrandMark pixel />`), never a scaled-down symbol.
+- **Wordmark:** Plus Jakarta Sans 800 as outlines, tracked tight, with a square dot on the i. It
+  is never typed as live text, so it needs no font and renders the same in the app, `next/og`
+  images and printed signage.
+- **Colour lives in the centre** (the fifth frame and the i's dot): ink + violet on light
+  surfaces (`onLight`), white + highlight violet on ink, night surfaces and photos (`onDark`),
+  solid white on violet (`onViolet`). No other colourways, no gradients, no outlines.
+- **Where it appears:** every header via `Wordmark`, the marketing mockups, the Open Graph image,
+  the guest share card's foot, the top of all four signage formats, and the app icons.
+- **Open items:** the wordmark is a modified public typeface; a type designer should redraw it
+  before any trademark filing, and no trademark clearance search has been done.
 
 ## Accessibility baseline
 

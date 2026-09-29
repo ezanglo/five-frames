@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-30 (marketing motion polish — see "Marketing motion polish" below. Before that: contracted UI/UX designer handoff implemented across the whole app —
+Last updated: 2026-09-30 (brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
 `awaiting human visual approval`, see "UI/UX redesign — contracted designer handoff" below. Slice
 14 — full-flow real-device and venue-condition validation — is still `awaiting human
 verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
@@ -14,6 +14,27 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Brand identity rollout (2026-09-30): `awaiting human visual approval`
+
+The new logo (`docs/design-direction.md` → "Brand identity") replaces the text-only wordmark and
+the old app icon everywhere the brand appears. Design only; no product behavior change.
+
+- **Source:** `lib/brand/logo.ts` (symbol, 16px pixel drawing, outlined wordmark, lockup, tones);
+  `components/ff/brand-mark.tsx` (`BrandMark`, `BrandLockup`).
+- **Applied to:** every header via `Wordmark` (marketing, auth, host, guest, Operator, demo,
+  404/error); the marketing mockups (photo header, table card, host dashboard); the Open Graph
+  image; the guest share card's foot; the top of all four signage formats (whose QR is now
+  rendered at 2× for print, and whose table card QR is 236px, down from 260, to make room); and
+  `app/icon.svg` (adaptive ink/white), `app/favicon.ico` (violet tile, 16/32) and
+  `app/apple-icon.png` (180, full-bleed violet).
+- **Verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm test` 202/202 ✔ (new
+  `lib/brand/logo.test.ts`: exactly five frames, no overlaps, 2 landscape/2 portrait/1 square,
+  whole-pixel favicon; `signage.test.ts`: every format carries the outlined lockup). Signage,
+  share card and OG image were rendered to PNG and inspected. No browser pass was run.
+- **Human sign-off needed:** the lockup's size and alignment in each header (with and without
+  the Host/Operator tag), the tab icon in light and dark browser themes, the iOS home-screen
+  icon, and one printed table card.
 
 ## Marketing motion polish (2026-09-30): `awaiting human visual approval`
 

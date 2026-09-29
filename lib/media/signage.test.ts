@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { WORDMARK_TITTLE_PATH } from "@/lib/brand/logo";
 import { renderEventSignageSvg, SIGNAGE_FORMATS } from "./signage";
 
 describe("renderEventSignageSvg", () => {
@@ -13,6 +14,12 @@ describe("renderEventSignageSvg", () => {
     expect(svg).toContain("Ezia&apos;s Birthday");
     expect(svg).toContain("Scan. You have five frames.");
     expect(svg).toContain("No app. No account.");
+  });
+
+  it.each(SIGNAGE_FORMATS)("format %s carries the outlined FiveFrames lockup, not font-dependent text", async (format) => {
+    const svg = await renderEventSignageSvg(format, input);
+    expect(svg).toContain(WORDMARK_TITTLE_PATH);
+    expect(svg).not.toMatch(/<text[^>]*>FiveFrames<\/text>/);
   });
 
   it("embeds the real capture link into the QR, not a placeholder", async () => {

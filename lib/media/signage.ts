@@ -1,6 +1,7 @@
 import "server-only";
 
 import QRCode from "qrcode";
+import { LOGO_TONES, lockupMarkup, lockupWidth, LOCKUP } from "@/lib/brand/logo";
 
 /**
  * Event signage (product.md §11.3, architecture §8b): a bounded set of four ready-made
@@ -13,7 +14,8 @@ import QRCode from "qrcode";
  * ink text, the one violet accent, Fraunces for the event name and Plus Jakarta Sans for
  * everything else (with fallback chains so the SVG still reads correctly wherever those fonts
  * aren't installed), plus a viewfinder-corner motif around the QR — a capture cue without
- * literal camera iconography or event-type framing.
+ * literal camera iconography or event-type framing. The FiveFrames lockup (lib/brand/logo.ts)
+ * heads every format; it is outlined paths, so it needs no font at all.
  */
 
 export type SignageFormat = "qr" | "table-card" | "poster" | "digital";
@@ -41,13 +43,15 @@ type Layout = {
   instructionSize: number;
   reassuranceSize: number;
   platePad: number;
+  /** Height of the FiveFrames lockup at the top of the sign. */
+  brandHeight: number;
 };
 
 const LAYOUT: Record<SignageFormat, Layout> = {
-  qr: { width: 600, height: 720, qrSize: 400, nameSize: 30, instructionSize: 24, reassuranceSize: 16, platePad: 28 },
-  "table-card": { width: 700, height: 500, qrSize: 260, nameSize: 26, instructionSize: 20, reassuranceSize: 14, platePad: 22 },
-  poster: { width: 1200, height: 1800, qrSize: 760, nameSize: 54, instructionSize: 44, reassuranceSize: 26, platePad: 48 },
-  digital: { width: 1080, height: 1080, qrSize: 560, nameSize: 42, instructionSize: 34, reassuranceSize: 22, platePad: 40 },
+  qr: { width: 600, height: 720, qrSize: 400, nameSize: 30, instructionSize: 24, reassuranceSize: 16, platePad: 28, brandHeight: 28 },
+  "table-card": { width: 700, height: 500, qrSize: 236, nameSize: 26, instructionSize: 20, reassuranceSize: 14, platePad: 20, brandHeight: 22 },
+  poster: { width: 1200, height: 1800, qrSize: 760, nameSize: 54, instructionSize: 44, reassuranceSize: 26, platePad: 48, brandHeight: 56 },
+  digital: { width: 1080, height: 1080, qrSize: 560, nameSize: 42, instructionSize: 34, reassuranceSize: 22, platePad: 40, brandHeight: 40 },
 };
 
 function escapeXml(value: string): string {
@@ -62,7 +66,7 @@ function escapeXml(value: string): string {
 async function qrDataUri(url: string, sizePx: number): Promise<string> {
   return QRCode.toDataURL(url, {
     margin: 0,
-    width: sizePx,
+    width: sizePx * 2, // 2× the placed size, so printed modules stay crisp
     color: { dark: INK, light: PLATE },
   });
 }
@@ -97,11 +101,15 @@ export async function renderEventSignageSvg(
   const instructionGap = 34;
   const reassuranceGap = 16;
 
-  // Vertically center the whole composition in the canvas — a fixed top-anchored layout left
-  // a large dead zone at the bottom on the poster's tall aspect ratio.
+  // The lockup sits at the top; the rest of the composition is centred in the space below it —
+  // a fixed top-anchored layout left a large dead zone at the bottom on the poster's tall aspect.
+  const brandTop = Math.round(layout.brandHeight * 0.8);
+  const brandBottom = brandTop + layout.brandHeight + Math.round(layout.brandHeight * 0.6);
+  const brandWidth = lockupWidth(layout.brandHeight);
+  const brandScale = layout.brandHeight / LOCKUP.height;
   const contentHeight =
     layout.nameSize + nameGap + plateSize + instructionGap + layout.instructionSize + reassuranceGap + layout.reassuranceSize;
-  const topMargin = Math.max(24, (layout.height - contentHeight) / 2);
+  const topMargin = brandBottom + Math.max(0, (layout.height - brandBottom - contentHeight) / 2);
 
   const nameY = topMargin + layout.nameSize * 0.8;
   const plateY = nameY + nameGap;
@@ -111,14 +119,11 @@ export async function renderEventSignageSvg(
   const cornerArm = Math.max(24, layout.platePad * 0.9);
   const instructionY = plateY + plateSize + instructionGap + layout.instructionSize * 0.8;
   const reassuranceY = instructionY + reassuranceGap + layout.reassuranceSize * 0.8;
-  const railY1 = 14;
-  const railY2 = layout.height - 14;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${layout.width}" height="${layout.height}" viewBox="0 0 ${layout.width} ${layout.height}">
   <rect width="100%" height="100%" fill="${CANVAS}" />
-  <line x1="${layout.width * 0.2}" y1="${railY1}" x2="${layout.width * 0.8}" y2="${railY1}" stroke="${ACCENT}" stroke-width="2" opacity="0.5" />
-  <line x1="${layout.width * 0.2}" y1="${railY2}" x2="${layout.width * 0.8}" y2="${railY2}" stroke="${ACCENT}" stroke-width="2" opacity="0.5" />
+  <g transform="translate(${(layout.width - brandWidth) / 2} ${brandTop}) scale(${brandScale})">${lockupMarkup(LOGO_TONES.onLight)}</g>
 
   <text x="50%" y="${nameY}" text-anchor="middle" font-family="${DISPLAY_FONT_STACK}" font-weight="600" font-size="${layout.nameSize}" fill="${INK}">${name}</text>
 

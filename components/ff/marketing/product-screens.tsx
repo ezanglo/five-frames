@@ -12,6 +12,7 @@ import {
   Smartphone,
   UserX,
 } from "lucide-react";
+import { BrandLockup } from "@/components/ff/brand-mark";
 import { StatusPill } from "@/components/ff/pill";
 import { FiveShotTeaser, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { scene } from "@/lib/marketing/sample-scenes";
@@ -78,7 +79,7 @@ function MockHeader({
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[12px] font-extrabold tracking-[-0.01em]">FiveFrames</span>
+        <BrandLockup tone="onDark" label="" className="h-[15px]" />
         {topRight}
       </div>
       <div className="mt-auto flex flex-col gap-1.5">
@@ -352,7 +353,7 @@ export function TableCardVisual({ qrSrc }: { qrSrc: string }) {
       className="flex h-[600px] w-[300px] shrink-0 items-center justify-center"
     >
       <div className="flex w-[264px] -rotate-2 flex-col items-center gap-4 rounded-[22px] border border-line bg-surface px-6 pt-7 pb-6 text-center shadow-[0_40px_80px_-24px_rgb(21_20_26/0.35)] motion-reduce:rotate-0">
-        <span className="text-[13px] font-extrabold tracking-[-0.01em] text-ink">FiveFrames</span>
+        <BrandLockup label="" className="h-4" />
         <p className="font-heading text-[22px] leading-tight font-semibold text-ink">
           {SAMPLE_EVENT.name}
         </p>
@@ -393,7 +394,7 @@ export function HostDashboardVisual({ className, wide }: { className?: string; w
       <div className="flex h-12 items-center justify-between border-b border-line bg-surface px-4 sm:px-6">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
-            <span className="text-[13px] font-extrabold tracking-[-0.01em] text-ink">FiveFrames</span>
+            <BrandLockup label="" className="h-4" />
             <span className="rounded-[5px] bg-brand px-1 text-[9px] font-bold text-ink-inverse">HOST</span>
           </span>
           <span className="hidden h-7 items-center rounded-full bg-brand-tint px-3 text-[11px] font-semibold text-brand sm:flex">

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ImageResponse } from "next/og";
+import { LOGO_TONES, lockupSvg, lockupWidth, svgDataUri } from "@/lib/brand/logo";
 
 /**
  * Share image for the public marketing pages. Same fonts as the branded share card (bundled
@@ -19,6 +20,7 @@ const ON_DARK = "#A9A6B5"; // color/text/on-dark-muted
 const DASHED = "#C9C2DC"; // color/border/dashed
 
 const ROTATIONS = [-6, 3, -2, 6, -3];
+const BRAND_HEIGHT = 44;
 
 export default async function OpenGraphImage() {
   const [fraunces, jakartaBold, jakartaExtraBold] = await Promise.all([
@@ -43,9 +45,12 @@ export default async function OpenGraphImage() {
           color: WHITE,
         }}
       >
-        <div style={{ display: "flex", fontSize: 34, fontWeight: 800, letterSpacing: "-0.01em" }}>
-          FiveFrames
-        </div>
+        <img
+          src={svgDataUri(lockupSvg(LOGO_TONES.onDark))}
+          alt="FiveFrames"
+          width={Math.round(lockupWidth(BRAND_HEIGHT))}
+          height={BRAND_HEIGHT}
+        />
         <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
           <div
             style={{
