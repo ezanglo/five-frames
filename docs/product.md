@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2)
+Last updated: 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
 Initial market: Philippines
 
 ---
@@ -16,7 +16,7 @@ Guests join by scanning a QR code or opening an event link. They enter a display
 
 Hosts are the only people with accounts. A host creates and configures an event — optionally giving it a simple visual theme — pays a one-time fee, opens capture at the venue, and later moderates, reveals, downloads and shares the gallery.
 
-The event's theme carries into the guest screens, the venue signage, and the photobooth-style **keepsakes** guests can make from their own photos when they share or save them. The original photo always stays the original; the keepsake is a separate, branded image made around it (§10).
+The event's theme carries into the guest screens, the venue signage, and the photobooth-style **keepsakes** guests can make from their own photos when they share or save them — from any one photo, or, once a guest happens to have all five, from the five together. The original photo always stays the original; the keepsake is a separate, branded image made around it (§10).
 
 ---
 
@@ -60,7 +60,7 @@ These principles constrain feature decisions and UI copy. They are product requi
 | Role | Identity | Core capabilities |
 |---|---|---|
 | **Host** | Registered account (single owner per event) | Create/configure event, set the optional event theme (image, accent color, hashtag) and preview its themed outputs, pay, open and close capture, reveal gallery, moderate (hide/unhide/delete/favorite), download, configure sharing and gallery visibility, rotate/revoke links, request cancellation/refund, renew hosting |
-| **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures (originals), make and share or save keepsakes of their own captures in one of the five FiveFrames keepsake styles when the host allows sharing, view the revealed gallery if the host shared the gallery link and visibility permits |
+| **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures (originals), make and share or save keepsakes of their own captures when the host allows sharing — a Single-photo keepsake of any one capture in one of five Single-photo styles, or, once their session has five committed captures, a Full Set keepsake of all five in one of five Full Set styles (§10.2), view the revealed gallery if the host shared the gallery link and visibility permits |
 | **Gallery viewer** | Possession of the gallery link (no session required) | View the revealed gallery when visibility is "anyone with the link" |
 | **Demo visitor** | No identity, no session, nothing persisted | Try the five-frame capture interaction and a resulting sample gallery using sample/demo or non-persistent local content only (see §7.1). Cannot create, pay for, or distribute a real event. |
 | **Operator** | An internal FiveFrames administrator or staff account, explicitly authorized by FiveFrames; not tied to a single event or host account | Via the Operator Console (§5.1): list/search events and inspect operational state across all events for support purposes; confirm a supplier-assisted/manual payment (§7.2, §7.2.1) only after actually receiving and verifying funds; execute and record manual refunds for manually collected payments (§15.1). Cannot confirm payment or refund for an event they themselves own. |
@@ -159,12 +159,12 @@ States are meaningful product concepts and drive what each role can do.
 - The demo does not weaken Invariant §12.7 (payment before an event link or QR exists) — no path through the demo produces a distributable link or QR without payment.
 - The demo is not a free-event tier: it cannot be used to actually run, distribute, or collect real guest captures for an occasion. It exists to preview the concept only.
 - The demo must not allow unbounded persistent media storage or upload abuse (e.g., an anonymous visitor repeatedly uploading arbitrary real files that get retained). Sample content and any local/non-persistent demonstration mechanics are left to architecture and design.
-- The demo **may** show the five keepsake styles (§10.2) applied to sample or local demo content with a fixed sample theme (MVP optional). It never lets a visitor configure a real event theme, never produces signage or a QR, and anything saved from it is clearly a demo sample, not a real event's keepsake.
+- The demo **may** show keepsake styles of either family (§10.2) applied to sample or local demo content with a fixed sample theme (MVP optional). It never lets a visitor configure a real event theme, never produces signage or a QR, and anything saved from it is clearly a demo sample, not a real event's keepsake.
 
 ### 7.2 Payment and activation
 
 - A host may **create and fully configure a draft event before paying**.
-- There is **no reachable guest experience before payment** in MVP: no working event link, no QR, and nothing a guest could open. The host **may** preview how their event theme looks — on representative guest screens, the five keepsake styles, and the signage formats — while the event is Draft or pending payment. These are host-only renderings inside the host's own account, using sample photography and, for signage, a visibly marked placeholder QR that encodes no working link; they cannot be downloaded or distributed (§10.1). Configuring or previewing a theme is never a payment state and never changes the price.
+- There is **no reachable guest experience before payment** in MVP: no working event link, no QR, and nothing a guest could open. The host **may** preview how their event theme looks — on representative guest screens, the keepsake styles of both families, and the signage formats — while the event is Draft or pending payment. These are host-only renderings inside the host's own account, using sample photography and, for signage, a visibly marked placeholder QR that encodes no working link; they cannot be downloaded or distributed (§10.1). Configuring or previewing a theme is never a payment state and never changes the price.
 - FiveFrames supports two paths to activation, both reaching the same paid/active state:
   1. **Self-service online payment** — the host pays directly through the configured payment provider ("Pay online"). Activation is triggered by the provider's own trusted confirmation of a successful payment.
   2. **Supplier-assisted / manual payment** — used when FiveFrames has arranged the sale directly with the host through a direct conversation (host, couple, coordinator, family, or organizer) and accepts cash or another explicitly agreed offline payment. Activation is triggered **only** when an authorized FiveFrames operator confirms — after actually receiving and verifying the payment — that it was received (§7.2.1).
@@ -242,7 +242,7 @@ Exception: if the host hides or deletes a specific capture, it is removed from t
 
 - Media must not be reachable at obviously guessable public URLs.
 - Media is served through short-lived, access-checked URLs.
-- Generating a keepsake (§10.2) must not expose the gallery or other guests' captures.
+- Generating a keepsake (§10.2), of either family, must not expose the gallery or other guests' captures.
 - The event theme image (§10.1) is delivered in the app under the same non-guessable, access-checked rules as other media, even though it is event presentation meant to be seen by guests, on signage, and on shared keepsakes.
 
 ---
@@ -314,9 +314,13 @@ The five-frame allowance is per guest session (§9.1); it does not by itself bou
 
 > The original photo stays the original. The event theme creates optional branded keepsakes around it.
 
-It is deliberately constrained. The host sets three optional things; FiveFrames supplies the designs; the guest picks one of five styles. There is no design editor anywhere in it, and an event with no customization at all must look finished.
+It is deliberately constrained. The host sets three optional things; FiveFrames supplies the designs; the guest picks a style. There is no design editor anywhere in it, and an event with no customization at all must look finished.
 
-**Terminology.** "Frame" continues to mean one of a guest's five captures (§9). Keepsake designs are **keepsake styles** — product copy must never call them frames or suggest they relate to the capture allowance. That there are five styles is a nod to the brand, not a change to the five-capture rule.
+**Terminology.**
+
+- "Frame" continues to mean one of a guest's five captures (§9). Keepsake designs are **keepsake styles**. Product copy must never call them frames or suggest they relate to the capture allowance.
+- There are two keepsake families (§10.2). A **Single-photo keepsake** is made from one capture in one of five **Single-photo keepsake styles**. A **Full Set keepsake** is made from all five of a guest session's committed captures in one of five **Full Set keepsake styles**. These are two separate curated sets of five. Copy never merges them into a single count ("ten styles", "10 frames"). Final guest-facing labels belong to design.
+- That each family has five styles is a nod to the brand, not a change to the five-capture rule.
 
 **Product benefit.** Every keepsake carries a subtle FiveFrames brandmark, so keepsakes guests share also act as organic, word-of-mouth discovery for FiveFrames. This benefit never outranks the guest experience: the mark stays subtle and the output must never feel like an advertisement.
 
@@ -367,33 +371,51 @@ Themed outputs also use the event's existing name and date. The existing **welco
 **Configuring and previewing**
 
 - Theme setup belongs naturally in the host's create/edit journey. Conceptually: *Create event → Look* during creation, and *Settings → Look* afterwards. Exact screen composition belongs to design. The Look step is skippable, and skipping it leaves the defaults.
-- On the same page, the host can see how the theme affects the main outputs: representative guest screens, **the five keepsake styles** (on sample or representative photos), and **each signage format**. They don't have to open or configure each output separately.
+- On the same page, the host can see how the theme affects the main outputs: representative guest screens, **the five Single-photo keepsake styles and the five Full Set keepsake styles** (on sample or representative photos), and **each signage format**. They don't have to open or configure each output separately.
 - **Before payment** (Draft, pending payment): configuring and previewing are allowed. Previews are host-only, use sample photography, and show signage with a visibly marked placeholder QR that encodes no working link. Nothing can be downloaded or distributed, and nothing a guest could reach is created (§7.2, Invariant §12.7).
 - **After activation:** previews show the real outputs, and signage can be downloaded with the event's real QR (§11.3).
 - **Changing the theme later** takes effect for everything displayed or generated afterwards. It never changes the event link, the QR destination, the lifecycle state, or payment. Signage already printed or downloaded keeps working, and keepsakes already exported stay as they were.
 
 ### 10.2 Keepsakes
 
-A **keepsake** is a new, photobooth-style still image that FiveFrames generates from one of a guest's own committed captures. It uses one of five FiveFrames-designed **keepsake styles**, dressed with the event theme.
+A **keepsake** is a new, photobooth-style still image that FiveFrames generates from a guest's own committed captures, dressed with the event theme. There are two keepsake families. Each is a closed, curated set of five FiveFrames-designed styles:
 
-**Keepsakes replace the earlier single "branded share card."** They are the same concept — a separate, branded image derived from a guest's own capture for sharing — with five curated styles instead of one fixed design. There is one sharing system, not two. The sharing controls, authorization and isolation rules that applied to share cards apply unchanged to keepsakes (§10.3).
+| Family | Made from | Styles | Available |
+|---|---|---|---|
+| **Single-photo keepsake** (§10.2.1) | One of the guest's own committed captures | Exactly five **Single-photo keepsake styles** | For any committed capture in the guest's own view |
+| **Full Set keepsake** (§10.2.2) | All five committed captures of the guest's own session, together | Exactly five **Full Set keepsake styles** | Only once the session already has five committed captures, all still in the guest's own view |
 
-**The original is never modified.** Keepsake styles, theme image, typography, hashtag, event name and FiveFrames branding exist only in the generated keepsake. The stored original stays untouched and separately available under existing rules (§8.3, §11.2, Invariant §12.10). Capture itself is never redefined as a framed or filtered photo.
+**Keepsakes replace the earlier single "branded share card."** They are the same concept — a separate, branded image derived from a guest's own captures for sharing — with curated styles instead of one fixed design. There is one sharing system, not two: both families use the same share and save actions, the same host sharing setting, and the same authorization and isolation rules that applied to share cards (§10.3).
 
-**The five styles**
+**The original is never modified.** Keepsake styles, theme image, typography, hashtag, event name and FiveFrames branding exist only in the generated keepsake. The stored originals stay untouched and separately available under existing rules (§8.3, §11.2, Invariant §12.10). Capture itself is never redefined as a framed or filtered photo. A Full Set keepsake is one more derived output. It doesn't replace, merge, or stand in for the individual captures.
 
-- **Exactly five** curated keepsake styles for MVP, designed by FiveFrames within the FiveFrames design system. The same five are available for every event.
+**Rules for both families**
+
+- The same styles are available for every event. Hosts do not create or upload templates. Guests do not edit them.
+- Every style must draw meaningfully on the event theme — the accent color always, and the theme image where the style uses one — and must look complete and polished with no theme image, with the default violet, and with no hashtag.
+- The guest's photography is always the hero of the composition. The theme image is never laid over a guest's photograph, never replaces one, and is never placed where it could be mistaken for a guest capture.
+- **A keepsake never contains:**
+  - **the guest's display name.** This keeps the share card's existing behavior; public gallery viewers see no photographer attribution either;
+  - any other guest's captures, names, or messages;
+  - the event (capture) link or QR code, or the gallery link. A keepsake shared publicly must never become a way into the event or its gallery;
+  - host account information, internal identifiers, frame counts, remaining frames, or unrelated event details such as timezone, lifecycle state, capacity, or payment.
+- **The guest chooses only the style**, from the family they opened, with one FiveFrames-chosen style preselected. The guest cannot drag or reposition elements, add stickers, place or write text, change fonts or colors, change or remove the event branding or hashtag, remove the FiveFrames brandmark, apply filters or effects, or create a custom frame. There is one choice to make, with no multi-step editor.
+- **One photo and all five are distinct choices.** Making a keepsake of one photo and making one of all five are clearly separate, each with its own five styles. The guest is never shown all ten styles as one flat list. The exact picker structure belongs to design.
+- **Original download is unchanged.** The guest's existing download of their own originals (§8.3) remains a separate, always-available action, independent of keepsakes and of the sharing setting.
+- Making a keepsake **never consumes a frame**, never counts as a capture, never changes the guest's capture state, and never appears in the gallery. A guest may make keepsakes more than once and in more than one style. Ordinary fair-use protection against automated abuse is acceptable.
+- A keepsake always uses the event theme as it is when the keepsake is made.
+- **Availability, both families:** the guest's session must still exist, the event must not have expired, and sharing must be enabled (§10.3). Keepsakes are available before or after gallery reveal, and while capture is open or after it closes. Each family adds its own conditions below.
+- **Failure:** if a keepsake can't be generated, shared, or saved, the guest sees a calm message and can try again. The captures, the frames, and the originals are unaffected.
+
+#### 10.2.1 Single-photo keepsakes
+
+A Single-photo keepsake is made from one of the guest's own committed captures in one of **exactly five** Single-photo keepsake styles, designed by FiveFrames within the FiveFrames design system. These are the keepsakes accepted with this feature and designed on the Event Theme & Keepsakes board; the Full Set amendment does not change them.
+
 - They should offer meaningful visual variety. Illustrative territory (the actual designs belong to design, not this document): classic photobooth, clean modern border, editorial caption, playful event card, poster/keepsake composition.
-- Hosts do not create or upload templates. Guests do not edit them.
-- Every style must:
-  - work with portrait, landscape, and square photos, and with ordinary aspect-ratio variation;
-  - draw meaningfully on the event theme — the accent color always, and the theme image where the style uses one;
-  - look complete and polished with no theme image, with the default violet, and with no hashtag;
-  - keep the guest's photograph the hero of the composition.
+- Every Single-photo style must work with portrait, landscape, and square photos, and with ordinary aspect-ratio variation.
 - **Orientation and cropping:** a style shows the photo substantially whole. Where a style needs to crop, the crop is modest and applies only to the keepsake. The original is never cropped, rotated, or altered to fit a style, and it stays downloadable as it was taken.
-- The theme image is never laid over the guest's photograph and never replaces it.
 
-**What a keepsake may contain**
+**What a Single-photo keepsake may contain**
 
 - the guest's photograph;
 - the event name and event date;
@@ -402,59 +424,102 @@ A **keepsake** is a new, photobooth-style still image that FiveFrames generates 
 - the capture's own guest message (§9.4), when it has one and the style has space for it, as the share card did. A style with a caption area must still look complete when there is no message;
 - the FiveFrames brandmark.
 
-**What a keepsake never contains**
+**Guest experience**
 
-- **the guest's display name.** This keeps the share card's existing behavior; public gallery viewers see no photographer attribution either;
-- any other guest's captures, names, or messages;
-- the event (capture) link or QR code, or the gallery link. A keepsake shared publicly must never become a way into the event or its gallery;
-- host account information, internal identifiers, frame counts, remaining frames, or unrelated event details such as timezone, lifecycle state, capacity, or payment.
+- Available from a guest's own view of a committed capture, through two actions: **share** and **save keepsake**. Either one opens a single, quick style choice: the five Single-photo styles previewed on the guest's own photo, with one FiveFrames-chosen style preselected. The guest picks a style and the keepsake is shared (device share sheet where supported) or saved.
+- The message shown is the one committed with the capture, which cannot be changed (§9.3).
+- **When:** whenever the guest can see that capture in their own view — the host must not have hidden or deleted it — subject to the availability rules for both families above.
+
+#### 10.2.2 Full Set keepsakes
+
+A **Full Set keepsake** combines all five committed captures belonging to one guest session into one premium, event-branded image. It should feel like an actual photobooth print of the guest's five moments, not a generic collage.
+
+**What a Full Set keepsake contains**
+
+- exactly the guest session's five committed captures — no more, no fewer, and no one else's;
+- the event name;
+- the accent color, where the style uses it;
+- the theme image, where the style uses one;
+- the hashtag, if set;
+- a subtle FiveFrames brandmark.
+
+It may also show the event date where a style uses it, as Single-photo keepsakes do. The event date is event information, not per-photo metadata.
+
+**What a Full Set keepsake never contains** (in addition to the rules for both families)
+
+- any guest message or caption. **Full Set keepsakes are photography-first:** no guest message appears, even when the captures carry one;
+- the welcome message (host message, §11.1);
+- per-photo timestamps or any other per-photo metadata;
+- a QR code, or any event or gallery link.
+
+**Availability: an allowance, not a task**
+
+- A Full Set becomes available only when the guest's session **already has five committed captures**, and only while all five are still in the guest's own view. Until then it does not exist in the guest experience at all. There is no locked or greyed-out Full Set, no preview of one, no "one more to unlock", no progress toward it, and nothing that suggests using remaining frames to get it. Five remains an allowance, not a task (§4 principles 2–4).
+- When five committed captures happen to exist, the Full Set is simply one more keepsake the guest can make. The all-five completion state may naturally offer it, in calm language to the effect that the guest can now see or share their five moments together. It is never presented as an unlock, reward, achievement, challenge, or completion bonus. Final wording belongs to design.
+- **Host moderation:** hiding one of the five removes it from the guest's own view (§8.3), so the Full Set is unavailable while that capture is hidden and becomes available again if the host unhides it. If the host deletes one, the session can never again hold five committed captures (a frame never returns, §9.3), so the Full Set stays unavailable for that session. A Full Set is never made from four captures, and a gap is never filled with another image.
+
+**The five Full Set styles**
+
+- **Exactly five** Full Set keepsake styles for MVP, a curated set separate from the five Single-photo styles. They belong to the same FiveFrames visual family but solve a different composition problem, so they are not five-photo versions of the Single-photo styles.
+- They differ primarily in **composition**, meaning how the same five photographs are arranged, not in color or other cosmetic swaps. Illustrative territory (the actual designs, names and preselected style belong to design): premium photobooth strip, clean gallery/contact sheet, one feature image with four supporting images, tactile stacked prints, editorial/asymmetric composition.
+- **The signature layout (required).** One of the five is built directly on the construction of the FiveFrames brandmark (identity v1.0, `docs/design-handoff/FiveFrames_Identity_v1.0/`). It has five image regions: two landscape, two portrait and one square, turning around one another so that no four corners meet, with the square as the fifth region that visibly closes the composition. Conceptually: slot 1 landscape, slot 2 portrait, slot 3 landscape, slot 4 portrait, slot 5 square. This is a canonical layout, not loose inspiration. A shared Full Set in this style should read as FiveFrames even before anyone notices the logo. It is the leading candidate for the preselected Full Set style. Its exact geometry and name, and whether it becomes the preselected style, belong to design.
+- All five respond to the event theme (accent color, optional theme image, event name, optional hashtag), while the five guest photographs remain the primary content.
+
+**Photo order**
+
+- FiveFrames decides the order: photos 1–5 are the guest's captures in the order they were committed. The same five captures always land in the same positions for a given style. In the signature layout, the fifth committed capture fills the closing square.
+- The guest cannot reorder the photos or choose a hero image in MVP.
+
+**Mixed orientation and cropping**
+
+- Every Full Set style works for any real mix of portrait, landscape, and square-ish captures. Guests are never asked or nudged to shoot in a particular orientation.
+- To fit a composition, a Full Set style may crop a photo more than a Single-photo style would, for example a portrait capture in a landscape slot. Those crops exist only in the Full Set. Photos are never stretched or distorted, the originals are never cropped or altered, and FiveFrames decides the crop, not the guest. Crops keep people and the main subject in frame where practical. How that is achieved belongs to architecture and design; it never alters faces and never introduces AI into the capture flow (§4 principle 8).
 
 **Guest experience**
 
-- Keepsakes are available from a guest's own view of a committed capture, through two actions: **share** and **save keepsake**. Either one opens a single, quick style choice: the five styles previewed on the guest's own photo, with one FiveFrames-chosen style preselected. The guest picks a style and the keepsake is shared (device share sheet where supported) or saved. There is one choice to make, with no multi-step editor.
-- The guest chooses **only the style**. The guest cannot drag or reposition elements, add stickers, place or write text, change fonts or colors, change or remove the event branding or hashtag, remove the FiveFrames brandmark, apply filters or effects, or create a custom frame. The message shown is the one committed with the capture, which cannot be changed (§9.3).
-- **Original download is unchanged.** The guest's existing download of their own original (§8.3) remains a separate, always-available action, independent of keepsakes and of the sharing setting.
-- **When:** whenever the guest can see that capture in their own view — before or after gallery reveal, while capture is open or after it closes. The guest's session must still exist, the event must not have expired, the host must not have hidden or deleted the capture, and sharing must be enabled.
-- Making a keepsake **never consumes a frame**, never counts as a capture, and never appears in the gallery. A guest may make keepsakes of the same capture in more than one style. Ordinary fair-use protection against automated abuse is acceptable.
-- A keepsake always uses the event theme as it is when the keepsake is made.
-- **Failure:** if a keepsake can't be generated, shared, or saved, the guest sees a calm message and can try again. The capture, the frame, and the original are unaffected.
+- Once available, the Full Set is offered from the guest's own view (and, where design places it, the all-five completion state) through the same two actions: **share** and **save**. Either one opens the Full Set style choice: the five Full Set styles previewed with the guest's own five photos, with one FiveFrames-chosen style preselected. The guest selects a style, previews it, and shares or saves it.
+- Beyond the rules for both families, the guest cannot reorder the photos, designate a hero image, drag or reposition images, change any crop, or edit the event text.
+- Making a Full Set never replaces or modifies the individual captures, never affects the guest's capture state or original downloads, and, like every keepsake, never consumes a frame.
+
+#### 10.2.3 Actions and the FiveFrames brandmark (both families)
 
 **Which action produces what**
 
 | Action | Who | Output | Governed by |
 |---|---|---|---|
 | Download original | Guest, own captures | The untouched original | Always available per §8.3; not affected by the sharing setting |
-| Save keepsake | Guest, own captures | Keepsake image in the chosen style | Host sharing setting (§10.3) |
-| Share keepsake | Guest, own captures | Keepsake image via the device share sheet; saving is the fallback | Host sharing setting (§10.3) |
-| Download originals (individual / bulk) | Host | Untouched originals | Unchanged (§11.2; decision D11). This feature doesn't change the bulk-original download model |
-| Preview keepsake styles | Host | Previews of the five styles with the event theme | Available in every editable state (§10.1) |
+| Save keepsake | Guest, own captures | Single-photo keepsake in the chosen Single-photo style | Host sharing setting (§10.3) |
+| Share keepsake | Guest, own captures | Single-photo keepsake via the device share sheet; saving is the fallback | Host sharing setting (§10.3) |
+| Save or share Full Set keepsake | Guest, own session's five committed captures | Full Set keepsake in the chosen Full Set style, via the share sheet or saved; saving is the fallback | Host sharing setting (§10.3), plus the Full Set availability rule (§10.2.2) |
+| Download originals (individual / bulk) | Host | Untouched originals | Unchanged (§11.2; decision D11). Keepsakes of either family don't change the bulk-original download model |
+| Preview keepsake styles | Host | Previews of the five Single-photo and five Full Set styles with the event theme, on sample photos | Available in every editable state (§10.1) |
 
-In MVP, keepsakes are made only by a guest, from their own captures. Hosts preview styles but don't generate keepsakes. Gallery viewers can't make keepsakes of other guests' captures.
+In MVP, keepsakes of either family are made only by a guest, from their own captures. Hosts preview styles but don't generate keepsakes, including Full Sets. Gallery viewers can't make keepsakes of other guests' captures. No keepsake combines captures from more than one guest session or draws on the gallery as a whole.
 
 **FiveFrames brandmark**
 
-- Every keepsake carries a subtle FiveFrames brandmark that follows the accepted brand system. It must be visible and tasteful, and always secondary to the photo and the event.
-- It sits in the keepsake's frame/border area, **never across the guest's photograph**. There are no large or repeating watermarks, and no advertising copy, offers, pricing, or promotional calls to action.
-- Neither host nor guest can remove it in MVP.
+- Every keepsake, in both families, carries a subtle FiveFrames brandmark that follows the accepted brand system. It must be visible and tasteful, and always secondary to the photos and the event. On a shared keepsake it provides organic product attribution.
+- It sits in the keepsake's frame/border area, **never across a guest's photograph**. There are no large or repeating watermarks, and no advertising copy, offers, pricing, or promotional calls to action.
+- Neither host nor guest can remove it in MVP. The signature Full Set layout echoes the brandmark's construction in its composition; it still carries the small brandmark as well.
 
 ### 10.3 Sharing rules
 
 Sharing is **host-controlled** and **enabled by default**.
 
-- **What it covers:** the host's sharing setting governs FiveFrames' own sharing features — making, sharing and saving keepsakes. It does **not** affect a guest's download of their own originals (§8.3) or the host's downloads (§11.2).
+- **What it covers:** the host's sharing setting governs FiveFrames' own sharing features — making, sharing and saving keepsakes of **both families**, Single-photo and Full Set. There is one setting for both; with it off, neither family can be generated, shared or saved. It does **not** affect a guest's download of their own originals (§8.3) or the host's downloads (§11.2).
 - **Limits of the setting:** it cannot and does not stop a guest from independently sharing media already on their own device. Product copy must not overstate this.
 - **When:** keepsakes can be made and shared **including before the gallery is revealed**.
-- **Isolation requirement:** making or sharing a keepsake — before or after reveal — must not reveal the gallery or expose any other guest's captures.
+- **Isolation requirement:** making or sharing a keepsake of either family — before or after reveal — must not reveal the gallery or expose any other guest's captures. A Full Set draws only on the requesting guest's own session.
 - **A shared keepsake is its own exported image.** Sharing it doesn't make the original, the gallery, or any other capture public, and doesn't change gallery visibility or authorization in any way.
 - **After reveal:** guests keep making keepsakes of their own captures under the same host setting. Gallery viewers can view the revealed gallery (§8.2) but cannot make keepsakes of other guests' captures in MVP.
 - **Mechanism:** Web Share API where supported; saving the image is an acceptable fallback. MVP must not depend on direct Instagram or Facebook publishing APIs, or on any social-network integration.
-- **Exported keepsakes can't be recalled.** Once a keepsake has been shared or saved, later host moderation, turning sharing off, changing the theme, or event expiry can't retract it (accepted risk, §19).
+- **Exported keepsakes can't be recalled.** Once a keepsake of either family has been shared or saved, later host moderation (including hiding or deleting one of a Full Set's five captures), turning sharing off, changing the theme, or event expiry can't retract it (accepted risk, §19).
 
 ### 10.4 Who controls what
 
 - **Host:** the event theme image, the accent color, and the optional hashtag, plus the existing sharing setting (§10.3).
-- **FiveFrames:** the five keepsake style designs; all layout rules; typography; how the theme image is cropped and placed; where the FiveFrames brandmark goes; signage and QR composition (§11.3); and the accessibility and scannability safeguards.
-- **Guest:** which of the five keepsake styles to use when sharing or saving one of their own captures.
+- **FiveFrames:** the five Single-photo and five Full Set keepsake style designs, including the brandmark-derived signature Full Set layout; which style of each family is preselected; the photo order and crops inside a Full Set; all layout rules; typography; how the theme image is cropped and placed; where the FiveFrames brandmark goes; signage and QR composition (§11.3); and the accessibility and scannability safeguards.
+- **Guest:** whether to make a keepsake of one photo or, once available, of all five; and which of that family's five styles to use when sharing or saving it.
 
 Guests do not change event branding. Hosts do not create template layouts. Nobody gets a freeform editor.
 
@@ -478,7 +543,10 @@ Event Theme & Keepsakes must not grow into a general design tool (a Canva-like e
 - removing FiveFrames attribution;
 - per-guest branding configuration;
 - social-network publishing or hashtag integrations;
-- AI-generated event graphics (and AI anywhere in capture — §4).
+- AI-generated event graphics (and AI anywhere in capture — §4);
+- for Full Set keepsakes specifically: guest captions or messages, guest display names, photo reordering, hero-photo selection, crop controls, layout editing, arbitrary text, filters, stickers, custom fonts, and host-created Full Set templates;
+- gallery-wide collages, keepsakes mixing captures from more than one guest session, and host-generated Full Sets;
+- physical print ordering or any physical fulfillment of keepsakes (future product work, §18).
 
 ---
 
@@ -487,10 +555,10 @@ Event Theme & Keepsakes must not grow into a general design tool (a Canva-like e
 ### 11.1 Event configuration
 
 - Event name, date, timezone, host message (the guest-facing welcome message).
-- Event theme — "Look" (§10.1): optional theme image, accent color, and optional hashtag, with previews of representative guest screens, the five keepsake styles, and each signage format. All optional, with polished defaults.
+- Event theme — "Look" (§10.1): optional theme image, accent color, and optional hashtag, with previews of representative guest screens, the five Single-photo and five Full Set keepsake styles, and each signage format. All optional, with polished defaults.
 - Gallery reveal timing (after event / immediate / custom time).
 - Gallery visibility (anyone with link / only me).
-- Sharing (keepsakes) enabled or disabled (§10.3).
+- Sharing (keepsakes of both families) enabled or disabled (§10.3).
 
 ### 11.2 Dashboard
 
@@ -545,11 +613,11 @@ These must hold regardless of architecture. How they are enforced is an engineer
 7. Payment must be confirmed before an event link or QR exists. Unpaid or unconfirmed events are not distributable. Confirmation comes from the payment provider's own trusted flow for self-service payments, or from an authorized FiveFrames operator verifying actual receipt for manual payments — **never from the host self-declaring payment** (§7.2).
 8. Media is never served from guessable public URLs, and a hidden or unrevealed gallery is never viewable by an unauthorized party.
 9. A host can only access, moderate or download events they own.
-10. Original media is never modified. Derived assets are additional files. Event theme, keepsake styles, and FiveFrames branding exist only in derived outputs, never in the stored original.
+10. Original media is never modified. Derived assets are additional files. Event theme, keepsake styles (Single-photo and Full Set), and FiveFrames branding exist only in derived outputs, never in the stored original. A Full Set never replaces or alters the individual captures it combines.
 11. The host can download their media at any point before permanent deletion.
 12. The frame count (5 photos) is a product constant and is not configurable per event.
 13. Privileged operator mutations (confirming a supplier-assisted/manual payment, recording a manual refund) are server-authoritative and auditable, and occur only through the Operator Console (§5.1) — never as a host-declared, ad hoc, or undocumented action.
-14. A keepsake is made only from the requesting guest's own committed, non-hidden capture. It never contains another guest's capture, name, or message, and never contains the event capture link/QR or the gallery link. Making or sharing one never changes gallery visibility or access (§10.2, §10.3).
+14. A keepsake is made only from the requesting guest's own committed, non-hidden captures: one capture for a Single-photo keepsake, or exactly the five committed captures of the requesting guest's own session, all non-hidden, for a Full Set keepsake. It never contains another guest's capture, name, or message, never contains the guest's display name, and never contains the event capture link/QR or the gallery link. A Full Set never contains any guest message. Making or sharing a keepsake never changes gallery visibility or access, never consumes a frame, and never adds a gallery item (§10.2, §10.3).
 
 ---
 
@@ -571,16 +639,17 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 | A host has arranged supplier-assisted/manual payment but an operator has not yet confirmed receipt | Event stays in the ordinary unpaid/pending-payment state (no separate "arranged" state, §7.2); no link or QR exists; host cannot self-activate; "Pay online" remains available; calm secondary copy tells the host confirmation is pending. |
 | Realtime updates unavailable | Dashboard still correct via refresh; no data loss, no incorrect counts. |
 | Host tries to reveal a gallery with no captures | Allowed; empty-state gallery, no error. |
-| Keepsake generation, sharing, or saving fails | Calm message; guest can retry. The capture, the frame, and the original are unaffected. |
+| Keepsake generation, sharing, or saving fails (either family) | Calm message; guest can retry. The captures, the frames, and the originals are unaffected. |
+| The host hides one of a guest's five captures | The Full Set is unavailable to that guest while the capture is hidden, with nothing suggesting a locked or missing item; it returns if the host unhides the capture. Single-photo keepsakes of the other captures are unaffected. |
 | Device or browser has no share sheet (e.g., some in-app browsers) | The keepsake can still be saved as an image. |
 | Theme image upload fails or the file is unsupported | The previous theme image (or the default) stays in place, with a calm explanation. Nothing else about the event changes. |
-| Host never sets a theme | Every guest screen, keepsake style, and signage format uses the polished defaults (no image, FiveFrames violet, no hashtag). |
+| Host never sets a theme | Every guest screen, keepsake style of both families, and signage format uses the polished defaults (no image, FiveFrames violet, no hashtag). |
 
 ---
 
 ## 14. Media Expectations
 
-- Store the **original untouched**, plus derived **display** and **thumbnail** assets. **Keepsakes** (§10.2) are further derived outputs. Whether they are kept after generation is an architecture decision; if kept, they follow the event's retention and deletion.
+- Store the **original untouched**, plus derived **display** and **thumbnail** assets. **Keepsakes** of both families (§10.2) are further derived outputs. Whether they are kept after generation is an architecture decision; if kept, they follow the event's retention and deletion.
 - The event **theme image** (§10.1) is event presentation media, kept separately from guest captures, delivered privately (§8.4), and permanently deleted with the event's media.
 - Must accept common iPhone/Android formats, including **HEIC/HEIF** if still prevalent on target devices/browsers. The exact conversion path is to be validated during implementation rather than designed up front.
 - Large media uploads go **directly to storage**, not proxied through the application server.
@@ -659,6 +728,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Realtime mechanism (sockets, polling, or provider-native).
 - Image derivative pipeline and HEIC handling specifics.
 - How keepsakes, signage, and theme previews are rendered (where, with what, and whether/how outputs are cached or retained), and how a theme change reaches outputs generated afterwards.
+- For Full Set keepsakes: how a render proves all five captures belong to the requesting guest's session and are committed and non-hidden, how commit order is established, output dimensions, how crops keep subjects in frame across mixed orientations, and the cost of rendering from five source images.
 - How the theme image is stored, processed, and delivered, and its exact accepted formats and size limit.
 - Storage and signing strategy.
 - ORM, schema, job processing, folder structure.
@@ -685,8 +755,10 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Host moderation: hide, unhide, delete, favorite.
 - Host downloads: individual and bulk originals.
 - Event theme (§10.1): optional theme image, accent color (default violet, with an automatic contrast safeguard), and optional hashtag, configurable in Draft and afterwards, with host-only previews of guest screens, keepsake styles, and signage. Polished defaults when nothing is set.
-- Keepsakes (§10.2): exactly five FiveFrames-designed keepsake styles, the same for every event, which a guest chooses between when sharing or saving one of their own captures. Each keepsake is themed, carries a subtle, non-removable FiveFrames brandmark, and works for portrait and landscape photos. Keepsakes replace the single branded share card.
-- Host-controlled sharing toggle governing keepsakes (§10.3); Web Share API with save fallback. Guest original download stays independent of it.
+- Keepsakes (§10.2), in two families, the same for every event. Each keepsake is themed, carries a subtle, non-removable FiveFrames brandmark, and never contains the guest's display name. Keepsakes replace the single branded share card.
+  - **Single-photo keepsakes** (§10.2.1): exactly five Single-photo styles, which a guest chooses between when sharing or saving one of their own captures. Works for portrait, landscape and square photos.
+  - **Full Set keepsakes** (§10.2.2): exactly five Full Set styles, one of them the signature layout built on the FiveFrames brandmark's construction, combining the guest session's five committed captures in commit order. Available only once five committed captures already exist, with no pressure before then; no guest messages; mixed orientations supported; no layout editing.
+- Host-controlled sharing toggle governing keepsakes of both families (§10.3); Web Share API with save fallback. Guest original download stays independent of it.
 - Private media delivery for photos.
 - Host dashboard with status, counts, gallery, controls.
 - 12-month hosted access with expiry warning, grace period and download access.
@@ -700,7 +772,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Realtime dashboard updates (fallback to refresh/polling is acceptable).
 - Custom reveal time (after-event default and immediate reveal are sufficient to launch).
 - Automated refund execution (manual handling through the provider is acceptable initially).
-- Keepsake styles shown in the pre-purchase demo on sample/local content (§7.1).
+- Keepsake styles (either family) shown in the pre-purchase demo on sample/local content (§7.1).
 
 ### Post-MVP
 - Replay: browser-based "memories" experience from guest photos, timestamps, messages, host favorites and licensed music.
@@ -711,12 +783,13 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Guest session recovery.
 - Renewal/subscription management beyond a basic extension.
 - Live photo wall / slideshow at the venue: not in MVP unless later customer evidence justifies it.
-- Host choosing a default keepsake style for their event (MVP: FiveFrames preselects one; the guest chooses).
+- Host choosing a default keepsake style for their event, in either family (MVP: FiveFrames preselects one per family; the guest chooses).
 - Keepsakes made from revealed gallery captures by the host or by gallery viewers (MVP: a guest's own captures only).
-- Changes to the keepsake style set (additional or seasonal styles). Paid template packs stay excluded.
+- Changes to either keepsake style set (additional or seasonal styles). Paid template packs stay excluded.
+- Physical prints of keepsakes, including Full Sets (physical fulfillment). Not in MVP.
 
 ### Explicitly excluded
-Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · multiple pricing tiers · operator impersonation of hosts · operator-initiated event ownership changes · operators granting extra guest frames · operators bypassing payment confirmation or forcing an event active · operators editing customer event configuration merely by virtue of being operators · operator deletion of customer media as a routine support action · operator (staff) access to actual guest media by default · a general CRM, accounting, POS, marketing-analytics, or infrastructure-monitoring product · a general RBAC/organization-management product · a freeform canvas, keepsake, or signage design editor, and the rest of the Event Theme & Keepsakes exclusions listed in §10.5 (custom fonts, stickers, host template layouts, own frame overlays, multiple theme images, guest filters or text, animated/video or AR templates, paid template packs, removable attribution, per-guest branding, social publishing, AI-generated graphics).
+Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free-event tier · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · multiple pricing tiers · operator impersonation of hosts · operator-initiated event ownership changes · operators granting extra guest frames · operators bypassing payment confirmation or forcing an event active · operators editing customer event configuration merely by virtue of being operators · operator deletion of customer media as a routine support action · operator (staff) access to actual guest media by default · a general CRM, accounting, POS, marketing-analytics, or infrastructure-monitoring product · a general RBAC/organization-management product · a freeform canvas, keepsake, or signage design editor, and the rest of the Event Theme & Keepsakes exclusions listed in §10.5 (custom fonts, stickers, host template layouts, own frame overlays, multiple theme images, guest filters or text, animated/video or AR templates, paid template packs, removable attribution, per-guest branding, social publishing, AI-generated graphics, and the Full Set exclusions: guest captions, reordering, hero selection, crop controls, host Full Set templates, gallery-wide or multi-guest collages, host-generated Full Sets, physical print ordering).
 
 **On competitor feature creep:** none of the items above — nor guest video capture, co-host accounts, or a live photo wall/slideshow (all three already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, co-host accounts, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
 
@@ -733,7 +806,8 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - Hosts are comfortable opening capture manually at the venue.
 - The pre-purchase demo (§7.1) meaningfully increases a prospective host's willingness to pay, without being mistaken for a free way to run a real event.
 - An optional event theme and photobooth-style keepsakes make FiveFrames feel premium to hosts without making setup feel like work. Most hosts should be happy with the defaults or a quick theme.
-- Keepsakes carrying a subtle FiveFrames brandmark produce meaningful organic discovery, without guests perceiving them as advertising.
+- Keepsakes carrying a subtle FiveFrames brandmark produce meaningful organic discovery, without guests perceiving them as advertising. A shared Full Set in the brandmark-derived signature layout is recognizably FiveFrames even before the logo is noticed.
+- Offering a Full Set once five captures exist does not, in practice, push guests to use frames they otherwise wouldn't. To watch in pilot events; if it does, the offer's presentation changes, not the five-frame rule.
 
 **Open — do not block MVP definition**
 - Exact safety-net close duration after the event (48–72 hours).
@@ -752,7 +826,7 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 **Accepted risks (decided, not open)**
 - Session loss grants a fresh allowance; frame limits are per session, not per person.
 - The sharing toggle cannot prevent a guest from sharing media already on their device.
-- A keepsake, once shared or saved, can't be recalled by later host moderation, turning sharing off, a theme change, or expiry (§10.3).
+- A keepsake of either family, once shared or saved, can't be recalled by later host moderation, turning sharing off, a theme change, or expiry (§10.3). A Full Set exported before the host hid or deleted one of its five captures keeps that capture.
 - The theme image is public-facing event presentation: anyone with the event link, anyone who sees the signage, and anyone a keepsake is shared with may see it. Hosts are told this at upload (§10.1).
 - One host account per event; couples, families, or coordinators needing shared access is a known gap.
 
@@ -797,7 +871,7 @@ Observable behavior that defines launch readiness.
 26. A guest can always view and download their own captures regardless of gallery visibility, unless the host hid or deleted that capture.
 27. Media cannot be retrieved from a guessable URL without an access check.
 28. A host cannot view, moderate, or download another host's event.
-29. With sharing enabled, a guest can make and share a keepsake (in any of the five styles) of their own photo before reveal, and doing so exposes neither the gallery nor any other guest's capture.
+29. With sharing enabled, a guest can make and share a keepsake of their own photos before reveal — a Single-photo keepsake in any of its five styles, or a Full Set keepsake in any of its five once available (§10.2.2) — and doing so exposes neither the gallery nor any other guest's capture.
 30. With sharing disabled by the host, making, sharing and saving keepsakes is unavailable to guests; guests can still download their own originals.
 31. Making a keepsake leaves the original media unmodified.
 
@@ -822,8 +896,8 @@ Observable behavior that defines launch readiness.
 
 **Keepsakes**
 
-44. Exactly five FiveFrames keepsake styles are offered, the same for every event. When sharing or saving one of their own captures, a guest chooses one in a single step, with one style preselected.
-45. Each style produces a polished keepsake from portrait, landscape and square photos, with and without a theme image, hashtag, or guest message. It reflects the event's accent color, and the theme image where the style uses one.
+44. Exactly five FiveFrames Single-photo keepsake styles are offered, the same for every event. When sharing or saving one of their own captures, a guest chooses one in a single step, with one style preselected.
+45. Each Single-photo style produces a polished keepsake from portrait, landscape and square photos, with and without a theme image, hashtag, or guest message. It reflects the event's accent color, and the theme image where the style uses one.
 46. Every keepsake carries a subtle FiveFrames brandmark outside the photograph, which neither host nor guest can remove. No keepsake shows the guest's display name, other guests' content, the capture link/QR, or the gallery link.
 47. A guest cannot move, add, or edit any keepsake element, text, font, color, or branding; the only choice is the style. Keepsake styles are never offered during capture, and the capture flow (§9.2) is unchanged.
 48. After making keepsakes, the guest's original is byte-for-byte unchanged and still downloadable by the guest (§8.3) and the host (§11.2). Making a keepsake never consumes a frame or adds a gallery item.
@@ -836,11 +910,27 @@ Observable behavior that defines launch readiness.
 52. Before activation, no signage format can be downloaded and no preview contains a working QR.
 53. Changing the theme never changes the QR's destination. Previously printed signage keeps working.
 
+**Full Set keepsakes** *(numbered after the existing criteria so earlier references stay valid; criteria 29–31 and 46–48 apply to both keepsake families)*
+
+54. Keepsakes come in two families, each with exactly five styles: the five Single-photo styles of criterion 44, unchanged, and exactly five Full Set styles. They are offered as two separate, clearly distinguished choices, never as a single list of ten.
+55. One of the five Full Set styles is built on the FiveFrames brandmark's construction: five regions, two landscape, two portrait and one square, with the square as the fifth region closing the composition and no four corners meeting.
+56. A Full Set contains exactly the five committed captures of the requesting guest's own session — never fewer, never another guest's — and a guest cannot obtain a Full Set containing any other session's capture.
+57. Photos 1–5 in a Full Set follow the order the captures were committed. The same five captures produce the same arrangement in a given style every time, and the guest has no way to reorder them or choose a hero image.
+58. No Full Set shows any guest message or caption, the guest's display name, the welcome message, per-photo timestamps or metadata, a QR code, or any event or gallery link.
+59. Each Full Set style produces a polished result from any mix of portrait, landscape and square captures. No photo is stretched or distorted, crops exist only in the Full Set, and the guest was never asked to shoot in a particular orientation.
+60. In the Full Set, the guest can choose a style, preview it, and share or save it, and nothing else: no layout editing, repositioning, crop control, text or font changes, stickers, filters, or branding changes, and the FiveFrames brandmark can't be removed.
+61. For an event with no theme image, no hashtag and the default violet, all five Full Set styles look polished with no empty slots or placeholders. With a theme set, each style reflects the accent color, and the theme image where the style uses one, and the theme image is never positioned where it could be read as a sixth capture.
+62. With the host's sharing setting off, neither Single-photo nor Full Set keepsakes can be made, shared or saved; guests can still download their own originals exactly as before.
+63. After a guest makes Full Sets in any number of styles, all five originals are byte-for-byte unchanged and still downloadable by the guest and the host, no frame has been consumed, the guest's capture state is unchanged, and no gallery item has been added.
+64. A guest session with fewer than five committed captures sees no Full Set anywhere: no locked, greyed-out or teaser Full Set, no "unlock" or progress language, and nothing suggesting the remaining frames should be used.
+65. Once a session has five committed captures, all visible to the guest, the Full Set is available from the guest's own view and may appear on the completion state in calm language, never as an unlock, reward, achievement, challenge or bonus. While the host has any of the five hidden, the Full Set is unavailable; after the host unhides it, the Full Set is available again.
+66. The host can preview the five Full Set styles with the event's theme, on sample photos, alongside the Single-photo styles, in every editable state including Draft, and cannot generate a Full Set from guests' captures.
+
 ---
 
 ## 21. Success Definition
 
-**MVP is ready when:** a prospective host can try the public demo, then create and pay for an event at the initial launch price — optionally giving it a theme, or simply using the defaults — receive themed event signage (§11.3), open capture at the venue, guests can join without accounts and see the trust cues on the join screen, frame limits and the event-capacity boundary hold under real concurrency and retries, uploads survive ordinary bad-network behavior, the gallery and moderation work, guests can turn their own photos into themed keepsakes while originals stay untouched, sharing respects event settings, media stays private per the access model above, and the whole flow has been validated on real iPhones and Android phones in realistic venue conditions.
+**MVP is ready when:** a prospective host can try the public demo, then create and pay for an event at the initial launch price — optionally giving it a theme, or simply using the defaults — receive themed event signage (§11.3), open capture at the venue, guests can join without accounts and see the trust cues on the join screen, frame limits and the event-capacity boundary hold under real concurrency and retries, uploads survive ordinary bad-network behavior, the gallery and moderation work, guests can turn their own photos into themed keepsakes — any one photo, or all five together once they happen to have five — while originals stay untouched, sharing respects event settings, media stays private per the access model above, and the whole flow has been validated on real iPhones and Android phones in realistic venue conditions.
 
 **The product is validated when:** the constrained guest-capture model works at a real event — guests understand the limit, use some or all of their frames without frustration, the host values the resulting collection, and the host would pay again or recommend it. The launch price hypothesis is validated once a meaningful number of hosts pay ₱999 without price being a stated blocker, at which point pricing can move toward the ₱1,490 target. Only then does scope expand toward Replay and the photobook.
 
