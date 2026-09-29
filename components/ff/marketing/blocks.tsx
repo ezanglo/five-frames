@@ -108,7 +108,7 @@ export function CtaBand({
   secondary?: { href: string; label: string } | null;
 }) {
   return (
-    <section aria-labelledby="closing-cta" className="bg-surface px-5 pb-16 lg:px-10 lg:pb-24">
+    <section aria-labelledby="closing-cta" className="bg-surface px-5 py-16 lg:px-10 lg:py-24">
       <div className="ff-photo-header-desktop mx-auto flex w-full max-w-[1200px] flex-col items-start gap-6 overflow-hidden rounded-[28px] px-6 py-12 text-ink-inverse sm:px-10 lg:flex-row lg:items-end lg:justify-between lg:rounded-[36px] lg:px-16 lg:py-20">
         <div className="flex max-w-[620px] flex-col gap-4">
           <h2 id="closing-cta" className="font-heading text-display font-semibold text-balance lg:text-page-desktop">
