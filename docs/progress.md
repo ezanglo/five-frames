@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-29 (contracted UI/UX designer handoff implemented across the whole app —
+Last updated: 2026-09-30 (marketing motion polish — see "Marketing motion polish" below. Before that: contracted UI/UX designer handoff implemented across the whole app —
 `awaiting human visual approval`, see "UI/UX redesign — contracted designer handoff" below. Slice
 14 — full-flow real-device and venue-condition validation — is still `awaiting human
 verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
@@ -14,6 +14,42 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Marketing motion polish (2026-09-30): `awaiting human visual approval`
+
+Restrained motion system for the public marketing site (`docs/design-direction.md` → "Marketing
+motion"). Marketing only; no product behavior, copy/IA, app screen or demo change.
+
+- **Hero (`/`):** the desktop phone mockups are replaced by "five prints": one guest's five kept
+  frames (numbered 1–5, portrait/square/landscape) as printed photos on a shallow surface. They
+  settle in back to front on load, respond to a real mouse with a few px of depth parallax, and
+  gather/straighten slightly as the hero scrolls away. Tablet/mobile keep a simple row of five
+  prints with a CSS entrance only. 1024–1279: narrower visual column (400, stage scaled 0.76) and
+  a 60px headline, so the CTAs sit above the fold at 1024×768 (they were below it before).
+- **Elsewhere on `/`:** the same five prints drop into the "Why five" card when it scrolls into
+  view; the host dashboard figure and the six occasion cards rise in once. Nothing else moves.
+  `/how-it-works`, `/pricing`, `/faq`, `/demo` are unchanged.
+- **Three.js: not used.** The images are flat vector illustrations, so a WebGL scene would add a
+  ~150 KB+ dependency, texture rasterization, and a fallback path for an effect that CSS
+  transforms/perspective already give crisply at any pixel density, with no bundle cost.
+- **No new dependency.** CSS keyframes/transforms plus a ~2 KB rAF loop that stops when idle.
+- **Performance:** homepage entry JS 54.6 → 55.7 KB gzipped (+1.1 KB); the motion code is one
+  2.3 KB-gz chunk loaded only by `/`. Prints and images are server-rendered HTML. CLS 0 (1440,
+  390). The loop makes no style writes once settled and ignores input while the hero is
+  off-screen; it never runs below 1024px, without a mouse, or under reduced motion.
+- **Verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test` 190/190 ✔
+  (24 files; new `lib/marketing/hero-prints.test.ts` guards exactly five prints, in-bounds layout,
+  shallow motion). Playwright/Chromium on the local dev server at 390, 768, 1024, 1280, 1440,
+  1600: no horizontal overflow, no console/hydration errors, CTA is the hit target, entrance
+  mid-frame and pointer-parallax frames inspected, reduced motion static from first paint (no
+  animation, full opacity at 150 ms, no parallax), JavaScript disabled renders the finished
+  composition, route away/back and resizing below 1024 re-attach or detach cleanly. Emulated
+  Chromium only. Not evidence for real Safari/iOS, Firefox, or trackpad feel.
+- **Human sign-off needed:** (1) taste: does the five-print hero read as FiveFrames and feel calm
+  and weighted rather than floaty, on a real laptop with a trackpad/mouse; (2) Safari and Firefox
+  desktop rendering of the prints (shadows, tilt crispness); (3) a real phone: the hero row's
+  entrance and the "Why five" drop-in feel light, and nothing janks while scrolling; (4) with
+  the OS "Reduce motion" setting on, the homepage is fully still.
 
 ## Desktop/browser responsive pass (2026-09-29): `awaiting human visual approval`
 

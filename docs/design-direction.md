@@ -45,6 +45,7 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Brand fonts shared by the root layout and `global-error` | `app/fonts.ts` |
 | App icons (violet tile, two tilted frames) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
 | Branded share card (Satori; tokens mirrored by hex, fonts as bundled TTFs) | `lib/media/share-card.tsx`, `lib/media/fonts/` |
+| Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
 `border-line`, `ff-dashed`, `rounded-sheet`, `shadow-glow`, `text-label`…), never raw palette
@@ -110,6 +111,37 @@ Product behavior is unchanged; only composition differs.
   demo in the action region. Still entirely client-side (D14).
 - **Marketing, auth, host and Operator** already use full desktop templates (1200 content, auth
   split, host D-series, operator host-desktop template); keep them that way.
+
+## Marketing motion (2026-09-30)
+
+The public marketing site may treat photographs as tactile, physical objects: printed photos with a
+white paper border, layered shadow and a faint light falloff (`PhotoPrint`), resting at slight,
+independent tilts. Photos still look like photos: no glossy 3D materials, and crops use
+`object-position`, never distortion. Until approved event photography exists, the prints use the
+illustrated sample scenes (`lib/marketing/sample-scenes.ts`), never stock imagery.
+
+- **Signature moment: the hero's five prints** (`components/ff/marketing/hero-prints.tsx`, layout
+  data in `lib/marketing/hero-prints.ts`). One guest's five kept frames, numbered 1–5, mixed
+  orientation, laid on a shallow surface. The same five scenes reappear in the "Why five" card
+  and the guest-journey mockups. Always exactly five.
+- **Motion is restrained and meaning-driven.** Slow, weighted ease-out (`--ease-settle`), no
+  overshoot, no perpetual loops, no autoplay spectacle; the page is still once the visitor stops.
+  Allowed: a one-time entrance (prints settling onto the surface), shallow depth parallax on a
+  real mouse at ≥1024 (a few px, the same amplitude at every desktop width), a slight gather as
+  the hero scrolls away, a small hover lift, and one-time reveals on a few chosen blocks
+  (`Reveal`). Most sections stay plain HTML/CSS.
+- **CSS and lightweight motion first.** Transforms, perspective, shadows and a small rAF loop
+  that runs only while values settle (`hooks/use-print-parallax.ts`). No motion library.
+- **WebGL/Three.js is reserved for an isolated signature marketing moment** that CSS can't achieve,
+  lazy-loaded, with a static fallback. It's not used today (the hero is CSS) and never belongs in
+  guest, host, gallery, checkout, auth or Operator screens.
+- **Every motion has a complete static alternative.** The server renders the finished
+  composition (nothing shifts when motion starts; no-JS visitors see it complete).
+  `prefers-reduced-motion: reduce` turns off entrances, parallax, tilt, hover lift and reveals
+  entirely rather than speeding them up. Resting tilt is composition, not motion, so it stays.
+  Tablet and mobile get a simple row of five prints with a CSS entrance and nothing continuous.
+- **Decorative only.** Motion layers are `aria-hidden`, never focusable, never carry information
+  that isn't in the copy, and never overlap CTAs.
 
 ## Accessibility baseline
 

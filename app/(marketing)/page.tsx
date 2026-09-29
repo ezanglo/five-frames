@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -25,6 +26,8 @@ import { ButtonLink } from "@/components/ff/button";
 import { StatusPill } from "@/components/ff/pill";
 import { CtaBand, FaqList, PriceCard } from "@/components/ff/marketing/blocks";
 import { GuestJourney } from "@/components/ff/marketing/guest-journey";
+import { FiveFramesHeroVisual } from "@/components/ff/marketing/hero-prints";
+import { Reveal } from "@/components/ff/marketing/reveal";
 import {
   CollectionScreen,
   FiveKeptFrames,
@@ -103,12 +106,12 @@ function Hero() {
     <section aria-labelledby="hero-title" className="relative overflow-hidden bg-surface-dark text-ink-inverse">
       <div aria-hidden className="ff-photo-header absolute inset-0 lg:hidden" />
       <div aria-hidden className="ff-photo-header-desktop absolute inset-0 hidden lg:block" />
-      <div className="relative mx-auto grid w-full max-w-[1200px] gap-12 px-5 pt-10 pb-20 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_520px] lg:items-center lg:gap-10 lg:px-10 lg:pt-16 lg:pb-24">
+      <div className="relative mx-auto grid w-full max-w-[1200px] gap-12 px-5 pt-10 pb-20 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_400px] lg:items-center xl:grid-cols-[minmax(0,1fr)_520px] lg:gap-10 lg:px-10 lg:pt-16 lg:pb-24">
         <div className="flex flex-col gap-6">
           <StatusPill tone="frosted" icon="check">
             No app · No guest account
           </StatusPill>
-          <h1 id="hero-title" className="font-heading text-hero font-semibold text-balance lg:text-hero-desktop">
+          <h1 id="hero-title" className="font-heading text-hero font-semibold text-balance lg:text-[60px] xl:text-hero-desktop">
             <span className="block">Every guest.</span>
             <span className="block">Five frames.</span>
             <span className="block">One shared story.</span>
@@ -131,16 +134,13 @@ function Hero() {
             <span className="text-ink-inverse">{PRICE_LABEL}</span> per event, paid once · Guests
             never pay
           </p>
-          <FiveKeptFrames className="mt-4 max-w-[420px] lg:hidden" />
+          <FiveKeptFrames entrance="load" className="mt-4 max-w-[420px] sm:max-w-[560px] lg:hidden" />
         </div>
 
-        <div aria-hidden className="relative hidden h-[640px] lg:block">
-          <div className="absolute top-10 left-0 origin-bottom-right -rotate-6 scale-[0.9] opacity-90 motion-reduce:rotate-0">
-            <PreviewScreen />
-          </div>
-          <div className="absolute top-0 right-0">
-            <YourFiveScreen taken={2} />
-          </div>
+        {/* 1024–1279: a narrower column and a scaled stage, so the headline keeps three lines
+            and the CTAs stay above the fold. Same composition and motion amplitude at every width. */}
+        <div className="relative hidden h-[500px] items-center justify-center lg:flex xl:h-[640px]">
+          <FiveFramesHeroVisual className="shrink-0 scale-[0.76] xl:scale-100" />
         </div>
       </div>
     </section>
@@ -225,7 +225,9 @@ function WhyFiveSection() {
         </div>
         <div className="relative flex flex-col gap-6 overflow-hidden rounded-3xl bg-surface-dark p-6 text-ink-inverse sm:p-8">
           <div aria-hidden className="ff-photo-header-desktop absolute inset-0" />
-          <FiveKeptFrames className="relative flex-1 py-2" offset={3} />
+          <Reveal className="relative flex flex-1 items-center py-2">
+            <FiveKeptFrames entrance="reveal" className="w-full" />
+          </Reveal>
           <div className="relative flex flex-col gap-2">
             <h3 className="text-[19px] font-bold">{FRAMES} from every guest</h3>
             <p className="text-label font-medium text-ink-on-dark">
@@ -270,12 +272,14 @@ function HostSection() {
           <ArrowRight aria-hidden />
         </ButtonLink>
       </div>
-      <figure className="mt-12 flex flex-col gap-3 lg:mt-16">
-        <HostDashboardVisual wide />
-        <figcaption className="text-caption font-medium text-ink-muted">
-          The host dashboard, shown with a sample event.
-        </figcaption>
-      </figure>
+      <Reveal className="mt-12 lg:mt-16">
+        <figure className="ff-rise-reveal flex flex-col gap-3">
+          <HostDashboardVisual wide />
+          <figcaption className="text-caption font-medium text-ink-muted">
+            The host dashboard, shown with a sample event.
+          </figcaption>
+        </figure>
+      </Reveal>
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:gap-6">
         <FeatureCard icon={<QrCode />} title="Ready-made signage">
           A printable QR, a table card, a poster and a phone-screen version, ready the moment your
@@ -388,9 +392,14 @@ function OccasionsSection() {
         title="Wherever people gather."
         lead="FiveFrames isn’t built around one kind of event. If people are getting together, five frames each works the same way."
       />
-      <ul className="mt-12 grid grid-cols-2 gap-3 sm:gap-4 lg:mt-16 lg:grid-cols-3 lg:gap-6">
-        {OCCASIONS.map((occasion) => (
-          <li key={occasion.name} className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface lg:rounded-3xl">
+      <Reveal className="mt-12 lg:mt-16">
+        <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 lg:gap-6">
+        {OCCASIONS.map((occasion, index) => (
+          <li
+            key={occasion.name}
+            style={{ "--i": index } as CSSProperties}
+            className="ff-rise-reveal flex flex-col overflow-hidden rounded-xl border border-line bg-surface lg:rounded-3xl"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element -- inline SVG illustration */}
             <img
               src={scene(occasion.scene).src}
@@ -404,7 +413,8 @@ function OccasionsSection() {
             </div>
           </li>
         ))}
-      </ul>
+        </ul>
+      </Reveal>
     </Section>
   );
 }

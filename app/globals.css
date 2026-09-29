@@ -62,6 +62,18 @@
   --shadow-primary-glow: 0 10px 24px color-mix(in srgb, var(--brand-primary) 30%, transparent);
   --shadow-active-tab: 0 2px 8px color-mix(in srgb, var(--color-text-primary) 8%, transparent);
   --focus-ring: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 12%, transparent);
+  /* Printed photo on a surface (marketing): contact, near and ambient shadow layers. */
+  --shadow-print:
+    0 1px 1px color-mix(in srgb, var(--color-surface-dark) 22%, transparent),
+    0 8px 14px -6px color-mix(in srgb, var(--color-surface-dark) 40%, transparent),
+    0 26px 44px -18px color-mix(in srgb, var(--color-surface-dark) 60%, transparent);
+  --shadow-print-raised:
+    0 2px 2px color-mix(in srgb, var(--color-surface-dark) 20%, transparent),
+    0 16px 24px -8px color-mix(in srgb, var(--color-surface-dark) 42%, transparent),
+    0 42px 64px -22px color-mix(in srgb, var(--color-surface-dark) 66%, transparent);
+
+  /* Motion (marketing): slow, weighted ease-out, no overshoot. */
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* shadcn primitive tokens, mapped onto the FiveFrames semantics so the base layer and any
      future shadcn primitive render inside the same system. Product UI uses components/ff. */
@@ -267,6 +279,123 @@
     width: max(100%, 44px);
     height: max(100%, 44px);
     transform: translate(-50%, -50%);
+  }
+}
+
+/* Marketing motion (docs/design-direction.md → "Marketing motion"). Everything here is
+   decorative enhancement over a complete static composition: without JavaScript the entrances
+   still play once, and under reduced motion none of it runs. Only transform/opacity animate. */
+@layer components {
+  /* Photo as a printed object: paper border (set per use), layered shadow, faint light falloff. */
+  .ff-print {
+    box-shadow: var(--shadow-print);
+  }
+  .ff-print::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(155deg, rgb(255 255 255 / 0.1), transparent 42%);
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.05);
+  }
+
+  /* Hero stage. --px/--py (pointer, −1…1) and --sp (scroll, 0…1) default to 0: the resting
+     composition. Prints move by depth — front prints a little more — and gather slightly and
+     straighten as the hero scrolls away. */
+  .ff-hero-perspective {
+    perspective: 1800px;
+  }
+  .ff-hero-stage {
+    transform: rotateX(calc(var(--py, 0) * -1.5deg)) rotateY(calc(var(--px, 0) * 2deg));
+  }
+  .ff-hero-print {
+    transform: translate3d(
+        calc(var(--px, 0) * var(--depth) * 12px + var(--gx) * var(--sp, 0)),
+        calc(var(--py, 0) * var(--depth) * 9px + var(--gy) * var(--sp, 0) - var(--sp, 0) * var(--depth) * 56px),
+        0
+      )
+      rotate(calc(var(--rot) * (1 - var(--sp, 0) * 0.35)));
+  }
+  .ff-print-lift {
+    transition:
+      transform 700ms var(--ease-settle),
+      box-shadow 700ms var(--ease-settle);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .ff-hero-print:hover .ff-print-lift {
+      transform: translateY(-6px);
+      box-shadow: var(--shadow-print-raised);
+    }
+  }
+
+  /* Entrance: a print dropping onto the surface from slightly scattered and above. --ex/--ey/--er
+     set where it comes from, --i its place in the stagger. */
+  .ff-print-drop {
+    animation: ff-print-drop 1300ms var(--ease-settle) both;
+    animation-delay: calc(120ms + var(--i, 0) * 110ms);
+  }
+  [data-reveal="pending"] .ff-print-drop-reveal,
+  [data-reveal="pending"] .ff-rise-reveal {
+    opacity: 0;
+  }
+  [data-reveal="shown"] .ff-print-drop-reveal {
+    animation: ff-print-drop 1200ms var(--ease-settle) both;
+    animation-delay: calc(var(--i, 0) * 100ms);
+  }
+  [data-reveal="shown"] .ff-rise-reveal {
+    animation: ff-rise 900ms var(--ease-settle) both;
+    animation-delay: calc(var(--i, 0) * 80ms);
+  }
+}
+
+@keyframes ff-print-drop {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--ex, 0px), calc(var(--ey, 0px) - 12px), 0) rotate(var(--er, 0deg)) scale(1.05);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ff-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media print {
+  /* A block that hadn't scrolled into view yet still prints. */
+  [data-reveal] .ff-print-drop-reveal,
+  [data-reveal] .ff-rise-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* A complete static presentation, not a faster one: no entrances (and no stagger delays that
+     would leave prints invisible), no hover lift, no parallax tilt. */
+  .ff-print-drop,
+  .ff-print-drop-reveal,
+  .ff-rise-reveal {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .ff-print-lift,
+  .ff-hero-stage,
+  .ff-hero-print:hover .ff-print-lift {
+    transform: none !important;
   }
 }
 

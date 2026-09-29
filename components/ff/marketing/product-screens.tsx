@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import {
   Camera,
   Check,
@@ -16,6 +16,7 @@ import { StatusPill } from "@/components/ff/pill";
 import { FiveShotTeaser, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { scene } from "@/lib/marketing/sample-scenes";
 import { cn } from "@/lib/utils";
+import { PhotoPrint, ShotNumber } from "./photo-print";
 
 /**
  * Marketing mockups of the real FiveFrames screens (guest 01–05, host 06–07), drawn from the
@@ -120,14 +121,6 @@ function SceneImg({ index, className }: { index: number; className?: string }) {
   return <img src={scene(index).src} alt="" className={cn("size-full object-cover", className)} />;
 }
 
-function MiniShotNumber({ n }: { n: number }) {
-  return (
-    <span className="tabular absolute top-1.5 left-1.5 flex size-5 items-center justify-center rounded-full bg-surface text-[10px] font-bold text-ink shadow-[0_1px_3px_rgb(0_0_0/0.18)]">
-      {n}
-    </span>
-  );
-}
-
 /** Guest 01 · Join (open). */
 export function JoinScreen() {
   return (
@@ -223,7 +216,7 @@ export function YourFiveScreen({ taken, justKept }: { taken: number; justKept?: 
                   )}
                 >
                   <SceneImg index={i} />
-                  <MiniShotNumber n={i + 1} />
+                  <ShotNumber n={i + 1} />
                 </span>
               );
             }
@@ -517,21 +510,57 @@ function MiniStat({ label, value, tint }: { label: string; value: string; tint?:
   );
 }
 
-/** Five kept frames, tilted like the Join teaser but filled — the "one guest's five" motif. */
-export function FiveKeptFrames({ className, offset = 0 }: { className?: string; offset?: number }) {
-  const rotations = ["-6deg", "3deg", "-2deg", "6deg", "-3deg"];
+/**
+ * Five kept frames as printed photos, tilted like the Join teaser — the "one guest's five" motif,
+ * using the same five scenes as the hero prints. `entrance` adds the prints' drop-in: on page
+ * load, or when an enclosing `<Reveal>` scrolls into view (docs/design-direction.md → "Marketing
+ * motion"). The resting arrangement is the same either way.
+ */
+export function FiveKeptFrames({
+  className,
+  offset = 0,
+  entrance,
+}: {
+  className?: string;
+  offset?: number;
+  entrance?: "load" | "reveal";
+}) {
   return (
     <div aria-hidden className={cn("flex items-center justify-center gap-2 sm:gap-3", className)}>
-      {rotations.map((rotation, i) => (
+      {KEPT_ARRANGEMENT.map((print, i) => (
         <span
           key={i}
-          style={{ transform: `rotate(${rotation})` }}
-          className="relative aspect-[4/5] w-full max-w-[112px] overflow-hidden rounded-[12px] border-[3px] border-surface bg-surface shadow-[0_12px_24px_-8px_rgb(21_20_26/0.35)] motion-reduce:transform-none sm:rounded-[16px] sm:border-4"
+          style={
+            {
+              "--i": i,
+              "--ex": `${print.enterX}px`,
+              "--ey": "28px",
+              "--er": `${print.enterRotate}deg`,
+            } as CSSProperties
+          }
+          className={cn(
+            "block w-full max-w-[112px]",
+            entrance === "load" && "ff-print-drop",
+            entrance === "reveal" && "ff-print-drop-reveal",
+          )}
         >
-          <SceneImg index={i + offset} />
-          <MiniShotNumber n={i + 1} />
+          <PhotoPrint
+            src={scene(i + offset).src}
+            shot={i + 1}
+            style={{ transform: `translateY(${print.y}px) rotate(${print.rotate}deg)` }}
+            className="aspect-[4/5] w-full rounded-[12px] border-[3px] border-surface sm:rounded-[16px] sm:border-4"
+          />
         </span>
       ))}
     </div>
   );
 }
+
+/** Resting tilt and small vertical offsets, plus where each print drops in from. */
+const KEPT_ARRANGEMENT = [
+  { rotate: -6, y: 2, enterX: -18, enterRotate: -8 },
+  { rotate: 3, y: -3, enterX: -8, enterRotate: 6 },
+  { rotate: -2, y: 3, enterX: 0, enterRotate: -5 },
+  { rotate: 6, y: -2, enterX: 8, enterRotate: 7 },
+  { rotate: -3, y: 1, enterX: 18, enterRotate: -6 },
+] as const;
