@@ -399,6 +399,9 @@ export function CaptureSlots({
       };
     });
 
+  // Desktop story panel: the guest's own kept shots fill the five-frame motif.
+  const motifPhotos = keptPhotos.flatMap((p) => (p.thumbnailUrl ? [p.thumbnailUrl] : []));
+
   const fileInput = (
     <input
       ref={fileInputRef}
@@ -440,6 +443,8 @@ export function CaptureSlots({
         eyebrow={[eventName, eventDateLabel].filter(Boolean).join(" · ")}
         title={`That’s a wrap, ${greetingName}!`}
         subtitle="Thanks for sharing your five. Here’s what you captured."
+        width="wide"
+        motifPhotos={motifPhotos}
       >
         <div className="flex items-baseline justify-between">
           <h2 className="text-heading font-bold text-ink">Your best moments</h2>
@@ -481,6 +486,8 @@ export function CaptureSlots({
         title={`Hi, ${greetingName}!`}
         subtitle={`Welcome to ${eventName}`}
         meta={eventDateLabel}
+        width="wide"
+        motifPhotos={motifPhotos}
       >
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-3">
@@ -495,7 +502,8 @@ export function CaptureSlots({
           <ShotProgress taken={taken} />
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        {/* 3 + 2 on phones; one row of five on wide desktops, so the allowance reads at a glance. */}
+        <div className="grid grid-cols-3 gap-2.5 xl:grid-cols-5 xl:gap-3">
           {slots.map((slot, index) => {
             if (slot?.status === "committed") {
               const viewer = viewerPhotos.findIndex((v) => v.id === slot.id);
@@ -506,7 +514,7 @@ export function CaptureSlots({
                   disabled={viewer === -1}
                   onClick={() => setViewerIndex(viewer)}
                   aria-label={`View shot ${index + 1}`}
-                  className="ff-focus relative h-[150px] overflow-hidden rounded-lg bg-surface-subtle"
+                  className="ff-focus relative h-[150px] overflow-hidden rounded-lg bg-surface-subtle md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto"
                 >
                   {slot.thumbnailUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- short-lived signed url
@@ -529,7 +537,7 @@ export function CaptureSlots({
                   aria-label={
                     phase === "resuming" ? `Finish shot ${nextShot}` : `Take shot ${nextShot}`
                   }
-                  className="ff-focus h-[150px] rounded-lg"
+                  className="ff-focus h-[150px] rounded-lg md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto"
                 >
                   <EmptySlotFace n={index + 1} next>
                     {phase === "resuming" ? (
@@ -542,14 +550,14 @@ export function CaptureSlots({
               );
             }
             return (
-              <div key={index} className="h-[150px]" aria-hidden>
+              <div key={index} className="h-[150px] md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto" aria-hidden>
                 <EmptySlotFace n={index + 1} />
               </div>
             );
           })}
           {taken > 0 && (
-            <p className="flex h-[150px] flex-col justify-center gap-2 px-1 text-caption font-medium text-ink-muted">
-              <Pointer className="size-5" aria-hidden />
+            <p className="flex h-[150px] flex-col justify-center gap-2 px-1 text-caption font-medium text-ink-muted md:h-auto lg:h-[150px] xl:col-span-5 xl:h-auto xl:flex-row xl:items-center xl:px-0">
+              <Pointer className="size-5 xl:size-4" aria-hidden />
               Tap your photo to preview.
             </p>
           )}

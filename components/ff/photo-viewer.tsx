@@ -25,7 +25,9 @@ export type ViewerPhoto = {
  * 40px frosted circles (back · counter · download), pager dots, and an info block below.
  * A native horizontal scroll-snap track — touch swipe and momentum come from the browser,
  * desktop gets arrow keys and side arrows. Each image renders `object-contain` so any aspect
- * ratio is shown complete, never cropped.
+ * ratio is shown complete, never cropped. ≥1024 it becomes a proper media viewer: a large
+ * photo stage and a 380px side panel carrying the counter, attribution, message and actions
+ * (the bar's download circle yields to the panel's Download button there).
  */
 export function PhotoViewer({
   photos,
@@ -83,87 +85,99 @@ export function PhotoViewer({
 
   const photo = photos[Math.min(current, photos.length - 1)];
 
+  const info = photo && (photo.name || photo.meta || photo.badge);
+  const actions = photo && (photo.downloadUrl || extraAction);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="Photo viewer"
-      className="fixed inset-0 z-50 flex flex-col bg-surface-dark text-ink-inverse"
+      className="fixed inset-0 z-50 flex flex-col bg-surface-dark text-ink-inverse lg:grid lg:grid-cols-[minmax(0,1fr)_380px]"
     >
-      <div className="ff-safe-top absolute inset-x-0 top-0 z-10 mx-auto flex max-w-[1200px] items-center justify-between px-4">
-        <button
-          ref={backButtonRef}
-          type="button"
-          onClick={onClose}
-          aria-label="Back"
-          className="ff-focus ff-frosted flex size-10 items-center justify-center rounded-full"
-        >
-          <ChevronLeft className="size-5" />
-        </button>
-        <span className="ff-frosted tabular flex h-10 items-center rounded-full px-4 text-micro font-semibold">
-          {current + 1} / {photos.length}
-        </span>
-        {photo?.downloadUrl ? (
-          <a
-            href={photo.downloadUrl}
-            aria-label="Download photo"
+      {/* Media stage: the photo, the viewer bar and the side arrows. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className="ff-safe-top absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 lg:px-6 lg:pt-6">
+          <button
+            ref={backButtonRef}
+            type="button"
+            onClick={onClose}
+            aria-label="Back"
             className="ff-focus ff-frosted flex size-10 items-center justify-center rounded-full"
           >
-            <Download className="size-[18px]" />
-          </a>
-        ) : (
-          <span className="size-10" aria-hidden />
-        )}
-      </div>
-
-      <div className="relative min-h-0 flex-1">
-        <div
-          ref={trackRef}
-          onScroll={handleScroll}
-          className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none]"
-        >
-          {photos.map((p, index) => (
-            <div
-              key={p.id}
-              className="flex h-full w-full flex-none snap-center items-center justify-center px-2 pt-16 pb-4"
+            <ChevronLeft className="size-5" />
+          </button>
+          <span className="ff-frosted tabular flex h-10 items-center rounded-full px-4 text-micro font-semibold">
+            {current + 1} / {photos.length}
+          </span>
+          {photo?.downloadUrl ? (
+            <a
+              href={photo.downloadUrl}
+              aria-label="Download photo"
+              className="ff-focus ff-frosted flex size-10 items-center justify-center rounded-full lg:invisible"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url */}
-              <img
-                src={p.src}
-                alt={p.alt}
-                className="max-h-full max-w-full rounded-lg object-contain"
-                loading={Math.abs(index - initialIndex) <= 1 ? "eager" : "lazy"}
-              />
-            </div>
-          ))}
+              <Download className="size-[18px]" />
+            </a>
+          ) : (
+            <span className="size-10" aria-hidden />
+          )}
         </div>
-        {photos.length > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={() => page(-1)}
-              disabled={current === 0}
-              aria-label="Previous photo"
-              className="ff-focus ff-frosted absolute top-1/2 left-3 flex size-10 -translate-y-1/2 items-center justify-center rounded-full disabled:opacity-0"
-            >
-              <ChevronLeft className="size-5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => page(1)}
-              disabled={current === photos.length - 1}
-              aria-label="Next photo"
-              className="ff-focus ff-frosted absolute top-1/2 right-3 flex size-10 -translate-y-1/2 items-center justify-center rounded-full disabled:opacity-0"
-            >
-              <ChevronRight className="size-5" />
-            </button>
-          </>
-        )}
+
+        <div className="relative min-h-0 flex-1">
+          <div
+            ref={trackRef}
+            onScroll={handleScroll}
+            className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none]"
+          >
+            {photos.map((p, index) => (
+              <div
+                key={p.id}
+                className="flex h-full w-full flex-none snap-center items-center justify-center px-2 pt-16 pb-4 lg:px-20 lg:pt-24 lg:pb-12"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url */}
+                <img
+                  src={p.src}
+                  alt={p.alt}
+                  className="max-h-full max-w-full rounded-lg object-contain"
+                  loading={Math.abs(index - initialIndex) <= 1 ? "eager" : "lazy"}
+                />
+              </div>
+            ))}
+          </div>
+          {photos.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() => page(-1)}
+                disabled={current === 0}
+                aria-label="Previous photo"
+                className="ff-focus ff-frosted absolute top-1/2 left-3 flex size-10 -translate-y-1/2 items-center justify-center rounded-full disabled:opacity-0 lg:left-6 lg:size-12"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => page(1)}
+                disabled={current === photos.length - 1}
+                aria-label="Next photo"
+                className="ff-focus ff-frosted absolute top-1/2 right-3 flex size-10 -translate-y-1/2 items-center justify-center rounded-full disabled:opacity-0 lg:right-6 lg:size-12"
+              >
+                <ChevronRight className="size-5" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="ff-safe-bottom mx-auto flex w-full max-w-[430px] flex-col gap-4 px-5 pt-2">
-        {photos.length > 1 && <PagerDots count={photos.length} current={current} />}
-        {photo && (photo.name || photo.meta || photo.badge) && (
+      {/* Info: under the photo on phones; a side panel beside it on desktop. */}
+      <div className="ff-safe-bottom mx-auto flex w-full max-w-[430px] flex-col gap-4 px-5 pt-2 md:max-w-[600px] lg:max-w-none lg:justify-center lg:gap-5 lg:overflow-y-auto lg:border-l lg:border-white/10 lg:px-8 lg:py-10">
+        <p className="tabular hidden text-label font-semibold text-ink-on-dark lg:block">
+          Photo {current + 1} of {photos.length}
+        </p>
+        {photos.length > 1 && (
+          <PagerDots count={photos.length} current={current} className="lg:hidden" />
+        )}
+        {photo && info && (
           <div className="flex items-center gap-3">
             {photo.name && <Avatar name={photo.name} />}
             <div className="flex min-w-0 flex-1 flex-col">
@@ -180,21 +194,22 @@ export function PhotoViewer({
           </div>
         )}
         {photo?.message && (
-          <p className="rounded-lg bg-white/[0.07] px-4 py-3.5 text-body font-medium">
+          <p className="rounded-lg bg-white/[0.07] px-4 py-3.5 text-body font-medium lg:text-[17px] lg:leading-relaxed">
             &ldquo;{photo.message}&rdquo;
           </p>
         )}
         {photos.length > 1 && (
-          <p className="flex items-center justify-center gap-1.5 text-caption font-medium text-ink-on-dark">
+          <p className="flex items-center justify-center gap-1.5 text-caption font-medium text-ink-on-dark lg:justify-start">
             <ChevronsLeftRight className="size-4" aria-hidden />
-            Swipe for more photos
+            <span className="lg:hidden">Swipe for more photos</span>
+            <span className="hidden lg:inline">Use ← → to browse · Esc to close</span>
           </p>
         )}
-        {(photo?.downloadUrl || (photo && extraAction)) && (
-          <div className="flex gap-3">
+        {actions && (
+          <div className="flex gap-3 lg:flex-col">
             {photo && extraAction?.(photo)}
             {photo?.downloadUrl && (
-              <ButtonAnchor href={photo.downloadUrl} className="flex-1">
+              <ButtonAnchor href={photo.downloadUrl} className="flex-1 lg:flex-none">
                 <Download aria-hidden />
                 Download photo
               </ButtonAnchor>
@@ -207,11 +222,19 @@ export function PhotoViewer({
 }
 
 /** Pager dots (DS03): active dot stretches to 18px. Shows a window of at most 5 dots. */
-function PagerDots({ count, current }: { count: number; current: number }) {
+function PagerDots({
+  count,
+  current,
+  className,
+}: {
+  count: number;
+  current: number;
+  className?: string;
+}) {
   const windowSize = Math.min(5, count);
   const start = Math.min(Math.max(0, current - 2), count - windowSize);
   return (
-    <div className="flex items-center justify-center gap-1.5" aria-hidden>
+    <div className={cn("flex items-center justify-center gap-1.5", className)} aria-hidden>
       {Array.from({ length: windowSize }, (_, i) => {
         const index = start + i;
         return (

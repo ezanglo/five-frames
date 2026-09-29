@@ -63,31 +63,40 @@ export function OwnPhotoList({
 
   return (
     <div className="flex flex-col gap-3">
-      <ul className="flex flex-col gap-2">
+      {/* Phones: a compact list (DS05 photo list row). Desktop: the same rows become photo
+          cards so each kept shot is seen as a photograph, not a 56px thumbnail. */}
+      <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-3 lg:gap-4 xl:grid-cols-5">
         {photos.map((photo) => {
           const index = viewerPhotos.findIndex((v) => v.id === photo.id);
           const sharing = pendingCaptureId === photo.id;
           return (
-            <li key={photo.id} className="flex items-center gap-3">
+            <li key={photo.id} className="relative flex items-center gap-3 lg:items-start">
               <button
                 type="button"
                 disabled={index === -1}
                 onClick={() => setViewerIndex(index)}
-                className="ff-focus group flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+                className="ff-focus group flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left lg:flex-col lg:items-stretch lg:gap-2.5"
                 aria-label={`View shot ${photo.slotIndex + 1}${photo.message ? `: ${photo.message}` : ""}`}
               >
-                <span className="relative size-14 shrink-0 overflow-hidden rounded-sm bg-surface-subtle">
+                <span className="relative size-14 shrink-0 overflow-hidden rounded-sm bg-surface-subtle lg:aspect-[4/5] lg:h-auto lg:w-full lg:rounded-lg">
                   {photo.thumbnailUrl && (
                     // eslint-disable-next-line @next/next/no-img-element -- short-lived signed url
-                    <img src={photo.thumbnailUrl} alt="" className="size-full object-cover" />
+                    <img
+                      src={photo.thumbnailUrl}
+                      alt=""
+                      className="size-full object-cover transition-transform duration-300 lg:group-hover:scale-[1.03] motion-reduce:transition-none"
+                    />
                   )}
-                  <ShotNumber n={photo.slotIndex + 1} className="absolute top-1 left-1 size-5 text-[11px]" />
+                  <ShotNumber
+                    n={photo.slotIndex + 1}
+                    className="absolute top-1 left-1 size-5 text-[11px] lg:top-2 lg:left-2 lg:size-7 lg:text-micro"
+                  />
                 </span>
                 <span
                   className={
                     photo.message
-                      ? "line-clamp-2 text-label font-medium text-ink"
-                      : "text-label font-medium text-ink-muted italic"
+                      ? "line-clamp-2 text-label font-medium text-ink lg:line-clamp-3 lg:text-caption"
+                      : "text-label font-medium text-ink-muted italic lg:text-caption"
                   }
                 >
                   {photo.message ?? "No message"}
@@ -100,6 +109,7 @@ export function OwnPhotoList({
                   onClick={() => share(photo.id)}
                   disabled={sharing}
                   aria-label={`Share shot ${photo.slotIndex + 1}`}
+                  className="lg:absolute lg:top-2 lg:right-2 lg:shadow-card"
                 >
                   {sharing ? <RefreshCw className="animate-spin" /> : <Share2 />}
                 </Button>

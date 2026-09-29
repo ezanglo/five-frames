@@ -95,6 +95,7 @@ export default async function GalleryPage({
 
   return (
     <GuestShell
+      variant="wide"
       topRight={
         <StatusPill tone="frosted" icon="live">
           Gallery is open
@@ -109,7 +110,7 @@ export default async function GalleryPage({
       }
     >
       {event.host_message && (
-        <p className="rounded-lg bg-surface-subtle px-4 py-3 text-body font-medium whitespace-pre-line text-ink">
+        <p className="rounded-lg bg-surface-subtle px-4 py-3 text-body font-medium whitespace-pre-line text-ink md:max-w-[68ch] md:px-5 md:py-4">
           {event.host_message}
         </p>
       )}

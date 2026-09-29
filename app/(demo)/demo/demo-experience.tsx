@@ -143,6 +143,9 @@ export function DemoExperience() {
         }
         title="Everyone gets five shots."
         subtitle="Try it here — your photos stay on your device and are never uploaded."
+        width="wide"
+        motifPhotos={frames.flatMap((slot) => (slot.kind === "filled" ? [slot.previewUrl] : []))}
+        panel={<DemoContext />}
       >
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-3">
@@ -157,7 +160,7 @@ export function DemoExperience() {
           <ShotProgress taken={taken} />
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-3 gap-2.5 xl:grid-cols-5 xl:gap-3">
           {frames.map((slot, index) => {
             if (slot.kind === "filled") {
               const viewer = viewerPhotos.findIndex((v) => v.id === `demo-slot-${index}`);
@@ -167,7 +170,7 @@ export function DemoExperience() {
                   type="button"
                   onClick={() => setViewerIndex(viewer)}
                   aria-label={`View demo shot ${index + 1}`}
-                  className="ff-focus relative h-[150px] overflow-hidden rounded-lg bg-surface-subtle"
+                  className="ff-focus relative h-[150px] overflow-hidden rounded-lg bg-surface-subtle md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
                   <img src={slot.previewUrl} alt="" className="size-full object-cover" />
@@ -182,7 +185,7 @@ export function DemoExperience() {
                   type="button"
                   onClick={() => setPickerOpen(true)}
                   aria-label={`Take demo shot ${index + 1}`}
-                  className="ff-focus h-[150px] rounded-lg"
+                  className="ff-focus h-[150px] rounded-lg md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto"
                 >
                   <EmptySlotFace n={index + 1} next>
                     <Camera className="size-4" aria-hidden />
@@ -191,14 +194,14 @@ export function DemoExperience() {
               );
             }
             return (
-              <div key={index} className="h-[150px]" aria-hidden>
+              <div key={index} className="h-[150px] md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto" aria-hidden>
                 <EmptySlotFace n={index + 1} />
               </div>
             );
           })}
           {taken > 0 && (
-            <p className="flex h-[150px] flex-col justify-center gap-2 px-1 text-caption font-medium text-ink-muted">
-              <Pointer className="size-5" aria-hidden />
+            <p className="flex h-[150px] flex-col justify-center gap-2 px-1 text-caption font-medium text-ink-muted md:h-auto lg:h-[150px] xl:col-span-5 xl:h-auto xl:flex-row xl:items-center xl:px-0">
+              <Pointer className="size-5 xl:size-4" aria-hidden />
               Tap a photo to see it.
             </p>
           )}
@@ -243,7 +246,7 @@ export function DemoExperience() {
                   type="button"
                   onClick={() => chooseSample(sample)}
                   aria-label={sample.label}
-                  className="ff-focus size-16 flex-none overflow-hidden rounded-sm transition-transform active:scale-95"
+                  className="ff-focus size-16 flex-none overflow-hidden rounded-sm transition-transform active:scale-95 lg:size-20"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={sample.dataUrl} alt="" className="h-full w-full object-cover" />
@@ -315,5 +318,39 @@ export function DemoExperience() {
         />
       )}
     </>
+  );
+}
+
+/**
+ * Desktop-only context beside the interactive demo (≥1024): what the visitor is looking at and
+ * how it maps to a real event. Frosted/secondary links only — the violet primary stays with the
+ * demo's own shot action.
+ */
+function DemoContext() {
+  return (
+    <div className="flex flex-col gap-6">
+      <ol className="flex flex-col gap-3 text-label font-medium text-ink-inverse/85">
+        {[
+          "At a real event, guests scan your QR code — no app, no account.",
+          "Each guest keeps up to five photos. Retakes are free; keeping is final.",
+          "You reveal the gallery when you’re ready, and download every original.",
+        ].map((step, i) => (
+          <li key={step} className="flex items-start gap-3">
+            <span className="tabular flex size-6 shrink-0 items-center justify-center rounded-full border border-white/30 text-micro font-bold text-ink-inverse">
+              {i + 1}
+            </span>
+            {step}
+          </li>
+        ))}
+      </ol>
+      <div className="flex flex-wrap gap-3">
+        <ButtonLink href="/how-it-works" variant="frosted" size="sm">
+          How it works
+        </ButtonLink>
+        <ButtonLink href="/pricing" variant="frosted" size="sm">
+          Pricing
+        </ButtonLink>
+      </div>
+    </div>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Check, ChevronLeft } from "lucide-react";
+import { FrameMotif } from "./frame-motif";
 import { Wordmark } from "./wordmark";
 
 /**
@@ -75,27 +76,10 @@ export function AuthShell({
   );
 }
 
-const PANEL_FRAMES = [
-  { rotate: "-8deg", top: "12%", left: "44%", w: 150 },
-  { rotate: "6deg", top: "20%", left: "68%", w: 120 },
-  { rotate: "-3deg", top: "36%", left: "56%", w: 170 },
-  { rotate: "9deg", top: "8%", left: "18%", w: 110 },
-  { rotate: "-5deg", top: "30%", left: "10%", w: 130 },
-] as const;
-
 function BrandPanel() {
   return (
     <aside className="ff-photo-header relative hidden min-h-dvh flex-col overflow-hidden px-12 py-12 text-ink-inverse lg:sticky lg:top-0 lg:flex lg:h-dvh">
-      <div aria-hidden className="absolute inset-0">
-        {PANEL_FRAMES.map((f, i) => (
-          <span
-            key={i}
-            style={{ transform: `rotate(${f.rotate})`, top: f.top, left: f.left, width: f.w }}
-            className="absolute aspect-[4/5] rounded-xl border border-white/25 bg-white/[0.06] backdrop-blur-[2px]"
-          />
-        ))}
-        <span className="absolute inset-x-0 bottom-0 h-2/3 bg-linear-to-t from-surface-dark via-surface-dark/80 to-transparent" />
-      </div>
+      <FrameMotif />
       <Wordmark host tone="light" href="/" className="relative" />
       <div className="relative mt-auto flex flex-col gap-6">
         <p className="font-heading text-[48px] leading-[1.05] font-semibold tracking-[-0.01em]">

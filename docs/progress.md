@@ -15,6 +15,37 @@ History and reasoning live in [docs/decisions.md](./decisions.md) (consequential
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
 
+## Desktop/browser responsive pass (2026-09-29): `awaiting human visual approval`
+
+Laptop/desktop made first-class (`docs/design-direction.md` → "Desktop and browser"). Design
+only; no product behavior, capture/upload/commit logic, authorization, gallery visibility,
+download, lifecycle or demo-isolation change.
+
+- **Redesigned for desktop (≥1024) and tablet (768–1023):** guest Join (open / not open /
+  closed / full / not found), Your Five, Preview + Message, Completion (open and after close),
+  own-photo viewer; public gallery locked / private / revealed and its viewer; `/demo`; 404 and
+  error screens (they share the guest shell). Mobile (< 768) is unchanged.
+- **Shared primitives:** `GuestShell` `variant` (`split` | `wide`), `width`, `panel`,
+  `motifPhotos`; `SheetActions` desktop behavior; new `components/ff/frame-motif.tsx` (also
+  used by the auth brand panel, same look); desktop compositions inside `PreviewSheet`,
+  `PhotoViewer`, `OwnPhotoList`, `GalleryArchive`.
+- **Audited, already desktop-composed, left as is:** `/`, `/how-it-works`, `/pricing`, `/faq`
+  (1200 editorial layouts, FAQ side nav), auth (640 + 420 split).
+- **Not audited in this pass:** host (`/dashboard`, create wizard, event Dashboard/Photos/
+  Settings) and Operator Console. The session's permission classifier blocked reading their
+  layout/chrome source and blocked data access to the dev Supabase project (which also backs
+  Vercel Production), so they were neither inspected nor screenshotted. Per the existing notes
+  they implement the handoff's D-series desktop templates; confirm visually.
+- **Verification:** `pnpm typecheck`, `pnpm lint`, `pnpm build`, `pnpm test` (23 files, 186
+  tests) pass. Browser screenshots (Chromium via Playwright, local dev server) at 360, 390,
+  430, 768, 1024, 1280, 1440 and 1600 wide for public pages and every guest/gallery/demo state
+  above — data-backed guest states rendered through a temporary, uncommitted fixture route
+  with sample images, not live events. No horizontal overflow at any size; only Completion at
+  1024×768 scrolls (~110px). Browser emulation is not real-device evidence (Slice 14 still
+  covers that).
+- **Open visual notes:** the story panel is decorative night + violet glow (no cover images
+  exist); share buttons on desktop Completion cards sit on the photo (secondary style).
+
 ## UI/UX redesign — contracted designer handoff (2026-09-29): `awaiting human visual approval`
 
 The designer handoff in `docs/design-handoff/` is now the authoritative visual direction
@@ -1537,6 +1568,7 @@ is PASS or an honestly-recorded BLOCKED with no unresolved launch-blocking defec
 | Item | Type | Affects |
 |---|---|---|
 | Slice 14 full human verification checklist not yet run (see above) — this is now the single gating item for MVP completion | Manual verification pending | Entire guest/host/operator flow on real devices; see checklist above |
+| Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
 | Handoff capabilities not in the product: cover photo, theme color, delete event, pre-payment guest preview, public photographer attribution | Product decision (only if the product should change) | Create · Look, Settings, gallery viewer |
 | Operator Console, share card, 404/error pages and app icons moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |

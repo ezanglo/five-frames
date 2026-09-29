@@ -114,6 +114,8 @@ export default async function GuestEventPage({
           eyebrow={[event.name, dateLabel].filter(Boolean).join(" · ")}
           title={`Thanks for sharing, ${name}!`}
           subtitle="Capture has ended. Here’s what you kept."
+          width="wide"
+          motifPhotos={kept.flatMap((p) => (p.thumbnailUrl ? [p.thumbnailUrl] : []))}
         >
           <div className="flex items-baseline justify-between">
             <h2 className="text-heading font-bold text-ink">Your moments</h2>

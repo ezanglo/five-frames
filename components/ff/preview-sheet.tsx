@@ -12,6 +12,10 @@ import { SHOTS_PER_GUEST } from "./shots";
  * then a white sheet with the optional message, the finality note, Retake (free) and Keep photo
  * (the one committing action). Purely presentational — whoever renders it owns what "keep"
  * does. The photo renders object-contain so the guest sees the whole image before committing.
+ *
+ * ≥1024 the photo gets the room: a full-height media region with the sheet docked on the right
+ * (its rounded edge facing the photo), so a laptop guest decides on a large image rather than a
+ * phone preview scaled up. Same controls, same order, same single committing action.
  */
 export function PreviewSheet({
   previewUrl,
@@ -52,13 +56,13 @@ export function PreviewSheet({
       aria-label={`Preview shot ${shot}`}
       className="fixed inset-0 z-40 overflow-y-auto bg-surface-dark"
     >
-      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col">
-        <div className="relative flex min-h-[52dvh] flex-1 flex-col">
+      <div className="mx-auto flex min-h-dvh w-full max-w-[430px] flex-col md:max-w-[600px] lg:grid lg:h-dvh lg:min-h-0 lg:max-w-none lg:grid-cols-[minmax(0,1fr)_440px] xl:grid-cols-[minmax(0,1fr)_480px]">
+        <div className="relative flex min-h-[52dvh] flex-1 flex-col lg:min-h-0">
           {/* eslint-disable-next-line @next/next/no-img-element -- local object URL preview */}
           <img
             src={previewUrl}
             alt={`Your photo for shot ${shot}`}
-            className="absolute inset-0 size-full object-contain"
+            className="absolute inset-0 size-full object-contain lg:px-16 lg:pt-24 lg:pb-20"
           />
           <div className="ff-safe-top relative flex h-[60px] items-center justify-center px-4">
             <span className="ff-frosted flex h-10 items-center gap-2 rounded-full px-4 text-micro font-semibold text-ink-inverse">
@@ -95,7 +99,13 @@ export function PreviewSheet({
           </span>
         </div>
 
-        <div className="ff-safe-bottom relative -mt-6 flex flex-col gap-4 rounded-t-sheet bg-surface px-5 pt-6">
+        <div className="ff-safe-bottom relative -mt-6 flex flex-col gap-4 rounded-t-sheet bg-surface px-5 pt-6 lg:mt-0 lg:justify-center lg:gap-5 lg:overflow-y-auto lg:rounded-tr-none lg:rounded-bl-sheet lg:px-10 lg:py-12">
+          <div className="hidden flex-col gap-1.5 lg:flex">
+            <p className="tabular text-label font-semibold text-brand">
+              Shot {shot} of {SHOTS_PER_GUEST}
+            </p>
+            <h2 className="font-heading text-title font-semibold text-ink">Keep this one?</h2>
+          </div>
           <Field
             label="Add a message"
             htmlFor="capture-message"

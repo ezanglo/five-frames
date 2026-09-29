@@ -1,6 +1,7 @@
 # Design Direction
 
-**Status: implemented 2026-09-29 — awaiting human visual approval.** The contracted FiveFrames
+**Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
+pass, "Desktop and browser" below). The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24
@@ -53,9 +54,9 @@ Console, uses `components/ff`.
 ## Implementation principles
 
 - **One shell per audience.** Guest screens: 271px photo header (night gradient) → white sheet
-  (−24px overlap, 28 radius) → one primary action pinned low. Designed at 390, works 360–480;
-  above 480 the 430px column stays centered on night with the header glow blurred behind — there
-  is no desktop guest app. Photo viewer and Preview go full-bleed dark.
+  (−24px overlap, 28 radius) → one primary action pinned low. Designed at 390, works 360–480.
+  Wider viewports recompose the same shell — see "Desktop and browser" below. Photo viewer and
+  Preview go full-bleed dark.
 - **Host is responsive by template, not by stretching.** < 1024: dark header + white sheet +
   segmented tabs. ≥ 1024: 72h top nav, grey page, white cards, 1200 content, and the four DS06
   templates — auth split (640 panel + 420 form), event list (4-col grid, 3 at 1024–1279), event
@@ -75,6 +76,40 @@ Console, uses `components/ff`.
 - **No cover imagery exists**, so every "photo header" uses the handoff's no-cover treatment
   (night + violet glow). The auth brand panel keeps the photo panel's crop/gradient/hierarchy
   with an abstract five-frame motif instead of stock photography.
+
+## Desktop and browser (accepted 2026-09-29)
+
+Laptop and desktop are first-class FiveFrames surfaces. This supersedes the handoff's "guest is
+mobile only — a centered 430px column above 480" note (guest flow sheet, DS06 "Responsive").
+Product behavior is unchanged; only composition differs.
+
+- **Desktop is compositionally distinct, not enlarged mobile.** Same components, tokens, state
+  and actions; different arrangement at the breakpoint. No duplicated desktop page trees.
+- **Avoid whole-page phone-width caps.** Constrain width per section/component (readable text,
+  480px forms, 1200px content) instead of forcing a page into a phone column. A narrow page
+  needs a stated reason.
+- **Breakpoints:** < 768 mobile (unchanged); 768–1023 tablet; ≥ 1024 desktop composition;
+  ≥ 1280 wide refinements (e.g. five shot slots in one row).
+- **Guest stays mobile-first but gets a deliberate browser layout** (`GuestShell`):
+  - `split` (every join/status/capture screen): 768–1023 a 600px sheet; ≥ 1024 a sticky
+    full-height event story panel (5/12: top bar, frame motif, Fraunces 48 title, optional
+    desktop-only `panel`) beside a white action region with content vertically centered —
+    480px column for forms/status, 760px (`width="wide"`) for Your Five and Completion. Desktop
+    has no thumb zone, so `SheetActions` stays with the content and keeps a button-sized width.
+  - `wide` (revealed gallery): from 768 a full-width header band and a 1200px content column;
+    grid 3 → 4 (tablet) → 5 (desktop) columns so tiles stay inspectable (~230px).
+  - The story panel's five-frame motif (`components/ff/frame-motif.tsx`, shared with the auth
+    brand panel) fills with the guest's own kept shots — or demo previews — decoratively.
+  - Your Five: five slots in one row ≥ 1280, 4:5 slots on tablet. Completion: kept shots become
+    photo cards (grid) instead of 56px list rows.
+  - Preview + Message ≥ 1024: full-height photo region with the sheet docked right ("Keep this
+    one?"). Photo viewer ≥ 1024: photo stage + 380px side panel (counter, attribution where
+    allowed, message, keyboard hint, actions).
+- **`/demo`** uses the split shell: product context (how it maps to a real event, links to How
+  it works/Pricing — frosted, never a second violet primary) in the story panel, the interactive
+  demo in the action region. Still entirely client-side (D14).
+- **Marketing, auth, host and Operator** already use full desktop templates (1200 content, auth
+  split, host D-series, operator host-desktop template); keep them that way.
 
 ## Accessibility baseline
 
@@ -151,6 +186,7 @@ one:
 - Reintroducing the retired warm palette, Bricolage Grotesque, or per-scope token families.
 - Raw hex/palette values in components; generic shadcn/SaaS composition on product screens.
 - A second violet primary on a screen; Fraunces on buttons, forms or numbers.
-- Stretching a mobile host layout to desktop, or building a desktop guest app.
+- Stretching a mobile layout to desktop, or centering a phone column in a desktop browser.
+- A desktop guest experience that reads as host software (dashboards, toolbars of host actions).
 - Decorative/fake numbers, countdowns not backed by the lifecycle, or engagement copy.
 - Building a handoff control whose behavior the product doesn't have — log it above instead.
