@@ -1,22 +1,114 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-23 (Slice 14 — full-flow real-device and venue-condition validation — in
-progress: `awaiting human verification`. A subsequent focused `/e2e-validate` pass found two real,
-project-specific defects (host downloads navigating instead of saving; a refunded payment
-misclassified as an unresolved duplicate) — both are now repaired and reverified, see "Regression
-protection added for human-found defects" → "Slice 14" below. Everything else automatable for
-this slice is done and passing (see "Slice 14 — automated verification" below); the slice remains
-human-device-bound by its own definition (roadmap: "Human-run on real devices. Not automated")
-for camera behavior, real in-app browsers, physical QR scans, and venue network conditions, which
-still cannot be completed from this environment. See "Slice 14 — human verification checklist"
-for the exact steps and expected results, and "Slice 14 — deployed environment check" for what
-was and wasn't confirmable without exposing secrets. Slice 10's Web Share checklist is folded
-into Slice 14 §7 below rather than tracked separately.)
+Last updated: 2026-09-29 (contracted UI/UX designer handoff implemented across the whole app —
+`awaiting human visual approval`, see "UI/UX redesign — contracted designer handoff" below. Slice
+14 — full-flow real-device and venue-condition validation — is still `awaiting human
+verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
+note: a focused `/e2e-validate` pass found two defects (host downloads navigating instead of
+saving; a refunded payment misclassified as an unresolved duplicate), both repaired — see
+"Regression protection added for human-found defects" → "Slice 14".)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## UI/UX redesign — contracted designer handoff (2026-09-29): `awaiting human visual approval`
+
+The designer handoff in `docs/design-handoff/` is now the authoritative visual direction
+(`docs/design-direction.md`, which replaces every previous visual exploration). Implemented as a
+reusable system (`app/globals.css` tokens, `components/ff/*` primitives and shells) and applied
+to every guest, host, auth, gallery and demo screen. No product behavior, authorization, payment,
+lifecycle, frame mechanics or download architecture changed; the reserve → upload → commit code
+path is untouched.
+
+**Screens implemented** (route → handoff screen):
+
+- Auth: `/signup` (D1/04b), `/login` (D1b/04a), `/forgot-password` → check inbox (D1c–d/04c–d),
+  `/reset-password` (D1e/04e), new `/auth/confirm` link handler.
+- Host: `/dashboard` events — first-time empty state and populated grid/list with Live/Upcoming/
+  Past filters and desktop search (D2/D2b/05); `/events/new` + `/events/[id]/setup?step=details|
+  look|share` create wizard (D3–D5/05a–c); `/events/[id]` dashboard, `/events/[id]/photos`,
+  `/events/[id]/settings` as three tabs under one cover header (D6–D8/06, 06b, 07).
+  `/events/[id]/checkout` now forwards to the Share step (PayMongo's `cancel_url` still lands there).
+- Guest: `/e/[token]` join open / not open yet / capture closed (with and without a session) /
+  full; Your Five; Preview + Message; Completion; own-photo viewer (01–04).
+- Public gallery: `/g/[token]` locked (with host-set custom reveal countdown), private, revealed
+  grid, photo viewer (05). `/demo` and `/` restyled on the same system.
+
+**Small, behavior-preserving additions made for the handoff** (all ownership-scoped, no schema
+change): host full name stored in Supabase user metadata at signup (host-side greeting only,
+never shown to guests); password reset via Supabase's standard recovery email; resend of the
+signup confirmation email; `capturedAt`/`guestSessionId`/`displayUrl` fields on existing capture
+views; `listEventsWithPhotoCountsForHost`; a "Reveal gallery" shortcut that sets the existing
+"Immediately" reveal timing; guest "Download my photos". Guest original download URLs now carry
+an attachment disposition (same defect class fixed for hosts in Slice 14 — otherwise a sequential
+download navigates away after the first photo); regression test updated to assert it.
+
+**File moves** (older notes below still use the old paths): `frame-grid.tsx` → shot slots in
+`capture-slots.tsx` + `components/ff/shots.tsx`; `own-captures.tsx` → `own-photos.tsx`; host
+`gallery-grid.tsx` → `(manage)/photos/photo-manager.tsx`; `link-row.tsx` → Settings "Links" card
+(`(manage)/settings/page.tsx`); `g/[token]/photo-viewer.tsx` → `components/ff/photo-viewer.tsx`;
+`events/[eventId]/page.tsx` → `(manage)/page.tsx`; checkout content → `setup/page.tsx` Share
+step; `app/login`, `app/signup` → `app/(auth)/…`.
+
+**Defect class fixed during the pass:** `cn()` treated the new font-size tokens (`text-button`,
+`text-label`, …) as colors and silently dropped real text colors (primary buttons rendered dark
+text on violet). Tokens are now registered in `lib/utils.ts`; `lib/utils.test.ts` guards it.
+
+**Product conflicts** — handled by keeping product behavior; full list with rationale in
+`docs/design-direction.md` → "Known discrepancies". Items that need a **user decision** only if the
+product should change:
+
+1. Cover photo and event theme color (Create · Look, Settings) — not product capabilities today.
+2. Guest preview before payment — product.md §7.2 forbids it; shown only post-activation.
+3. Delete event (Settings danger zone) — no host event-deletion capability exists yet.
+4. Photographer name/time in the *public* gallery viewer and the Join-screen guest count —
+   withheld (data exposure / engagement nudge).
+5. Branded share card still uses the retired palette/fonts (needs Fraunces/Jakarta TTFs bundled
+   into `lib/media/fonts/`).
+
+**Automated verification (2026-09-29):** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
+(new routes `/auth/confirm`, `/events/new`, `/events/[id]/setup`, `/events/[id]/photos`,
+`/events/[id]/settings`, `/forgot-password`, `/reset-password`) · `pnpm test` 168/168 ✔ (22 files;
+the known `lifecycle.integration.test.ts` timeout flake appeared once and passed on rerun).
+
+**Browser verification (Playwright, headless Chromium, against `next dev` + the dev Supabase
+project):** every screen above rendered and compared against the handoff boards at guest 360/390/
+430 and host 390/1024/1280/1440, with no horizontal overflow anywhere. Exercised through the real
+UI: sign in, create-event wizard (desktop and mobile), activation (dev script), three guests
+joining and committing photos through the real reserve/upload/commit path (partial, full five,
+discarded retake that correctly consumed nothing), whitespace-name error state, hide/favorite in
+Photos, Settings dirty/discard, custom reveal time round-trip in the event timezone, capture close
+from the mobile toggle → after-event reveal, locked and revealed public gallery, long event name.
+This is emulated Chromium — not evidence for real iPhone Safari, Android Chrome, in-app browsers,
+native pickers, or venue networks (still Slice 14 human scope). Not pixel-perfect: compositions,
+hierarchy, tokens and type match; source photography is replaced by the no-cover gradient and
+synthetic test images.
+
+**Dev test data created** (dev Supabase project only): synthetic identities
+`design-verify-host@example.com` (4 events: live, upcoming, revealed, long-name draft, with 15
+synthetic photos from 5 guest sessions), `design-verify-empty@example.com` (no events),
+`design-verify-operator@example.com` (no operator grant). Created with
+`pnpm e2e:provision-identities`; passwords are not recorded here.
+
+**Environment note:** `.env.local`'s first line reads `EXT_PUBLIC_SUPABASE_URL=` (missing the
+leading `N`), so `NEXT_PUBLIC_SUPABASE_URL` is undefined locally; this pass passed it as a
+process env override without editing the file. The `E2E_*` variables this file previously listed
+are also no longer in `.env.local`.
+
+**Human visual-approval checklist** (real phone + desktop browser):
+
+1. Guest on a real phone: join, take/choose a photo, Retake, Keep, reach Completion, download
+   your photos (each file saves, the page doesn't navigate away). Check the sheet/keyboard
+   behavior on Preview and that the header runs under the status bar without overlap.
+2. Guest link before capture opens and after it closes (with and without having joined).
+3. Host desktop and phone: events list, create wizard, dashboard capture toggle, Photos
+   (hide/unhide/favorite/delete confirm/download all), Settings save/discard/leave-page warning.
+4. Password reset end to end (needs the Supabase redirect allowlist to include
+   `<origin>/auth/confirm` for each environment — configuration, not code).
+5. Public gallery locked/revealed, viewer swipe/arrows/Escape.
+6. Taste: does the result read as the contracted handoff? Report any screen that doesn't.
 
 ## Current phase
 
@@ -1415,9 +1507,12 @@ is PASS or an honestly-recorded BLOCKED with no unresolved launch-blocking defec
 | Item | Type | Affects |
 |---|---|---|
 | Slice 14 full human verification checklist not yet run (see above) — this is now the single gating item for MVP completion | Manual verification pending | Entire guest/host/operator flow on real devices; see checklist above |
-| Public gallery visual redesign (A24-anchored archive/immersive viewer) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. Folded into Slice 14 §8. | Design pass pending approval | `/g/[token]`, host link-row polish |
-| Operator Console visual redesign (Shopify-admin-anchored list/detail, new `.operator-scope` tokens) implemented 2026-09-22, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. Slice 9's manual-payment/refund zone sits on top of this visual pass but was not itself redesigned. Folded into Slice 14 §9. | Design pass pending approval | `/operator`, `/operator/events/[eventId]` |
-| Payment/activation/signage visual redesign (checkout "what you get" panel, state-differentiated payment banners, post-activation reassurance, signage rebuilt with the host palette) implemented 2026-09-23, automated checks passing — **awaiting human visual verification**, not yet accepted in design-direction.md. No payment semantics changed. Folded into Slice 14 §2/§3. | Design pass pending approval | `/events/[eventId]/checkout`, `/events/[eventId]`, `/events/[eventId]/signage/[format]` |
+| Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
+| Handoff capabilities not in the product: cover photo, theme color, delete event, pre-payment guest preview, public photographer attribution | Product decision (only if the product should change) | Create · Look, Settings, gallery viewer |
+| Branded share card still on the retired palette/fonts | Follow-up design task | `lib/media/share-card.tsx` |
+| Operator Console kept outside the handoff (own neutral layout; display font now the brand sans) — its 2026-09-22 visual pass still awaits approval (Slice 14 §9) | Design pass pending approval | `/operator`, `/operator/events/[eventId]` |
+| `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |
+| Supabase Auth redirect allowlist must include `/auth/confirm` for password reset in each environment | Configuration | Password reset |
 | Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |
 | Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |
 | No git remote configured | Setup | Any push/CI work |

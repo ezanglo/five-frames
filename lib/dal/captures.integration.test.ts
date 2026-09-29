@@ -331,7 +331,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(gallery?.find((c) => c.id === capture.id)).toBeUndefined();
   });
 
-  it("listCapturesForEventHost mints an attachment-disposition download url, unlike the guest's own inline signed urls", async () => {
+  it("host and guest download urls carry an attachment disposition; viewing urls stay inline", async () => {
     const event = await createOpenEvent();
     const session = await newGuestSession(event.id);
     const capture = await commitTinyCapture(event.id, session.id);
@@ -349,8 +349,12 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
 
     const guestView = await listCapturesForGuestSessionWithUrls(event.id, session.id);
     const guestCapture = guestView.find((c) => c.id === capture.id);
-    // Guest-facing download behavior is unchanged by this fix.
-    expect(guestCapture?.downloadUrl).not.toMatch(/[?&]download=/);
+    // The same failure class applies to the guest's own "Download my photos" (a sequential
+    // loop like the host's bulk download): an inline url would navigate away after the first
+    // photo. Viewing urls (thumbnail, display) must stay inline so <img> can render them.
+    expect(guestCapture?.downloadUrl).toMatch(/[?&]download=my-shot-\d/);
+    expect(guestCapture?.thumbnailUrl).not.toMatch(/[?&]download=/);
+    expect(guestCapture?.displayUrl).not.toMatch(/[?&]download=/);
   });
 
   it("moderation is scoped to the owning host — a different host can neither read nor moderate", async () => {

@@ -5,6 +5,7 @@ import { requireHost } from "@/lib/auth/host-session";
 import {
   closeCapture,
   createDraftEvent,
+  getEventForHost,
   openCapture,
   revokeEventToken,
   revokeGalleryToken,
@@ -27,17 +28,7 @@ const REVEAL_MODES: RevealMode[] = ["after_event", "immediate", "custom"];
 const VISIBILITIES: GalleryVisibility[] = ["anyone_with_link", "only_me"];
 const VALID_TIME_ZONES = new Set(Intl.supportedValuesOf("timeZone"));
 
-export async function createEvent(formData: FormData) {
-  const host = await requireHost();
-  const name = String(formData.get("name") ?? "").trim();
-
-  if (!name) {
-    throw new Error("Event name is required.");
-  }
-
-  const event = await createDraftEvent(host.id, name);
-  redirect(`/events/${event.id}`);
-}
+export type EventFormState = { error: string | null };
 
 function field(formData: FormData, key: string): string | null {
   const value = formData.get(key);
@@ -45,14 +36,23 @@ function field(formData: FormData, key: string): string | null {
   return value.trim();
 }
 
-export async function updateEvent(eventId: string, formData: FormData) {
-  const host = await requireHost();
-
+/** Event details (Create · Details, Settings · Event details): name, date, timezone. */
+function parseDetails(formData: FormData): Pick<EventConfigInput, "name" | "eventDate" | "timezone"> | null {
   const name = field(formData, "name");
-  if (!name) {
-    throw new Error("Event name is required.");
-  }
+  if (!name) return null;
+  const timezoneRaw = field(formData, "timezone") ?? "Asia/Manila";
+  return {
+    name: name.slice(0, 120),
+    eventDate: field(formData, "eventDate"),
+    timezone: VALID_TIME_ZONES.has(timezoneRaw) ? timezoneRaw : "Asia/Manila",
+  };
+}
 
+/** Welcome, gallery and sharing (Create · Look, Settings). */
+function parseLook(
+  formData: FormData,
+  timezone: string,
+): Omit<EventConfigInput, "name" | "eventDate" | "timezone"> {
   const revealModeRaw = field(formData, "revealMode") ?? "after_event";
   const revealMode = REVEAL_MODES.includes(revealModeRaw as RevealMode)
     ? (revealModeRaw as RevealMode)
@@ -63,17 +63,9 @@ export async function updateEvent(eventId: string, formData: FormData) {
     ? (visibilityRaw as GalleryVisibility)
     : "anyone_with_link";
 
-  const timezoneRaw = field(formData, "timezone") ?? "Asia/Manila";
-  const timezone = VALID_TIME_ZONES.has(timezoneRaw)
-    ? timezoneRaw
-    : "Asia/Manila";
-
   const revealAtLocal = field(formData, "revealAt");
 
-  const input: Partial<EventConfigInput> = {
-    name,
-    eventDate: field(formData, "eventDate"),
-    timezone,
+  return {
     hostMessage: field(formData, "hostMessage"),
     revealMode,
     // Interpreted as wall-clock time in the event's own timezone, not the server
@@ -87,13 +79,87 @@ export async function updateEvent(eventId: string, formData: FormData) {
     sharingEnabled: formData.get("sharingEnabled") === "on",
     hashtag: field(formData, "hashtag"),
   };
+}
+
+/** Create · Details for a new event: creates the draft, then continues to Look. */
+export async function createEventAction(
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const host = await requireHost();
+  const details = parseDetails(formData);
+  if (!details) return { error: "Give your event a name." };
+
+  const draft = await createDraftEvent(host.id, details.name);
+  await updateEventConfig(host.id, draft.id, details);
+  redirect(`/events/${draft.id}/setup?step=look`);
+}
+
+/** Create · Details for an existing draft. */
+export async function saveDetailsStepAction(
+  eventId: string,
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const host = await requireHost();
+  const details = parseDetails(formData);
+  if (!details) return { error: "Give your event a name." };
+
+  const updated = await updateEventConfig(host.id, eventId, details);
+  if (!updated) notFound();
+  redirect(`/events/${eventId}/setup?step=look`);
+}
+
+/** Create · Look: welcome message, hashtag, reveal timing, visibility, sharing. */
+export async function saveLookStepAction(
+  eventId: string,
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const host = await requireHost();
+  const event = await getEventForHost(host.id, eventId);
+  if (!event) notFound();
+
+  const updated = await updateEventConfig(host.id, eventId, parseLook(formData, event.timezone));
+  if (!updated) notFound();
+  redirect(`/events/${eventId}/setup?step=share`);
+}
+
+/** Settings tab: every editable field in one save. */
+export async function updateEvent(eventId: string, formData: FormData) {
+  const host = await requireHost();
+
+  const details = parseDetails(formData);
+  if (!details) {
+    throw new Error("Event name is required.");
+  }
+
+  const input: Partial<EventConfigInput> = {
+    ...details,
+    ...parseLook(formData, details.timezone),
+  };
 
   const updated = await updateEventConfig(host.id, eventId, input);
   if (!updated) {
     notFound();
   }
 
-  redirect(`/events/${eventId}?saved=1`);
+  redirect(`/events/${eventId}/settings?saved=1`);
+}
+
+/**
+ * "Reveal gallery" on the dashboard. Not a new capability: it sets the same reveal timing the
+ * host can already choose in Settings ("Immediately", product.md §7.4). Reveal still requires
+ * activation, and visibility still governs who the gallery link admits.
+ */
+export async function revealGalleryNowAction(eventId: string) {
+  const host = await requireHost();
+  const updated = await updateEventConfig(host.id, eventId, {
+    revealMode: "immediate",
+    revealAt: null,
+  });
+  if (!updated) notFound();
+  redirect(`/events/${eventId}`);
 }
 
 /** Bound to the checkout confirmation page's "Continue to payment" button (product.md

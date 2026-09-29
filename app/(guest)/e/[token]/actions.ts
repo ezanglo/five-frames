@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { getEventByToken } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
-import { commitCapture, reserveCapture } from "@/lib/dal/captures";
+import { commitCapture, filenameForGuestOriginal, reserveCapture } from "@/lib/dal/captures";
 import { getShareCardForGuestCapture } from "@/lib/dal/share-cards";
 import {
   getGuestSessionIdFromCookie,
@@ -106,7 +106,13 @@ export async function reserveSlot(
 }
 
 export type CommitResponse =
-  | { kind: "committed"; capture: CaptureRow; thumbnailUrl: string | null; downloadUrl: string | null }
+  | {
+      kind: "committed";
+      capture: CaptureRow;
+      thumbnailUrl: string | null;
+      displayUrl: string | null;
+      downloadUrl: string | null;
+    }
   | { kind: "not_found" }
   | { kind: "expired" }
   | { kind: "capture_not_open" }
@@ -135,15 +141,26 @@ export async function commitSlot(
   if (outcome.kind !== "committed") return outcome;
 
   if (!outcome.capture.thumbnail_path) {
-    return { kind: "committed", capture: outcome.capture, thumbnailUrl: null, downloadUrl: null };
+    return {
+      kind: "committed",
+      capture: outcome.capture,
+      thumbnailUrl: null,
+      displayUrl: null,
+      downloadUrl: null,
+    };
   }
 
-  const [thumbnailUrl, downloadUrl] = await Promise.all([
+  const [thumbnailUrl, displayUrl, downloadUrl] = await Promise.all([
     createSignedReadUrl(outcome.capture.thumbnail_path),
-    createSignedReadUrl(outcome.capture.storage_path),
+    createSignedReadUrl(outcome.capture.display_path ?? outcome.capture.thumbnail_path),
+    createSignedReadUrl(
+      outcome.capture.storage_path,
+      60 * 10,
+      filenameForGuestOriginal(outcome.capture.slot_index, outcome.capture.mime_type),
+    ),
   ]);
 
-  return { kind: "committed", capture: outcome.capture, thumbnailUrl, downloadUrl };
+  return { kind: "committed", capture: outcome.capture, thumbnailUrl, displayUrl, downloadUrl };
 }
 
 /**

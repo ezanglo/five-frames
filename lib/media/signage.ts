@@ -9,11 +9,11 @@ import QRCode from "qrcode";
  * dependency), which prints cleanly and avoids depending on system fonts being present in
  * the server's runtime, unlike rasterizing text with sharp would.
  *
- * Visually, this reuses the host/guest warm palette and the product's one display face
- * (Bricolage Grotesque, with a geometric-sans fallback chain so the SVG still reads
- * correctly wherever that font isn't installed) plus a viewfinder-corner motif around the
- * QR — a quiet nod to the disposable-camera identity already established in
- * docs/design-direction.md, without any literal camera iconography or event-type framing.
+ * Visually, this follows the FiveFrames design system (docs/design-direction.md): white canvas,
+ * ink text, the one violet accent, Fraunces for the event name and Plus Jakarta Sans for
+ * everything else (with fallback chains so the SVG still reads correctly wherever those fonts
+ * aren't installed), plus a viewfinder-corner motif around the QR — a capture cue without
+ * literal camera iconography or event-type framing.
  */
 
 export type SignageFormat = "qr" | "table-card" | "poster" | "digital";
@@ -23,17 +23,15 @@ export const SIGNAGE_FORMATS: SignageFormat[] = ["qr", "table-card", "poster", "
 const GUEST_INSTRUCTION = "Scan. You have five frames.";
 const NO_APP_REASSURANCE = "No app. No account.";
 
-// Matches the host/guest --canvas / --ink / --accent family (docs/design-direction.md),
-// hex-converted since SVG text/fill doesn't render CSS custom properties.
-const CANVAS = "#faf4e9";
-const INK = "#3d3226";
-const INK_MUTED = "#8a7c6a";
-const ACCENT = "#a8632f";
-const PLATE = "#fffdf8";
+// FiveFrames semantic tokens (app/globals.css), hex since SVG fill doesn't read CSS variables.
+const CANVAS = "#FFFFFF"; // color/surface/base
+const INK = "#15141A"; // color/text/primary
+const INK_MUTED = "#6B6A75"; // color/text/muted
+const ACCENT = "#6B2BD9"; // brand/primary
+const PLATE = "#FFFFFF";
 
-const DISPLAY_FONT_STACK =
-  "'Bricolage Grotesque', 'Segoe UI', Avenir, Futura, sans-serif";
-const BODY_FONT_STACK = "'Inter', Helvetica, Arial, sans-serif";
+const DISPLAY_FONT_STACK = "Fraunces, Georgia, 'Times New Roman', serif";
+const BODY_FONT_STACK = "'Plus Jakarta Sans', 'Segoe UI', Helvetica, Arial, sans-serif";
 
 type Layout = {
   width: number;

@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { getEventById, getEventForHost } from "@/lib/dal/events";
+import { getEventById, getEventForHost, listEventsForHost } from "@/lib/dal/events";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
 import {
   createSignedReadUrl,
@@ -10,7 +10,7 @@ import {
   getResumableUploadEndpoint,
   verifyUploadedObject,
 } from "@/lib/media/storage";
-import type { CaptureRow, CaptureStatus } from "@/lib/db/types";
+import type { CaptureRow, CaptureStatus, EventRow } from "@/lib/db/types";
 
 /**
  * The frame-limit mechanism (architecture §6, decisions D5/D6). Every function here takes
@@ -190,14 +190,32 @@ export async function listCapturesForGuestSession(
   return data as CaptureRow[];
 }
 
+const EXTENSION_FOR_MIME_TYPE: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+  "image/heic": ".heic",
+  "image/heif": ".heif",
+};
+
 export type GuestCaptureView = {
   id: string;
   slotIndex: number;
   status: CaptureStatus;
   message: string | null;
+  /** When the frame was committed (null while still pending). */
+  capturedAt: string | null;
   thumbnailUrl: string | null;
+  /** The ~1600w display derivative, for the full-screen viewer. */
+  displayUrl: string | null;
   downloadUrl: string | null;
 };
+
+/** Filename for a guest's own original — also what makes the signed URL save, not navigate. */
+export function filenameForGuestOriginal(slotIndex: number, mimeType: string | null): string {
+  const extension = (mimeType && EXTENSION_FOR_MIME_TYPE[mimeType]) || "";
+  return `my-shot-${slotIndex + 1}${extension}`;
+}
 
 /**
  * A guest's private view of their own captures (spec §8.3, invariant 11's guest-side
@@ -220,14 +238,21 @@ export async function listCapturesForGuestSessionWithUrls(
           slotIndex: capture.slot_index,
           status: capture.status,
           message: capture.message,
+          capturedAt: null,
           thumbnailUrl: null,
+          displayUrl: null,
           downloadUrl: null,
         };
       }
 
-      const [thumbnailUrl, downloadUrl] = await Promise.all([
+      const [thumbnailUrl, displayUrl, downloadUrl] = await Promise.all([
         createSignedReadUrl(capture.thumbnail_path),
-        createSignedReadUrl(capture.storage_path),
+        createSignedReadUrl(capture.display_path ?? capture.thumbnail_path),
+        createSignedReadUrl(
+          capture.storage_path,
+          60 * 10,
+          filenameForGuestOriginal(capture.slot_index, capture.mime_type),
+        ),
       ]);
 
       return {
@@ -235,7 +260,9 @@ export async function listCapturesForGuestSessionWithUrls(
         slotIndex: capture.slot_index,
         status: capture.status,
         message: capture.message,
+        capturedAt: capture.committed_at,
         thumbnailUrl,
+        displayUrl,
         downloadUrl,
       };
     }),
@@ -284,10 +311,39 @@ export async function getEventCaptureStats(
   };
 }
 
+/**
+ * The host's events with their committed-photo counts, for the events list (host 05 / D2b).
+ * Ownership comes from listEventsForHost — counts are only ever queried for event ids that
+ * query returned, never for caller-supplied ids.
+ */
+export async function listEventsWithPhotoCountsForHost(
+  hostId: string,
+): Promise<{ event: EventRow; photoCount: number }[]> {
+  const events = await listEventsForHost(hostId);
+  const supabase = createServiceClient();
+
+  return Promise.all(
+    events.map(async (event) => {
+      if (!event.activated_at) return { event, photoCount: 0 };
+      const { count, error } = await supabase
+        .from("captures")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", event.id)
+        .eq("status", "committed")
+        .is("deleted_at", null);
+      if (error) throw error;
+      return { event, photoCount: count ?? 0 };
+    }),
+  );
+}
+
 export type HostCaptureView = {
   id: string;
   slotIndex: number;
+  guestSessionId: string;
   guestDisplayName: string;
+  /** When the frame was committed; drives newest/oldest sorting and the card timestamp. */
+  capturedAt: string;
   message: string | null;
   hidden: boolean;
   favorited: boolean;
@@ -311,7 +367,7 @@ export async function listCapturesForEventHost(
   const { data, error } = await supabase
     .from("captures")
     .select(
-      "id, slot_index, message, hidden_at, favorited_at, thumbnail_path, storage_path, mime_type, created_at, guest_sessions(display_name)",
+      "id, slot_index, guest_session_id, message, hidden_at, favorited_at, thumbnail_path, storage_path, mime_type, created_at, committed_at, guest_sessions(display_name)",
     )
     .eq("event_id", eventId)
     .eq("status", "committed")
@@ -323,12 +379,15 @@ export async function listCapturesForEventHost(
   type Row = {
     id: string;
     slot_index: number;
+    guest_session_id: string;
     message: string | null;
     hidden_at: string | null;
     favorited_at: string | null;
     thumbnail_path: string | null;
     storage_path: string;
     mime_type: string | null;
+    created_at: string;
+    committed_at: string | null;
     guest_sessions: { display_name: string } | { display_name: string }[] | null;
   };
 
@@ -350,7 +409,9 @@ export async function listCapturesForEventHost(
       return {
         id: row.id,
         slotIndex: row.slot_index,
+        guestSessionId: row.guest_session_id,
         guestDisplayName,
+        capturedAt: row.committed_at ?? row.created_at,
         message: row.message,
         hidden: row.hidden_at !== null,
         favorited: row.favorited_at !== null,
@@ -419,14 +480,6 @@ export type OriginalDownload = {
   url: string;
 };
 
-const EXTENSION_FOR_MIME_TYPE: Record<string, string> = {
-  "image/jpeg": ".jpg",
-  "image/png": ".png",
-  "image/webp": ".webp",
-  "image/heic": ".heic",
-  "image/heif": ".heif",
-};
-
 function filenameForOriginal(
   index: number,
   guestDisplayName: string,
@@ -471,6 +524,8 @@ export async function listOriginalDownloadUrlsForEventHost(
     id: string;
     storage_path: string;
     mime_type: string | null;
+    created_at: string;
+    committed_at: string | null;
     guest_sessions: { display_name: string } | { display_name: string }[] | null;
   };
 

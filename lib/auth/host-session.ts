@@ -6,6 +6,8 @@ import { createServerAuthClient } from "@/lib/supabase/server";
 export type HostSession = {
   id: string;
   email: string;
+  /** From the auth user's own metadata (set at signup). Host-side greeting only. */
+  name: string | null;
 };
 
 /**
@@ -21,7 +23,13 @@ export async function getAuthenticatedHost(): Promise<HostSession | null> {
     return null;
   }
 
-  return { id: data.claims.sub, email: data.claims.email as string };
+  const metadata = data.claims.user_metadata as { full_name?: unknown } | undefined;
+  const name =
+    typeof metadata?.full_name === "string" && metadata.full_name.trim()
+      ? metadata.full_name.trim()
+      : null;
+
+  return { id: data.claims.sub, email: data.claims.email as string, name };
 }
 
 /** Same as getAuthenticatedHost, but redirects to /login when unauthenticated. */

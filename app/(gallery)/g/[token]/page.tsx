@@ -1,17 +1,24 @@
-import { ImageOff, Lock, Clock } from "lucide-react";
+import { ImageOff, Lock } from "lucide-react";
 import { getEventByGalleryToken } from "@/lib/dal/events";
 import { listCapturesForGalleryViewer } from "@/lib/dal/captures";
 import { isGalleryRevealed } from "@/lib/events/lifecycle";
+import type { EventRow } from "@/lib/db/types";
+import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
+import { GuestShell } from "@/components/ff/guest-shell";
+import { HighlightCard } from "@/components/ff/cards";
+import { StatusPill } from "@/components/ff/pill";
+import { RevealCountdown } from "@/components/ff/reveal-countdown";
 import { GalleryArchive } from "./gallery-archive";
 
 /**
- * The public gallery viewer (product.md §7.3/§8.2, roadmap Slice 5, criteria 14/15).
- * Possession of the gallery token is the credential for "anyone with the link" visibility
- * (architecture §5) — there is no guest session and no host auth here. Access is decided
- * once, right here, before any capture is ever loaded: not found, not revealed yet, and
- * "only me" visibility all render the same kind of calm denial rather than leaking whether
- * the token is merely unrevealed vs. permanently private in a way that would matter to an
- * attacker, while still telling a legitimate host-shared recipient something useful.
+ * The public gallery (product.md §7.4/§8.2, guest 05 Gallery · locked / revealed). Possession of
+ * the gallery token is the credential for "anyone with the link" visibility (architecture §5) —
+ * there is no guest session and no host auth here. Access is decided once, right here, before
+ * any capture is loaded: not found, "only me", and not-yet-revealed each render a calm state.
+ *
+ * The locked state deliberately shows no thumbnails (not even blurred ones) and no photo or
+ * guest counts — an unrevealed gallery is never viewable (invariant 8). The only thing it can
+ * say about timing is what the host configured: a countdown for a custom reveal time.
  */
 export default async function GalleryPage({
   params,
@@ -23,83 +30,128 @@ export default async function GalleryPage({
 
   if (!event) {
     return (
-      <HeldArchivePanel
-        icon={ImageOff}
-        title="We can't find this gallery"
-        body="Double-check the link with your host."
-      />
+      <GuestShell title="We can’t find this gallery">
+        <HighlightCard
+          icon={<ImageOff />}
+          title="Double-check the link"
+          body="This gallery link doesn’t match an event. Ask your host to share it again."
+        />
+      </GuestShell>
     );
   }
 
+  const eyebrow = [event.name, formatEventDate(event.event_date)].filter(Boolean).join(" · ");
+
   if (event.visibility === "only_me") {
     return (
-      <HeldArchivePanel
-        icon={Lock}
+      <GuestShell
+        topRight={
+          <StatusPill tone="frosted" icon="lock">
+            Private
+          </StatusPill>
+        }
+        eyebrow={eyebrow}
         title="This gallery is private"
-        body="The host has kept this gallery visible to themselves only."
-      />
+        subtitle="The host has kept this gallery visible to themselves only."
+      >
+        <LockedTeaser />
+      </GuestShell>
     );
   }
 
   if (!isGalleryRevealed(event)) {
+    const customReveal = upcomingCustomReveal(event);
+
     return (
-      <HeldArchivePanel
-        icon={Clock}
-        title="Not revealed yet"
-        body="The host hasn't opened this gallery to viewers yet. Check back later."
-      />
+      <GuestShell
+        topRight={
+          <StatusPill tone="frosted" icon="lock">
+            Gallery locked
+          </StatusPill>
+        }
+        eyebrow={eyebrow}
+        title="Gallery opens soon"
+        subtitle={
+          event.reveal_mode === "after_event"
+            ? "Everyone’s photos appear here once the event wraps up."
+            : "Everyone’s photos appear here once the host reveals them."
+        }
+      >
+        {customReveal && (
+          <RevealCountdown
+            revealAt={customReveal}
+            label={formatEventDateTime(customReveal, event.timezone) ?? ""}
+          />
+        )}
+        <LockedTeaser />
+        <p className="text-center text-caption font-medium text-ink-muted">
+          Come back to this link to see them.
+        </p>
+      </GuestShell>
     );
   }
 
   const captures = await listCapturesForGalleryViewer(event.id);
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <div className="flex flex-col gap-0.5">
-        <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">
-          {event.name}
-        </h1>
-        {event.host_message && (
-          <p className="text-sm text-(--guest-ink-muted)">{event.host_message}</p>
-        )}
-      </div>
-
-      {captures.length === 0 ? (
-        <p className="py-16 text-center text-sm text-(--guest-ink-muted)">
-          No photos yet.
+    <GuestShell
+      topRight={
+        <StatusPill tone="frosted" icon="live">
+          Gallery is open
+        </StatusPill>
+      }
+      eyebrow={eyebrow}
+      title="Relive the moments"
+      subtitle={
+        captures.length === 0
+          ? "No photos yet."
+          : `${captures.length} photo${captures.length === 1 ? "" : "s"}`
+      }
+    >
+      {event.host_message && (
+        <p className="rounded-lg bg-surface-subtle px-4 py-3 text-body font-medium whitespace-pre-line text-ink">
+          {event.host_message}
         </p>
+      )}
+      {captures.length === 0 ? (
+        <HighlightCard
+          icon={<ImageOff />}
+          title="Nothing here yet"
+          body="This gallery doesn’t have any photos to show."
+        />
       ) : (
         <GalleryArchive captures={captures} />
       )}
-    </div>
+    </GuestShell>
   );
 }
 
+/** A host-set custom reveal time that is still ahead — the only timing the locked page shows. */
+function upcomingCustomReveal(event: EventRow): string | null {
+  return event.reveal_mode === "custom" && event.reveal_at && Date.parse(event.reveal_at) > Date.now()
+    ? event.reveal_at
+    : null;
+}
+
 /**
- * The calm state shared by all three access denials (not found, private, not revealed). Its
- * shape deliberately echoes the archive spread's own tiles (rounded plate, generous aspect
- * ratio) so a denied visitor still reads it as "this is the same gallery," not an error page —
- * but it stays abstract on purpose: no thumbnail, silhouette, or count, since that would leak
- * something about content the viewer isn't authorized to see.
+ * Locked-gallery teaser (DS05). The handoff draws it with blurred thumbnails and a photo count;
+ * FiveFrames renders an abstract, content-free plate instead so nothing about the unrevealed
+ * gallery — not even how many photos it holds — reaches this page (invariant 8).
  */
-function HeldArchivePanel({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-}) {
+function LockedTeaser() {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 py-12">
-      <div className="flex aspect-4/3 w-full max-w-xs flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-(--guest-border) bg-(--guest-surface-quiet) text-(--guest-ink-muted)">
-        <Icon className="size-6" />
-      </div>
-      <div className="flex flex-col items-center gap-2 text-center">
-        <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">{title}</h1>
-        <p className="max-w-xs text-sm text-(--guest-ink-muted)">{body}</p>
-      </div>
+    <div className="relative flex aspect-[16/10] flex-col items-center justify-center gap-3 overflow-hidden rounded-lg bg-surface-dark text-ink-inverse">
+      <div
+        aria-hidden
+        className="ff-photo-header absolute inset-0 scale-110 opacity-90 blur-2xl"
+      />
+      <span className="relative flex size-12 items-center justify-center rounded-full bg-surface text-brand">
+        <Lock className="size-5" aria-hidden />
+      </span>
+      <p className="relative text-[16px] font-bold">Still under wraps</p>
+      <p className="relative text-caption font-medium text-ink-inverse/80">
+        Photos stay private until the reveal
+      </p>
     </div>
   );
 }

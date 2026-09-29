@@ -1,57 +1,57 @@
 "use client";
 
 import { useActionState } from "react";
+import { Clock, User } from "lucide-react";
 import { joinEvent, type JoinActionState } from "./actions";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ff/button";
+import { Field, TextInput } from "@/components/ff/field";
+import { ActionFootnote, SheetActions } from "@/components/ff/guest-shell";
 
 const initialState: JoinActionState = { error: null };
 
+/** Join (guest 01 · open): display name only — no account, no email, no OTP (product.md §6). */
 export function JoinForm({ token }: { token: string }) {
   const boundJoin = joinEvent.bind(null, token);
   const [state, formAction, pending] = useActionState(boundJoin, initialState);
 
   if (state.atCapacity) {
     return (
-      <p className="text-sm text-(--guest-ink-muted)">
-        This event just reached its guest capacity for now. Guests who already joined can
-        keep capturing — check back with your host.
+      <p className="rounded-lg bg-surface-subtle p-4 text-body font-medium text-ink" role="status">
+        This event just reached its guest capacity for now. Guests who already joined can keep
+        capturing — check back with your host.
       </p>
     );
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="displayName" className="text-(--guest-ink-muted)">
-          Your name
-        </Label>
-        <Input
+    <form action={formAction} className="flex flex-1 flex-col gap-5">
+      <Field
+        label="What should we call you?"
+        htmlFor="displayName"
+        error={state.error}
+        errorId="displayName-error"
+      >
+        <TextInput
           id="displayName"
           name="displayName"
           required
           maxLength={60}
-          autoComplete="name"
-          placeholder="e.g. Ana"
-          className="h-12 border-(--guest-border) bg-(--guest-canvas-raised) text-base"
+          autoComplete="given-name"
+          placeholder="Your first name"
+          icon={<User />}
+          aria-invalid={state.error ? true : undefined}
+          aria-describedby={state.error ? "displayName-error" : undefined}
         />
-      </div>
+      </Field>
 
-      {state.error && <p className="text-sm text-destructive">{state.error}</p>}
-
-      <Button
-        type="submit"
-        disabled={pending}
-        className="h-12 bg-(--guest-accent) text-base text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
-      >
-        {pending ? "Joining..." : "Start capturing"}
-      </Button>
-
-      <p className="text-xs text-(--guest-ink-muted)">
-        No app to download, no account to create — your captures follow this event&rsquo;s
-        own access settings.
-      </p>
+      <SheetActions>
+        <Button type="submit" disabled={pending} className="w-full">
+          {pending ? "Joining…" : "Join & start shooting"}
+        </Button>
+        <ActionFootnote icon={<Clock />}>
+          Open until your host closes capture · No app needed
+        </ActionFootnote>
+      </SheetActions>
     </form>
   );
 }

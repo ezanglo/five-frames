@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { FrameGrid, type FrameState } from "@/app/(guest)/e/[token]/frame-grid";
+import { Camera, ImagePlus, Pointer, RotateCcw, Sparkles } from "lucide-react";
+import { Button, ButtonLink } from "@/components/ff/button";
+import { GuestShell, SheetActions } from "@/components/ff/guest-shell";
+import { HighlightCard } from "@/components/ff/cards";
+import { StatusPill } from "@/components/ff/pill";
+import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
+import { PreviewSheet } from "@/components/ff/preview-sheet";
+import { EmptySlotFace, ShotNumber, ShotProgress, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { DEMO_SAMPLE_PHOTOS, type DemoSamplePhoto } from "@/lib/demo/samples";
 import {
   createEmptyDemoFrames,
@@ -24,12 +29,17 @@ type Composing = {
   isOwnObjectUrl: boolean;
 };
 
+/**
+ * The public pre-purchase demo (product.md §7.1, decision D14), in the same guest shell and
+ * five-shot composition as a real event. Everything lives in this component's memory: no
+ * server action, no upload, no persisted row, no link or token.
+ */
 export function DemoExperience() {
   const [frames, setFrames] = useState<DemoFrames>(() => createEmptyDemoFrames());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [composing, setComposing] = useState<Composing | null>(null);
   const [message, setMessage] = useState("");
-  const [viewMode, setViewMode] = useState<"capture" | "preview">("capture");
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Every own-photo object URL this demo has created, committed or still being composed, so a
   // discard, a reset, or leaving the page can revoke exactly the ones this demo itself made —
@@ -46,19 +56,11 @@ export function DemoExperience() {
 
   const activeIndex = composing ? -1 : nextEmptySlotIndex(frames);
   const complete = isDemoComplete(frames);
-  const hasAnyFilled = filledSlotCount(frames) > 0;
+  const taken = filledSlotCount(frames);
 
   function revokeOwnUrl(url: string) {
     URL.revokeObjectURL(url);
     ownUrlsRef.current.delete(url);
-  }
-
-  function openPicker() {
-    setPickerOpen(true);
-  }
-
-  function closePicker() {
-    setPickerOpen(false);
   }
 
   function chooseOwnFile(file: File) {
@@ -111,205 +113,205 @@ export function DemoExperience() {
     setComposing(null);
     setMessage("");
     setPickerOpen(false);
-    setViewMode("capture");
+    setViewerIndex(null);
   }
 
-  const gridFrames = frames.map((slot, index): FrameState => {
-    if (slot.kind === "filled") {
-      return {
-        kind: "filled",
-        captureId: `demo-slot-${index}`,
-        thumbnailUrl: slot.previewUrl,
-        downloadUrl: null,
-      };
-    }
-    if (composing && composing.index === index) {
-      return { kind: "composing", previewUrl: composing.previewUrl, busy: false, error: false };
-    }
-    if (index === activeIndex) {
-      return { kind: "active" };
-    }
-    return { kind: "future" };
-  }) as [FrameState, FrameState, FrameState, FrameState, FrameState];
+  const viewerPhotos: ViewerPhoto[] = frames.flatMap((slot, index) =>
+    slot.kind === "filled"
+      ? [
+          {
+            id: `demo-slot-${index}`,
+            src: slot.previewUrl,
+            alt: `Demo shot ${index + 1}${slot.message ? `, ${slot.message}` : ""}`,
+            badge: `Shot ${index + 1} of ${SHOTS_PER_GUEST}`,
+            meta: "Demo — not saved",
+            message: slot.message || null,
+          },
+        ]
+      : [],
+  );
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <DemoBadgeHeader showOrientation={!hasAnyFilled && !pickerOpen && !composing} />
+    <>
+      <GuestShell
+        topRight={
+          <StatusPill tone="frosted" icon="none">
+            Demo · nothing is saved
+          </StatusPill>
+        }
+        title="Everyone gets five shots."
+        subtitle="Try it here — your photos stay on your device and are never uploaded."
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-label font-semibold text-ink">
+              <span className="tabular mr-1.5 text-title font-extrabold text-brand">
+                {SHOTS_PER_GUEST - taken} of {SHOTS_PER_GUEST}
+              </span>
+              shots left
+            </p>
+            <span className="tabular text-caption font-medium text-ink-muted">{taken} taken</span>
+          </div>
+          <ShotProgress taken={taken} />
+        </div>
 
-      {viewMode === "capture" ? (
-        <>
-          <p className="font-guest-display text-lg text-(--guest-ink)">
-            {complete
-              ? "All five — yours to keep, for now."
-              : hasAnyFilled
-                ? "Keep going, or stop whenever it feels right."
-                : "Tap the first frame to try it."}
-          </p>
-
-          <FrameGrid frames={gridFrames} onActivate={openPicker} />
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) chooseOwnFile(file);
-              e.target.value = "";
-            }}
-          />
-
-          {pickerOpen && !composing && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-(--guest-border) bg-(--guest-canvas-raised) p-4">
-              <div className="flex flex-col gap-1.5">
-                <Button
+        <div className="grid grid-cols-3 gap-2.5">
+          {frames.map((slot, index) => {
+            if (slot.kind === "filled") {
+              const viewer = viewerPhotos.findIndex((v) => v.id === `demo-slot-${index}`);
+              return (
+                <button
+                  key={index}
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="bg-(--guest-accent) text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
+                  onClick={() => setViewerIndex(viewer)}
+                  aria-label={`View demo shot ${index + 1}`}
+                  className="ff-focus relative h-[150px] overflow-hidden rounded-lg bg-surface-subtle"
                 >
-                  Use your own photo
-                </Button>
-                <p className="text-xs text-(--guest-ink-muted)">
-                  Stays on your device — never uploaded.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2 text-xs text-(--guest-ink-muted)">
-                <span className="h-px flex-1 bg-(--guest-border)" aria-hidden />
-                or try a sample
-                <span className="h-px flex-1 bg-(--guest-border)" aria-hidden />
-              </div>
-
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {DEMO_SAMPLE_PHOTOS.map((sample) => (
-                  <button
-                    key={sample.id}
-                    type="button"
-                    onClick={() => chooseSample(sample)}
-                    aria-label={sample.label}
-                    className="size-16 flex-none overflow-hidden rounded-xl ring-1 ring-(--guest-border) transition-transform active:scale-95"
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={sample.dataUrl} alt={sample.label} className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-
-              <Button type="button" variant="ghost" onClick={closePicker}>
-                Cancel
-              </Button>
-            </div>
-          )}
-
-          {composing && (
-            <div className="flex flex-col gap-3 rounded-2xl border border-(--guest-border) bg-(--guest-canvas-raised) p-4">
-              <p className="text-xs text-(--guest-ink-muted)">
-                Only visible here — this demo photo isn&rsquo;t uploaded or saved anywhere.
-              </p>
-              <Textarea
-                placeholder="Add a short message (optional)"
-                value={message}
-                maxLength={280}
-                onChange={(e) => setMessage(e.target.value)}
-                className="border-(--guest-border) bg-(--guest-canvas)"
-              />
-              <div className="flex gap-2">
-                <Button
+                  {/* eslint-disable-next-line @next/next/no-img-element -- local preview */}
+                  <img src={slot.previewUrl} alt="" className="size-full object-cover" />
+                  <ShotNumber n={index + 1} className="absolute top-2 left-2" />
+                </button>
+              );
+            }
+            if (index === activeIndex) {
+              return (
+                <button
+                  key={index}
                   type="button"
-                  onClick={keepFrame}
-                  className="bg-(--guest-accent) text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
+                  onClick={() => setPickerOpen(true)}
+                  aria-label={`Take demo shot ${index + 1}`}
+                  className="ff-focus h-[150px] rounded-lg"
                 >
-                  Keep this frame
-                </Button>
-                <Button type="button" variant="ghost" onClick={chooseDifferentPhoto}>
-                  Choose a different photo
-                </Button>
+                  <EmptySlotFace n={index + 1} next>
+                    <Camera className="size-4" aria-hidden />
+                  </EmptySlotFace>
+                </button>
+              );
+            }
+            return (
+              <div key={index} className="h-[150px]" aria-hidden>
+                <EmptySlotFace n={index + 1} />
               </div>
-            </div>
+            );
+          })}
+          {taken > 0 && (
+            <p className="flex h-[150px] flex-col justify-center gap-2 px-1 text-caption font-medium text-ink-muted">
+              <Pointer className="size-5" aria-hidden />
+              Tap a photo to see it.
+            </p>
           )}
+        </div>
 
-          {hasAnyFilled && !composing && (
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) chooseOwnFile(file);
+            e.target.value = "";
+          }}
+        />
+
+        {pickerOpen && !composing && (
+          <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4">
             <Button
-              type="button"
-              variant="outline"
-              onClick={() => setViewMode("preview")}
-              className="border-(--guest-border)"
+              variant="secondary"
+              size="md"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full"
             >
-              See your gallery so far
+              <ImagePlus aria-hidden />
+              Use your own photo
+            </Button>
+            <p className="-mt-2 text-center text-caption font-medium text-ink-muted">
+              Stays on your device — never uploaded.
+            </p>
+            <div className="flex items-center gap-2 text-caption font-medium text-ink-muted">
+              <span className="h-px flex-1 bg-line" aria-hidden />
+              or try a sample
+              <span className="h-px flex-1 bg-line" aria-hidden />
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {DEMO_SAMPLE_PHOTOS.map((sample) => (
+                <button
+                  key={sample.id}
+                  type="button"
+                  onClick={() => chooseSample(sample)}
+                  aria-label={sample.label}
+                  className="ff-focus size-16 flex-none overflow-hidden rounded-sm transition-transform active:scale-95"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={sample.dataUrl} alt="" className="h-full w-full object-cover" />
+                </button>
+              ))}
+            </div>
+            <Button variant="text" onClick={() => setPickerOpen(false)} className="self-center">
+              Cancel
+            </Button>
+          </div>
+        )}
+
+        <HighlightCard
+          icon={<Sparkles />}
+          title="Ready for a real event?"
+          body={
+            <>
+              Creating an event needs a host account and payment — ₱{EVENT_PRICE_PHP} per event,
+              pay once, no subscription.{" "}
+              <Link href="/signup" className="font-semibold text-brand underline-offset-4 hover:underline">
+                Create your event
+              </Link>
+            </>
+          }
+        />
+
+        <SheetActions>
+          {complete ? (
+            <ButtonLink href="/signup" className="w-full">
+              Create your event
+            </ButtonLink>
+          ) : (
+            <Button onClick={() => setPickerOpen(true)} className="w-full">
+              <Camera aria-hidden />
+              Take shot {activeIndex === -1 ? taken : activeIndex + 1}
             </Button>
           )}
-        </>
-      ) : (
-        <>
-          <p className="font-guest-display text-lg text-(--guest-ink)">
-            {complete
-              ? "All five, together — a taste of a real event's collection."
-              : "This is what your frames look like together."}
-          </p>
-          <FrameGrid frames={gridFrames} />
-          <Button type="button" variant="outline" onClick={() => setViewMode("capture")} className="border-(--guest-border)">
-            {complete ? "Back to your frames" : "Keep capturing"}
-          </Button>
-        </>
+          {taken > 0 && (
+            <Button variant="text" onClick={startOver} className="self-center text-ink-muted">
+              <RotateCcw className="size-4" aria-hidden />
+              Start over
+            </Button>
+          )}
+        </SheetActions>
+      </GuestShell>
+
+      {composing && (
+        <PreviewSheet
+          previewUrl={composing.previewUrl}
+          shot={composing.index + 1}
+          taken={taken}
+          message={message}
+          messageMax={100}
+          onMessage={setMessage}
+          keepState="idle"
+          keepLabel="Keep photo"
+          note="Demo only — this photo stays on your device and is never uploaded or saved."
+          onDiscard={discardComposing}
+          onRetake={chooseDifferentPhoto}
+          onKeep={keepFrame}
+        />
       )}
 
-      <Button type="button" variant="ghost" onClick={startOver} className="self-start text-(--guest-ink-muted)">
-        Start over
-      </Button>
-
-      <TrustAndConversion compact={!hasAnyFilled} />
-    </div>
-  );
-}
-
-function DemoBadgeHeader({ showOrientation }: { showOrientation: boolean }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="font-guest-display w-fit rounded-full bg-(--guest-accent)/15 px-2.5 py-0.5 text-xs font-semibold tracking-wide text-(--guest-accent)">
-        Demo — nothing here is saved
-      </span>
-      <h1 className="font-guest-display text-xl font-semibold text-(--guest-ink)">
-        Everyone gets five frames.
-      </h1>
-      {showOrientation && (
-        <p className="text-sm text-(--guest-ink-muted)">
-          Capture a few, and they become part of the event&rsquo;s collection. This is a demo, not
-          a real event — reload any time to start fresh.
-        </p>
+      {viewerIndex !== null && (
+        <PhotoViewer
+          photos={viewerPhotos}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
       )}
-    </div>
-  );
-}
-
-function TrustAndConversion({ compact }: { compact: boolean }) {
-  if (compact) {
-    return (
-      <div className="mt-auto pt-5">
-        <Link
-          href="/signup"
-          className="text-sm text-(--guest-ink-muted) underline underline-offset-4"
-        >
-          Already sold? Create your event
-        </Link>
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-auto flex flex-col gap-3 border-t border-(--guest-border) pt-5">
-      <p className="text-sm text-(--guest-ink-muted)">
-        Ready to run this at a real event? Creating an event needs host setup and payment — ₱
-        {EVENT_PRICE_PHP} per event, pay once, no subscription.
-      </p>
-      <Button
-        nativeButton={false}
-        render={<Link href="/signup" />}
-        className="bg-(--guest-accent) text-(--guest-accent-foreground) hover:bg-(--guest-accent)/90"
-      >
-        Create your event
-      </Button>
-    </div>
+    </>
   );
 }
