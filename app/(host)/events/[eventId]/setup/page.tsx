@@ -25,7 +25,9 @@ import {
   REFUND_POLICY_COPY,
 } from "@/lib/payments/pricing";
 import { saveDetailsStepAction, saveLookStepAction, startCheckoutAction } from "../../actions";
-import { DetailsStepForm, LookStepForm } from "../../wizard-forms";
+import { DetailsStepForm } from "../../wizard-forms";
+import { LookStudio } from "@/components/ff/look/look-studio";
+import { getEventThemeForHost } from "@/lib/dal/event-theme";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ff/button";
 import { CopyLinkButton } from "@/components/ff/copy-button";
 import {
@@ -108,16 +110,31 @@ export default async function EventSetupPage({
   }
 
   if (step === 2) {
+    // Look is optional: Continue with nothing set keeps the default event (violet, no image,
+    // no hashtag). The theme image is read through the owner's own access check.
+    const theme = await getEventThemeForHost(host.id, eventId);
     return (
       <WizardShell
         {...shared}
+        studio
+        stepNote="optional"
         title="Make it yours"
-        subtitle="Say hello to your guests and choose when the gallery opens."
-        aside={<NextStepsTimeline items={timeline} />}
+        subtitle="Give your event its look. Skip it and it still looks finished."
       >
-        <LookStepForm
+        <LookStudio
+          mode="create"
+          eventId={eventId}
+          eventName={event.name}
+          dateLabel={formatEventDate(event.event_date)}
+          activated={false}
+          initial={{
+            accent: theme?.accent ?? "violet",
+            hashtag: event.hashtag ?? "",
+            message: event.host_message ?? "",
+            sharingEnabled: event.sharing_enabled,
+            imageUrl: theme?.imageUrl ?? null,
+          }}
           action={saveLookStepAction.bind(null, eventId)}
-          event={event}
           backHref={stepHref(1)}
         />
       </WizardShell>

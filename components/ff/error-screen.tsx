@@ -35,7 +35,7 @@ export function ErrorScreen({ digest, retry }: { digest?: string; retry: () => v
           Try again
         </Button>
         <ActionFootnote>
-          <Link href="/" className="ff-focus rounded-md font-semibold text-brand hover:underline">
+          <Link href="/" className="ff-focus rounded-md font-semibold text-brand-ink hover:underline">
             Go to FiveFrames
           </Link>
         </ActionFootnote>

@@ -16,6 +16,15 @@ import type { EventRow, PaymentRow } from "@/lib/db/types";
 
 export type OperatorEventListItem = EventRow & { hostEmail: string };
 
+/**
+ * The Operator Console never receives theme media (product.md §10.1, architecture §7a): not a
+ * signed URL, and not even the private object path. Every event this module returns passes
+ * through here, so no operator route can hand the path to a signing function.
+ */
+function withoutThemeMedia<T extends EventRow>(event: T): T {
+  return { ...event, theme_image_path: null };
+}
+
 export async function listEventsForOperator(
   query?: string,
 ): Promise<OperatorEventListItem[]> {
@@ -33,7 +42,7 @@ export async function listEventsForOperator(
   })[];
 
   const items: OperatorEventListItem[] = rows.map(({ hosts, ...event }) => ({
-    ...(event as EventRow),
+    ...withoutThemeMedia(event as EventRow),
     hostEmail: hosts?.email ?? "unknown",
   }));
 
@@ -83,7 +92,7 @@ export async function getEventForOperatorMutation(
     .maybeSingle();
 
   if (error) throw error;
-  return data as EventRow | null;
+  return data ? withoutThemeMedia(data as EventRow) : null;
 }
 
 export async function getOperatorEventDetail(
@@ -149,7 +158,7 @@ export async function getOperatorEventDetail(
   if (paymentsError) throw paymentsError;
 
   return {
-    event: event as EventRow,
+    event: withoutThemeMedia(event as EventRow),
     hostEmail: hosts?.email ?? "unknown",
     captureCounts: {
       pending: pending.count ?? 0,

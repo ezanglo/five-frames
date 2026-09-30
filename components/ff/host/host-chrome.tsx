@@ -49,21 +49,47 @@ export function HostTopNav({ host, active }: { host: HostSession; active?: "even
 export function HostMobileHeader({
   host,
   leading,
+  coverUrl,
   children,
 }: {
   host: HostSession;
   /** Replaces the wordmark (e.g. a back/close circle). */
   leading?: ReactNode;
+  /** The event's theme image as the cover (signed after the host ownership check). */
+  coverUrl?: string | null;
   children: ReactNode;
 }) {
   return (
     <header className="ff-photo-header ff-safe-top relative flex min-h-[200px] flex-col px-5 pb-10 text-ink-inverse lg:hidden">
-      <div className="flex h-11 items-center justify-between gap-3">
+      {coverUrl && <EventCoverImage src={coverUrl} />}
+      <div className="relative flex h-11 items-center justify-between gap-3">
         {leading ?? <Wordmark host tone="light" href="/dashboard" />}
         <AccountMenu name={host.name} email={host.email} tone="frosted" />
       </div>
-      <div className="mt-auto flex flex-col gap-1.5 pt-6">{children}</div>
+      <div className="relative mt-auto flex flex-col gap-1.5 pt-6">{children}</div>
     </header>
+  );
+}
+
+/**
+ * An event's theme image as a host cover (design-direction: "the host event cover uses the
+ * theme image when set"), under the same legibility gradient as guest headers. Only the image
+ * changes — host chrome keeps FiveFrames violet and is never recolored by the event accent.
+ */
+export function EventCoverImage({ src, direction = "down" }: { src: string; direction?: "down" | "across" }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+      <img src={src} alt="" className="size-full object-cover object-[50%_35%]" />
+      <div
+        className={cn(
+          "absolute inset-0",
+          direction === "down"
+            ? "ff-theme-scrim"
+            : "bg-[linear-gradient(90deg,rgb(20_20_20/0.88)_18%,rgb(20_20_20/0.35)_100%)]",
+        )}
+      />
+    </div>
   );
 }
 

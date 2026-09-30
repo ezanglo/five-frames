@@ -53,14 +53,14 @@ export function RevealCountdown({ revealAt, label }: { revealAt: string; label: 
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-brand-tint p-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="text-label font-semibold text-brand">Reveal in</p>
+        <p className="text-label font-semibold text-brand-ink">Reveal in</p>
         <p className="text-caption font-medium text-ink-on-tint">{label}</p>
       </div>
       <div className="grid grid-cols-3 gap-2" aria-hidden>
         {units.map((u) => (
           <div key={u.unit} className="flex flex-col items-center rounded-sm bg-surface py-3">
             <span
-              className={`tabular text-[26px] leading-none font-extrabold ${u.accent ? "text-brand" : "text-ink"}`}
+              className={`tabular text-[26px] leading-none font-extrabold ${u.accent ? "text-brand-ink" : "text-ink"}`}
             >
               {now === null ? "–" : String(u.value).padStart(2, "0")}
             </span>

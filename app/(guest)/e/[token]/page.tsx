@@ -1,15 +1,16 @@
-import type { ReactNode } from "react";
-import { Clock, Image as ImageIcon, Lock, ShieldCheck, Smartphone, UserX, Users } from "lucide-react";
+import { Clock, Image as ImageIcon, Lock, Users } from "lucide-react";
 import { getEventByToken } from "@/lib/dal/events";
+import { getEventThemeForGuest } from "@/lib/dal/event-theme";
 import { getGuestSession, touchGuestSession } from "@/lib/dal/guest-sessions";
 import { listCapturesForGuestSessionWithUrls } from "@/lib/dal/captures";
 import { getGuestSessionIdFromCookie } from "@/lib/auth/guest-session";
 import { deriveEventLifecycleState, hasReachedGuestCapacity } from "@/lib/events/lifecycle";
 import { firstName, formatEventDate } from "@/lib/events/format";
 import { Button } from "@/components/ff/button";
-import { ActionFootnote, GuestShell, SheetActions } from "@/components/ff/guest-shell";
+import { ActionFootnote, EventDateLine, GuestShell, SheetActions } from "@/components/ff/guest-shell";
 import { HighlightCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
+import { JoinIntro, TrustRow } from "@/components/ff/guest-join";
 import { FiveShotTeaser, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { JoinForm } from "./join-form";
 import { CaptureSlots } from "./capture-slots";
@@ -42,6 +43,11 @@ export default async function GuestEventPage({
 
   const state = deriveEventLifecycleState(event);
   const dateLabel = formatEventDate(event.event_date);
+  // The event token in the path is this surface's access check (architecture §7a); the theme
+  // reader re-resolves it itself before minting the image URL.
+  const theme = await getEventThemeForGuest(token);
+  const dateLine = <EventDateLine date={dateLabel} hashtag={theme?.hashtag} />;
+  const hasDateLine = Boolean(dateLabel || theme?.hashtag);
 
   if (state === "draft" || state === "active") {
     return (
@@ -52,7 +58,8 @@ export default async function GuestEventPage({
           </StatusPill>
         }
         title={event.name}
-        subtitle={dateLabel}
+        subtitle={hasDateLine ? dateLine : undefined}
+        theme={theme}
       >
         <div className="flex flex-col gap-2">
           <h2 className="font-heading text-title font-semibold text-ink">Almost time!</h2>
@@ -111,15 +118,16 @@ export default async function GuestEventPage({
       return (
         <GuestShell
           topRight={pill}
-          eyebrow={[event.name, dateLabel].filter(Boolean).join(" · ")}
+          eyebrow={<EventDateLine prefix={event.name} date={dateLabel} hashtag={theme?.hashtag} />}
           title={`Thanks for sharing, ${name}!`}
           subtitle="Capture has ended. Here’s what you kept."
           width="wide"
           motifPhotos={kept.flatMap((p) => (p.thumbnailUrl ? [p.thumbnailUrl] : []))}
+          theme={theme}
         >
           <div className="flex items-baseline justify-between">
             <h2 className="text-heading font-bold text-ink">Your moments</h2>
-            <span className="tabular text-caption font-semibold text-brand">
+            <span className="tabular text-caption font-semibold text-brand-ink">
               {kept.length} of {SHOTS_PER_GUEST} kept
             </span>
           </div>
@@ -144,7 +152,12 @@ export default async function GuestEventPage({
     }
 
     return (
-      <GuestShell pill={pill} title={event.name} subtitle={dateLabel}>
+      <GuestShell
+        pill={pill}
+        title={event.name}
+        subtitle={hasDateLine ? dateLine : undefined}
+        theme={theme}
+      >
         <div className="flex flex-col gap-2">
           <h2 className="font-heading text-title font-semibold text-ink">Capture has ended</h2>
           <p className="text-body text-ink-muted">
@@ -178,7 +191,8 @@ export default async function GuestEventPage({
             </StatusPill>
           }
           title={event.name}
-          subtitle={dateLabel}
+          subtitle={hasDateLine ? dateLine : undefined}
+          theme={theme}
         >
           <div className="flex flex-col gap-2">
             <h2 className="font-heading text-title font-semibold text-ink">
@@ -202,17 +216,10 @@ export default async function GuestEventPage({
           </StatusPill>
         }
         title={event.name}
-        subtitle={dateLabel}
+        subtitle={hasDateLine ? dateLine : undefined}
+        theme={theme}
       >
-        <div className="flex flex-col gap-2">
-          <h2 className="font-heading text-title font-semibold text-ink">
-            You’ve got {SHOTS_PER_GUEST} shots.
-          </h2>
-          <p className="text-body whitespace-pre-line text-ink-muted">
-            {event.host_message ??
-              "Catch the moments that matter to you. Every shot you keep goes into this event’s gallery."}
-          </p>
-        </div>
+        <JoinIntro message={event.host_message} />
         <FiveShotTeaser />
         <TrustRow />
         <JoinForm token={token} />
@@ -229,6 +236,7 @@ export default async function GuestEventPage({
       eventId={event.id}
       eventName={event.name}
       eventDateLabel={dateLabel}
+      theme={theme}
       timezone={event.timezone}
       guestName={session.display_name}
       sharingEnabled={event.sharing_enabled}
@@ -243,29 +251,6 @@ export default async function GuestEventPage({
         downloadUrl: c.downloadUrl,
       }))}
     />
-  );
-}
-
-/**
- * Trust cues (product.md §4 principle 9, acceptance criterion 9): no app, no account, and
- * captures follow this event's own access rules — short, and no stronger than §8 delivers.
- */
-function TrustRow() {
-  return (
-    <ul className="flex flex-col gap-2 rounded-lg bg-surface-subtle p-4 text-caption font-medium text-ink-muted">
-      <TrustItem icon={<Smartphone />}>No app to download</TrustItem>
-      <TrustItem icon={<UserX />}>No account — just your first name</TrustItem>
-      <TrustItem icon={<ShieldCheck />}>Your photos follow this event’s own access settings</TrustItem>
-    </ul>
-  );
-}
-
-function TrustItem({ icon, children }: { icon: ReactNode; children: ReactNode }) {
-  return (
-    <li className="flex items-center gap-2.5 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-brand">
-      {icon}
-      {children}
-    </li>
   );
 }
 

@@ -31,6 +31,13 @@
   --brand-primary: var(--palette-violet-600);
   --brand-tint: var(--palette-violet-100);
   --brand-highlight: var(--palette-violet-300);
+  /* Event-theme roles (docs/design-direction.md → "Curated event colors"). Unthemed they equal
+     FiveFrames violet; a themed guest surface (.ff-event-theme) overrides all six from the
+     lib/theme registry. Accent *text* uses --brand-ink and text on a brand fill uses
+     --brand-foreground, never the raw fill, because marigold fill on white is 2.2:1. */
+  --brand-base: var(--palette-violet-600);
+  --brand-ink: var(--palette-violet-600);
+  --brand-foreground: var(--palette-white);
   --color-text-primary: var(--palette-ink);
   --color-text-muted: var(--palette-grey-600);
   --color-text-on-tint: var(--palette-grey-500);
@@ -40,6 +47,8 @@
   --color-surface-base: var(--palette-white);
   --color-surface-subtle: var(--palette-grey-100);
   --color-surface-dark: var(--palette-night);
+  /* The Look studio's soft "table" the preview objects rest on (Theme & Keepsakes board). */
+  --color-surface-stage: #f0eff4;
   --color-border-subtle: var(--palette-grey-200);
   --color-border-dashed: #c9c2dc;
   --color-status-live: var(--palette-green-400);
@@ -125,6 +134,9 @@
   --color-brand: var(--brand-primary);
   --color-brand-tint: var(--brand-tint);
   --color-brand-highlight: var(--brand-highlight);
+  --color-brand-base: var(--brand-base);
+  --color-brand-ink: var(--brand-ink);
+  --color-brand-foreground: var(--brand-foreground);
   --color-ink: var(--color-text-primary);
   --color-ink-muted: var(--color-text-muted);
   --color-ink-on-tint: var(--color-text-on-tint);
@@ -134,6 +146,7 @@
   --color-surface: var(--color-surface-base);
   --color-surface-subtle: var(--color-surface-subtle);
   --color-surface-dark: var(--color-surface-dark);
+  --color-surface-stage: var(--color-surface-stage);
   --color-line: var(--color-border-subtle);
   --color-line-dashed: var(--color-border-dashed);
   --color-live: var(--color-status-live);
@@ -230,6 +243,14 @@
     box-shadow: var(--focus-ring);
   }
 
+  /* A themed event surface (architecture §7a). The six --brand-* roles are set inline from the
+     lib/theme registry on the element carrying this class; the derived tokens below are
+     re-declared here so they follow the scoped accent instead of :root's violet. */
+  .ff-event-theme {
+    --shadow-primary-glow: 0 10px 24px color-mix(in srgb, var(--brand-primary) 30%, transparent);
+    --focus-ring: 0 0 0 4px color-mix(in srgb, var(--brand-primary) 18%, transparent);
+  }
+
   /* Photo header overlay (DS06 ①): cover image under a night gradient. Without a cover the
      header falls back to the night surface with a violet glow — the same treatment the
      handoff uses for host headers and the pre-cover create preview. */
@@ -237,8 +258,18 @@
     background-color: var(--color-surface-dark);
     background-image:
       linear-gradient(180deg, color-mix(in srgb, var(--color-surface-dark) 50%, transparent) 36%, var(--color-surface-dark) 97%),
-      radial-gradient(120% 90% at 70% 10%, color-mix(in srgb, var(--brand-primary) 55%, transparent) 0%, transparent 60%),
+      radial-gradient(120% 90% at 70% 10%, color-mix(in srgb, var(--brand-base) 55%, transparent) 0%, transparent 60%),
       radial-gradient(90% 70% at 10% 90%, color-mix(in srgb, var(--brand-highlight) 25%, transparent) 0%, transparent 70%);
+  }
+  /* Theme image header (design-direction "Guest screens"): the image is cover-cropped at 50% 35%
+     beneath this legibility gradient, night at 25% → 15% → 86% top to bottom. */
+  .ff-theme-scrim {
+    background-image: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-surface-dark) 25%, transparent) 0%,
+      color-mix(in srgb, var(--color-surface-dark) 15%, transparent) 38%,
+      color-mix(in srgb, var(--color-surface-dark) 86%, transparent) 100%
+    );
   }
   .ff-photo-header-desktop {
     background-color: var(--color-surface-dark);

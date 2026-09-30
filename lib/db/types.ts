@@ -14,7 +14,12 @@ export type EventRow = {
   reveal_at: string | null;
   visibility: GalleryVisibility;
   sharing_enabled: boolean;
+  /** Stored without "#"; validated by lib/theme/hashtag.ts on every write. */
   hashtag: string | null;
+  /** A key into the curated registry in lib/theme/accents.ts; unknown keys render as violet. */
+  accent_color: string;
+  /** Normalized theme image in the private `event-theme` bucket, or null (architecture §7a). */
+  theme_image_path: string | null;
 
   event_token: string | null;
   gallery_token: string | null;

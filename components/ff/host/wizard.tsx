@@ -21,6 +21,8 @@ export function WizardShell({
   title,
   subtitle,
   aside,
+  stepNote,
+  studio,
   children,
 }: {
   step: WizardStep;
@@ -32,8 +34,17 @@ export function WizardShell({
   title: ReactNode;
   subtitle?: ReactNode;
   aside?: ReactNode;
+  /** Appended to "Step N of 3" (Look: "optional"). */
+  stepNote?: string;
+  /**
+   * The Look studio (design-direction "Host · Look studio"): no 700 + 340 split and no desktop
+   * title here — the studio lays out its own controls column (with `WizardTitle`) beside a
+   * large sticky preview stage, across the full browser width.
+   */
+  studio?: boolean;
   children: ReactNode;
 }) {
+  const stepLabel = `Step ${step} of 3${stepNote ? ` · ${stepNote}` : ""}`;
   const mobileLeading =
     step === 1 || !stepHref ? (
       <Link
@@ -83,9 +94,7 @@ export function WizardShell({
       <header className="ff-photo-header ff-safe-top relative flex min-h-[200px] flex-col px-5 pb-10 text-ink-inverse lg:hidden">
         <div className="grid h-11 grid-cols-[36px_1fr_36px] items-center">
           {mobileLeading}
-          <p className="text-center text-caption font-semibold text-ink-inverse/85">
-            Step {step} of 3
-          </p>
+          <p className="text-center text-caption font-semibold text-ink-inverse/85">{stepLabel}</p>
         </div>
         <div className="mt-auto flex flex-col gap-1.5 pt-6">
           <h1 className="font-heading text-display-create font-semibold">{title}</h1>
@@ -99,20 +108,41 @@ export function WizardShell({
             <span key={n} className={cn("h-1.5 rounded-full", n <= step ? "bg-brand" : "bg-line")} />
           ))}
         </div>
-        <div className="mx-auto grid w-full flex-1 gap-10 lg:max-w-[1080px] lg:flex-none lg:grid-cols-[minmax(0,700px)_minmax(0,340px)]">
-          <div className="flex min-w-0 flex-col gap-5 lg:gap-6">
-            <div className="hidden flex-col gap-2 lg:flex">
-              <p className="text-micro font-bold tracking-[0.06em] text-brand uppercase">
-                Step {step} of 3
-              </p>
-              <h1 className="font-heading text-wizard-desktop font-semibold text-ink">{title}</h1>
-              {subtitle && <p className="text-body text-ink-muted">{subtitle}</p>}
-            </div>
+        {studio ? (
+          <div className="mx-auto flex w-full flex-1 flex-col gap-5 lg:max-w-[1440px] lg:flex-none">
             {children}
           </div>
-          {aside && <aside className="hidden flex-col gap-3 lg:flex lg:pt-[108px]">{aside}</aside>}
-        </div>
+        ) : (
+          <div className="mx-auto grid w-full flex-1 gap-10 lg:max-w-[1080px] lg:flex-none lg:grid-cols-[minmax(0,700px)_minmax(0,340px)]">
+            <div className="flex min-w-0 flex-col gap-5 lg:gap-6">
+              <WizardTitle kicker={stepLabel} title={title} subtitle={subtitle} className="hidden lg:flex" />
+              {children}
+            </div>
+            {aside && <aside className="hidden flex-col gap-3 lg:flex lg:pt-[108px]">{aside}</aside>}
+          </div>
+        )}
       </main>
+    </div>
+  );
+}
+
+/** The desktop wizard title block: kicker, Fraunces title, subtitle. */
+export function WizardTitle({
+  kicker,
+  title,
+  subtitle,
+  className,
+}: {
+  kicker: string;
+  title: ReactNode;
+  subtitle?: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex-col gap-2", className)}>
+      <p className="text-micro font-bold tracking-[0.06em] text-brand uppercase">{kicker}</p>
+      <h1 className="font-heading text-wizard-desktop font-semibold text-ink">{title}</h1>
+      {subtitle && <p className="text-body text-ink-muted">{subtitle}</p>}
     </div>
   );
 }
@@ -179,14 +209,23 @@ function Stepper({
 export function WizardActions({
   backHref,
   backLabel = "Back",
+  pinned,
   children,
 }: {
   backHref?: string;
   backLabel?: string;
+  /** Keep the primary action pinned to the bottom of the screen on mobile (Look step). */
+  pinned?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="mt-auto flex flex-col gap-3 pt-2 lg:mt-2 lg:flex-row-reverse lg:items-center lg:justify-between">
+    <div
+      className={cn(
+        "mt-auto flex flex-col gap-3 pt-2 lg:mt-2 lg:flex-row-reverse lg:items-center lg:justify-between",
+        pinned &&
+          "max-lg:sticky max-lg:bottom-0 max-lg:z-10 max-lg:-mx-5 max-lg:border-t max-lg:border-line max-lg:bg-surface max-lg:px-5 max-lg:pt-3 max-lg:pb-[max(12px,env(safe-area-inset-bottom))]",
+      )}
+    >
       {children}
       {backHref && (
         <Link

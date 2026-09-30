@@ -1,10 +1,12 @@
+import { notFound } from "next/navigation";
 import { ImageOff, Lock } from "lucide-react";
 import { getEventByGalleryToken } from "@/lib/dal/events";
+import { getEventThemeForGallery } from "@/lib/dal/event-theme";
 import { listCapturesForGalleryViewer } from "@/lib/dal/captures";
-import { isGalleryRevealed } from "@/lib/events/lifecycle";
+import { isGalleryOpenToLinkHolders, isGalleryRevealed } from "@/lib/events/lifecycle";
 import type { EventRow } from "@/lib/db/types";
 import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
-import { GuestShell } from "@/components/ff/guest-shell";
+import { EventDateLine, GuestShell } from "@/components/ff/guest-shell";
 import { HighlightCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
 import { RevealCountdown } from "@/components/ff/reveal-countdown";
@@ -19,6 +21,10 @@ import { GalleryArchive } from "./gallery-archive";
  * The locked state deliberately shows no thumbnails (not even blurred ones) and no photo or
  * guest counts — an unrevealed gallery is never viewable (invariant 8). The only thing it can
  * say about timing is what the host configured: a countdown for a custom reveal time.
+ *
+ * The event theme appears only in the granted branch (product.md §10.1, criterion 43): the
+ * locked and "only me" pages never load the theme reader, so they receive no theme image URL,
+ * accent or hashtag and keep the FiveFrames default look.
  */
 export default async function GalleryPage({
   params,
@@ -91,7 +97,11 @@ export default async function GalleryPage({
     );
   }
 
-  const captures = await listCapturesForGalleryViewer(event.id);
+  if (!isGalleryOpenToLinkHolders(event)) notFound();
+  const [captures, theme] = await Promise.all([
+    listCapturesForGalleryViewer(event.id),
+    getEventThemeForGallery(token),
+  ]);
 
   return (
     <GuestShell
@@ -101,7 +111,14 @@ export default async function GalleryPage({
           Gallery is open
         </StatusPill>
       }
-      eyebrow={eyebrow}
+      eyebrow={
+        <EventDateLine
+          prefix={event.name}
+          date={formatEventDate(event.event_date)}
+          hashtag={theme?.hashtag}
+        />
+      }
+      theme={theme}
       title="Relive the moments"
       subtitle={
         captures.length === 0
@@ -146,7 +163,7 @@ function LockedTeaser() {
         aria-hidden
         className="ff-photo-header absolute inset-0 scale-110 opacity-90 blur-2xl"
       />
-      <span className="relative flex size-12 items-center justify-center rounded-full bg-surface text-brand">
+      <span className="relative flex size-12 items-center justify-center rounded-full bg-surface text-brand-ink">
         <Lock className="size-5" aria-hidden />
       </span>
       <p className="relative text-[16px] font-bold">Still under wraps</p>

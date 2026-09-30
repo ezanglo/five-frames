@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
+import { accentCssVars } from "@/lib/theme/accents";
+import type { EventThemeView } from "@/lib/theme/view";
 import { cn } from "@/lib/utils";
 import { FrameMotif } from "./frame-motif";
 import { Wordmark } from "./wordmark";
@@ -22,8 +24,11 @@ import { Wordmark } from "./wordmark";
  * - `wide` (the revealed gallery): from 768 the header becomes a full-width band and the sheet a
  *   1200px content column, so a photo grid can use the whole browser.
  *
- * FiveFrames has no event cover image (see docs/design-direction.md "Known discrepancies"), so
- * the header uses the handoff's no-cover treatment: night surface with a violet glow.
+ * Event theme (architecture §7a, Slice 15): pass `theme` and the whole shell becomes a scoped
+ * `.ff-event-theme` surface — the accent roles as CSS variables from the lib/theme registry, the
+ * theme image (a signed URL minted after this page's own access check) filling the header under
+ * a legibility gradient. Without an image the header keeps the no-cover treatment (night + a
+ * glow in the event color). Status colors, the FiveFrames logo and host chrome never change.
  */
 export function GuestShell({
   topLeft,
@@ -38,6 +43,7 @@ export function GuestShell({
   motifPhotos,
   variant = "split",
   width = "default",
+  theme,
 }: {
   topLeft?: ReactNode;
   topRight?: ReactNode;
@@ -55,7 +61,11 @@ export function GuestShell({
   variant?: "split" | "wide";
   /** Width of the desktop action column: `default` 480 (forms, status), `wide` 760 (shot grids). */
   width?: "default" | "wide";
+  /** The event's theme; omit for surfaces that must stay FiveFrames-default (locked gallery). */
+  theme?: EventThemeView | null;
 }) {
+  const themeProps = eventThemeProps(theme);
+  const cover = theme?.imageUrl ? <ThemeCover src={theme.imageUrl} /> : null;
   const topBar = (
     <div className="relative flex h-11 items-center justify-between gap-3">
       {topLeft ?? <Wordmark tone="light" />}
@@ -65,14 +75,18 @@ export function GuestShell({
 
   if (variant === "wide") {
     return (
-      <div className="relative min-h-dvh bg-surface-dark md:bg-surface">
+      <div
+        {...themeProps}
+        className={cn("relative min-h-dvh bg-surface-dark md:bg-surface", themeProps.className)}
+      >
         <div
           aria-hidden
           className="ff-photo-header pointer-events-none fixed inset-0 hidden opacity-70 blur-3xl min-[481px]:block md:hidden"
         />
         <div className="relative mx-auto flex min-h-dvh w-full max-w-[430px] flex-col min-[481px]:shadow-[0_0_80px_rgb(0_0_0/0.45)] md:max-w-none md:shadow-none">
           <header className="ff-photo-header ff-safe-top relative flex min-h-[271px] flex-col px-5 pb-10 text-ink-inverse md:min-h-[300px] md:px-10 md:pb-16">
-            <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col">
+            {cover}
+            <div className="relative mx-auto flex w-full max-w-[1200px] flex-1 flex-col">
               {topBar}
               <TitleBlock pill={pill} eyebrow={eyebrow} title={title} subtitle={subtitle} meta={meta} wide />
             </div>
@@ -88,7 +102,13 @@ export function GuestShell({
   }
 
   return (
-    <div className="relative min-h-dvh bg-surface-dark lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:bg-surface">
+    <div
+      {...themeProps}
+      className={cn(
+        "relative min-h-dvh bg-surface-dark lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:bg-surface",
+        themeProps.className,
+      )}
+    >
       {/* 481–1023: the header glow, blurred, fills the space around the centered column. */}
       <div
         aria-hidden
@@ -96,7 +116,9 @@ export function GuestShell({
       />
       <div className="relative mx-auto flex min-h-dvh w-full max-w-[430px] flex-col min-[481px]:shadow-[0_0_80px_rgb(0_0_0/0.45)] md:max-w-[600px] lg:contents">
         <header className="ff-photo-header ff-safe-top relative flex min-h-[271px] flex-col px-5 pb-10 text-ink-inverse md:min-h-[300px] md:px-8 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:px-12 lg:py-10 xl:px-16 xl:py-12">
-          <FrameMotif photos={motifPhotos} extent={panel ? 0.42 : 0.55} className="hidden lg:block" />
+          {cover ?? (
+            <FrameMotif photos={motifPhotos} extent={panel ? 0.42 : 0.55} className="hidden lg:block" />
+          )}
           {topBar}
           <TitleBlock pill={pill} eyebrow={eyebrow} title={title} subtitle={subtitle} meta={meta} />
           {panel && <div className="relative mt-8 hidden lg:block">{panel}</div>}
@@ -114,6 +136,53 @@ export function GuestShell({
         </main>
       </div>
     </div>
+  );
+}
+
+function eventThemeProps(theme: EventThemeView | null | undefined): {
+  className?: string;
+  style?: CSSProperties;
+} {
+  if (!theme) return {};
+  return { className: "ff-event-theme", style: accentCssVars(theme.accent) as CSSProperties };
+}
+
+/**
+ * The host's theme image as the header (design-direction "Guest screens"): cover-cropped at
+ * 50% 35% — biased to the upper third, where faces usually are — under the legibility gradient.
+ * Decorative: the event name beside it is the accessible text.
+ */
+function ThemeCover({ src }: { src: string }) {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed URL */}
+      <img src={src} alt="" className="size-full object-cover object-[50%_35%]" />
+      <div className="ff-theme-scrim absolute inset-0" />
+    </div>
+  );
+}
+
+/**
+ * The header's date line with the event hashtag after it, in the on-dark accent (design-direction
+ * "Guest screens"). With no hashtag it is just the date; with neither it renders nothing, so no
+ * empty space is left behind.
+ */
+export function EventDateLine({
+  date,
+  hashtag,
+  prefix,
+}: {
+  date: string | null;
+  hashtag?: string | null;
+  prefix?: string | null;
+}) {
+  const text = [prefix, date].filter(Boolean).join(" · ");
+  if (!text && !hashtag) return null;
+  return (
+    <span className="inline-flex flex-wrap items-baseline gap-x-2">
+      {text && <span>{text}</span>}
+      {hashtag && <span className="font-semibold break-all text-brand-highlight">#{hashtag}</span>}
+    </span>
   );
 }
 

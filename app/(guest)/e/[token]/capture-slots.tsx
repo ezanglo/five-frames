@@ -7,7 +7,10 @@ import { reserveSlot, commitSlot } from "./actions";
 import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, TUS_CHUNK_SIZE_BYTES } from "@/lib/media/constants";
 import type { ReserveResponse } from "./actions";
 import { Button } from "@/components/ff/button";
-import { ActionFootnote, GuestShell, SheetActions } from "@/components/ff/guest-shell";
+import type { CSSProperties } from "react";
+import { ActionFootnote, EventDateLine, GuestShell, SheetActions } from "@/components/ff/guest-shell";
+import { accentCssVars } from "@/lib/theme/accents";
+import type { EventThemeView } from "@/lib/theme/view";
 import { HighlightCard, InfoCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
 import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
@@ -117,6 +120,7 @@ export function CaptureSlots({
   eventId,
   eventName,
   eventDateLabel,
+  theme,
   timezone,
   guestName,
   sharingEnabled,
@@ -126,6 +130,7 @@ export function CaptureSlots({
   eventId: string;
   eventName: string;
   eventDateLabel: string | null;
+  theme: EventThemeView | null;
   timezone: string;
   guestName: string;
   sharingEnabled: boolean;
@@ -440,15 +445,16 @@ export function CaptureSlots({
             All 5 shots in
           </StatusPill>
         }
-        eyebrow={[eventName, eventDateLabel].filter(Boolean).join(" · ")}
+        eyebrow={<EventDateLine prefix={eventName} date={eventDateLabel} hashtag={theme?.hashtag} />}
         title={`That’s a wrap, ${greetingName}!`}
         subtitle="Thanks for sharing your five. Here’s what you captured."
         width="wide"
         motifPhotos={motifPhotos}
+        theme={theme}
       >
         <div className="flex items-baseline justify-between">
           <h2 className="text-heading font-bold text-ink">Your best moments</h2>
-          <span className="tabular text-caption font-semibold text-brand">
+          <span className="tabular text-caption font-semibold text-brand-ink">
             {taken} of {SHOTS_PER_GUEST} kept
           </span>
         </div>
@@ -485,14 +491,19 @@ export function CaptureSlots({
         }
         title={`Hi, ${greetingName}!`}
         subtitle={`Welcome to ${eventName}`}
-        meta={eventDateLabel}
+        meta={
+          eventDateLabel || theme?.hashtag ? (
+            <EventDateLine date={eventDateLabel} hashtag={theme?.hashtag} />
+          ) : undefined
+        }
         width="wide"
         motifPhotos={motifPhotos}
+        theme={theme}
       >
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-label font-semibold text-ink">
-              <span className="tabular mr-1.5 text-title font-extrabold text-brand">
+              <span className="tabular mr-1.5 text-title font-extrabold text-brand-ink">
                 {SHOTS_PER_GUEST - taken} of {SHOTS_PER_GUEST}
               </span>
               shots left
@@ -594,6 +605,12 @@ export function CaptureSlots({
         {fileInput}
       </GuestShell>
 
+      {/* The preview and viewer are full-bleed dark and unthemed around the photo; only their
+          buttons take the event color, so they sit inside the same scoped theme. */}
+      <div
+        className={theme ? "ff-event-theme contents" : "contents"}
+        style={theme ? (accentCssVars(theme.accent) as CSSProperties) : undefined}
+      >
       {composing && previewUrl && (
         <PreviewSheet
           previewUrl={previewUrl}
@@ -648,6 +665,7 @@ export function CaptureSlots({
           }
         />
       )}
+      </div>
     </>
   );
 }

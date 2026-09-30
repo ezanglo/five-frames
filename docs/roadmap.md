@@ -370,12 +370,16 @@ Look, themed guest screens, the five Single-photo keepsake styles and the picker
 set, and themed signage layouts (see `docs/design-direction.md` → "Event Theme & Keepsakes"). Each
 slice can build its server side before its visuals are final, but it is not complete until its
 screens and outputs match the approved design. **Full Set keepsakes** (product.md §10.2.2, D20,
-added the same day) need a further bounded `/design-app` amendment before Slice 16 Phase B. It
-does not block Slice 15, Slice 16 Phase A or Slice 17.
+added the same day) needed a further bounded `/design-app` amendment before Slice 16 Phase B.
+Both the design pass and the Full Set amendment are done and were approved by the user on
+2026-09-30.
 
 ---
 
 ## Slice 15 — Event theme foundation
+
+**Status (2026-09-30):** `complete` — automated, browser and human visual verification passed.
+One bounded open decision remains: HEVC HEIC images (docs/progress.md → Slice 15).
 
 **Objective:** A host can give an event a theme (image, accent, hashtag) or skip it, and guest
 screens show it through private, access-checked delivery.
@@ -491,7 +495,7 @@ the preselected style and the crop focus bias.
 **Phase B criteria:** 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, plus 29 for the Full Set
 family.
 
-**Dependencies:** Slice 15. The Single-photo design (done, awaiting approval) is needed for Phase
+**Dependencies:** Slice 15. The Single-photo design (approved 2026-09-30) is needed for Phase
 A. The Full Set design amendment is needed for Phase B.
 
 **Verification:**

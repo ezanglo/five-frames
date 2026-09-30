@@ -83,7 +83,7 @@ export function InfoCard({
       className={cn("flex items-center gap-3 rounded-lg bg-surface-subtle p-4", className)}
       aria-live={live ? "polite" : undefined}
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-brand [&_svg]:size-5">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-brand-ink [&_svg]:size-5">
         {icon}
       </span>
       <div className="flex min-w-0 flex-col gap-0.5">
@@ -112,7 +112,7 @@ export function HighlightCard({
     <div className={cn("flex flex-col gap-4 rounded-lg bg-brand-tint p-4", className)}>
       <div className="flex items-start gap-3">
         {icon && (
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-brand [&_svg]:size-5">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-brand-ink [&_svg]:size-5">
             {icon}
           </span>
         )}
@@ -160,7 +160,7 @@ export function StatTile({
       <p
         className={cn(
           "tabular text-[30px] leading-none font-extrabold tracking-[-0.01em]",
-          tone === "tint" ? "text-brand" : "text-ink",
+          tone === "tint" ? "text-brand-ink" : "text-ink",
         )}
       >
         {value}

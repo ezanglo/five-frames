@@ -16,6 +16,8 @@ describe("isDuplicatePayment", () => {
     visibility: "anyone_with_link",
     sharing_enabled: true,
     hashtag: null,
+    accent_color: "violet",
+    theme_image_path: null,
     event_token: "tok",
     gallery_token: "gal",
     activated_at: new Date().toISOString(),

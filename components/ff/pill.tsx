@@ -28,7 +28,7 @@ export function StatusPill({
         size === "md" ? "h-8 px-3 text-micro" : "h-6 px-2.5 text-[11px]",
         tone === "light" && "border border-line bg-surface text-ink",
         tone === "frosted" && "ff-frosted text-ink-inverse",
-        tone === "tint" && "bg-brand-tint text-brand",
+        tone === "tint" && "bg-brand-tint text-brand-ink",
         tone === "success" && "bg-success-tint text-success",
         className,
       )}
@@ -79,7 +79,7 @@ export function Chip({
       className={cn(
         "ff-focus inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-4 text-label font-semibold transition-colors",
         active
-          ? "bg-brand text-ink-inverse"
+          ? "bg-brand text-brand-foreground"
           : "border border-line bg-surface text-ink hover:bg-surface-subtle",
         className,
       )}
@@ -87,7 +87,7 @@ export function Chip({
     >
       {children}
       {count !== undefined && (
-        <span className={cn("tabular text-micro", active ? "text-ink-inverse/80" : "text-brand")}>
+        <span className={cn("tabular text-micro", active ? "text-brand-foreground/80" : "text-brand-ink")}>
           {count}
         </span>
       )}
@@ -100,7 +100,7 @@ export function HostTag({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded-[6px] bg-brand px-1.5 text-[11px] font-bold tracking-[0.04em] text-ink-inverse",
+        "inline-flex h-5 items-center rounded-[6px] bg-brand px-1.5 text-[11px] font-bold tracking-[0.04em] text-brand-foreground",
         className,
       )}
     >
@@ -129,7 +129,7 @@ export function YouBadge({ className }: { className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-5 items-center rounded-full bg-brand px-2 text-[11px] font-bold text-ink-inverse",
+        "inline-flex h-5 items-center rounded-full bg-brand px-2 text-[11px] font-bold text-brand-foreground",
         className,
       )}
     >

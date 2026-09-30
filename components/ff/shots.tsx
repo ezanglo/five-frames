@@ -56,7 +56,7 @@ export function EmptySlotFace({
       className={cn(
         "flex h-full w-full flex-col items-center justify-center gap-1 rounded-lg",
         next
-          ? "border-[1.5px] border-dashed border-brand bg-brand-tint text-brand"
+          ? "border-[1.5px] border-dashed border-brand bg-brand-tint text-brand-ink"
           : "ff-dashed bg-surface-subtle text-ink-placeholder",
         className,
       )}

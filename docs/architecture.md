@@ -11,8 +11,8 @@ chosen by design; still on demand and never persisted — §7b, §10, §11, §13
 Event Theme & Keepsakes, decision D19: theme config on `events`, a
 private `event-theme` bucket, keepsakes rendered on demand from a closed five-style registry and
 never persisted (replacing share cards and `share_path`), themed signage with a placeholder-QR
-Draft preview — §4, §7a–§7c, §10. **Architecture only; not yet implemented** (roadmap Slices
-15–17). Earlier: Slice 12 lifecycle automation and retention, D18.)
+Draft preview — §4, §7a–§7c, §10. **Slice 15 (§7a, theme foundation) is implemented; §7b
+keepsakes and §7c themed signage are not yet** (roadmap Slices 16–17). Earlier: Slice 12 lifecycle automation and retention, D18.)
 
 ---
 
@@ -488,8 +488,12 @@ reserve/commit gate, that makes "connection drops mid-upload" cheap for large fi
 - **Keepsakes** (§7b) are further derived outputs, rendered on demand from display derivatives
   (one for a Single-photo keepsake, five for a Full Set) and never stored. They replace Slice
   10's share cards. Never a mutation of the original.
-- **HEIC/HEIF:** accepted on upload; `sharp` decodes it into the JPEG display derivative with no
-  separate conversion step (validated on a real iPhone in Slice 2).
+- **HEIC/HEIF:** accepted on upload. **Correction (Slice 15, 2026-09-30):** the prebuilt `sharp`
+  0.35 / libvips 8.18 binary parses HEIF containers and decodes AV1-coded HEIF, but ships no HEVC
+  decoder, so a genuine HEVC `.heic` fails to decode. The Slice 2 iPhone pass worked because iOS
+  Safari hands `accept="image/*"` pickers a JPEG (no HEIC capture exists in dev). A desktop HEIC
+  file therefore can't produce derivatives today; see docs/progress.md → Slice 15 for the open
+  decision.
 
 ### Private delivery
 
@@ -557,7 +561,8 @@ the row the app already loads, not a new entity.
     crash or a concurrent upload are just "not current" objects, and the next prune removes them.
     No lock or saga is needed.
 - **Formats (engineering constraint, product.md §10.1/§19):** JPEG, PNG, HEIC/HEIF (decoded by the
-  same `sharp` build captures already use), and static WebP. **Not accepted:** SVG (script-capable
+  same `sharp` build captures already use — which in practice means AV1-coded HEIF only; HEVC HEIC
+  is refused calmly and leaves the previous image, see §7 "HEIC/HEIF"), and static WebP. **Not accepted:** SVG (script-capable
   markup, never ingested), GIF, animated images, PDF/multi-page, RAW, video. Recommended source:
   ≥ 1600 px on the long edge so the poster format prints cleanly. Whether to warn below that is a
   design copy question.

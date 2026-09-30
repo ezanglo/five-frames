@@ -1,10 +1,10 @@
 # Design Direction
 
 **Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
-pass, "Desktop and browser" below). **Event Theme & Keepsakes: designed 2026-09-30, not built,
-awaiting human visual approval** (see that section). **Full Set keepsakes: designed 2026-09-30
-as an amendment to that board, not built, awaiting human visual approval** (see "Full Set
-keepsakes" in that section). The contracted FiveFrames
+pass, "Desktop and browser" below). **Event Theme & Keepsakes and its Full Set amendment:
+approved by the user 2026-09-30** as the implementation target for Slices 15–17 (see that
+section). Slice 15 (theme foundation) is built; keepsakes (Slice 16) and themed signage (Slice
+17) are not. The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24
@@ -57,7 +57,9 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Logo components: `BrandMark` (symbol), `BrandLockup`; `Wordmark` = lockup + Host/Operator tag | `components/ff/brand-mark.tsx`, `components/ff/wordmark.tsx` |
 | App icons (the symbol: adaptive SVG tab icon, violet-tile `.ico`, full-bleed violet Apple icon) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
 | Branded share card (Satori; tokens mirrored by hex, fonts as bundled TTFs). Replaced by the keepsake registry in Slice 16 | `lib/media/share-card.tsx`, `lib/media/fonts/` |
-| *Planned (Slices 15–17):* curated accent registry + roles; keepsake style registry (both families, incl. Full Set slot rects and `coverCrop`); themed signage | `lib/theme/`, `lib/keepsakes/`, `lib/media/signage.ts` |
+| Curated accent registry + roles (`deriveAccentRoles`, `accentCssVars`), hashtag rules, theme-image limits (Slice 15) | `lib/theme/` |
+| Look studio: controls, swatches, hashtag field, theme-image control, preview stage, and the Slice 15 presentational keepsake/signage objects | `components/ff/look/` |
+| Keepsake style identities (both families, one preselected per family); Slice 16 adds templates, Full Set slot rects and `coverCrop`; themed signage is Slice 17 | `lib/keepsakes/styles.ts`, `lib/media/signage.ts` |
 | Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
@@ -182,7 +184,7 @@ print are in `docs/design-handoff/FiveFrames_Identity_v1.0/`. In code, the geome
 - **Open items:** the wordmark is a modified public typeface; a type designer should redraw it
   before any trademark filing, and no trademark clearance search has been done.
 
-## Event Theme & Keepsakes (designed 2026-09-30 — awaiting human visual approval)
+## Event Theme & Keepsakes (approved 2026-09-30)
 
 The design target for Slices 15–17. The board, `docs/design-handoff/FiveFrames_Theme_Keepsakes_v1.0/`,
 shows every surface and state. This section records the rules. Behavior is product.md §10/§11.3,
@@ -348,7 +350,7 @@ Rules for all five:
 - **Motion:** on open the photo settles into the preselected style (240ms `--ease-settle`), and
   style changes cross-fade in 160ms. Under reduced motion both are instant.
 
-### Full Set keepsakes (designed 2026-09-30 — awaiting human visual approval)
+### Full Set keepsakes (approved 2026-09-30)
 
 These are the second keepsake family: five styles, each made from all five of a guest's committed
 photos. The board is sections 11–17 of `FiveFrames_Theme_Keepsakes_v1.0/`.
@@ -613,13 +615,12 @@ Each is rendered as the closest visual equivalent; none adds product capability.
 3. ~~Cover image and theme color~~ — **resolved by product change (2026-09-30).** They are now
    product capabilities (product.md §10.1: theme image, curated accent, hashtag), designed in
    "Event Theme & Keepsakes" (the handoff's six swatches + "+" become seven curated keys with no
-   custom color). The build omits them until Slice 15.
+   custom color). Built in Slice 15.
 4. ~~Guest preview before payment~~ — **resolved by product change (2026-09-30).** Host-only
    theme previews (guest screens, keepsake styles, signage with a placeholder QR) are now allowed
    in Draft (product.md §7.2). There is still no reachable guest experience before payment. In
    the design, the Look studio's preview stage replaces the wizard's "What happens next" column
-   on the Look step and the Settings-only 380 phone preview. The current build keeps both until
-   Slice 15.
+   on the Look step and the Settings-only 380 phone preview. Built that way in Slice 15.
 5. **Closed Join → "View the gallery".** product.md §13: the gallery is reached only through its
    own link, so the capture link never links to it. Closed Join shows the guest's own photos (if
    their session exists) and explains the gallery has its own link.

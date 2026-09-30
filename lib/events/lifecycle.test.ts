@@ -22,6 +22,8 @@ function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
     visibility: "anyone_with_link",
     sharing_enabled: true,
     hashtag: null,
+    accent_color: "violet",
+    theme_image_path: null,
     event_token: null,
     gallery_token: null,
     activated_at: null,

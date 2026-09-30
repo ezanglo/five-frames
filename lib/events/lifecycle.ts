@@ -95,6 +95,29 @@ export function isGalleryRevealed(
 }
 
 /**
+ * Whether a gallery-link viewer is granted the gallery right now (product.md §8.2, invariant 8):
+ * revealed, and visibility "anyone with the link". The gallery page and the theme-image access
+ * check share this one predicate so they can never disagree about the locked branch.
+ */
+export function isGalleryOpenToLinkHolders(
+  event: EventRow,
+  now: Date = new Date(),
+): boolean {
+  return event.visibility === "anyone_with_link" && isGalleryRevealed(event, now);
+}
+
+/**
+ * Whether the event theme can change (architecture §7a: "only while settings are editable").
+ * Any state before expiry, including Draft. Never after expiry or once media is permanently
+ * deleted, so a theme upload can't recreate storage D18 already emptied.
+ */
+export function canEditEventTheme(event: EventRow, now: Date = new Date()): boolean {
+  if (event.media_deleted_at) return false;
+  const state = deriveEventLifecycleState(event, now);
+  return state !== "expired" && state !== "archived";
+}
+
+/**
  * Whether the event's guest-session cap (product.md §9.5, decision D13) has been reached.
  * This is a read for display and pre-render purposes only — the actual enforcement is the
  * atomic `join_guest_session()` database function (`lib/dal/guest-sessions.ts`), which

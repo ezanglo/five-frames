@@ -145,6 +145,14 @@ change, not a refactor.
   returns success with no `error` even when no session is issued — check `data.session`, not just
   `error`, and tell the user to confirm their email rather than redirecting into a session that
   doesn't exist yet.
+- **Event accent on guest surfaces uses role tokens, never raw `text-brand`.** Accent text is
+  `text-brand-ink`, text on a brand fill is `text-brand-foreground` (marigold's fill is too light
+  for white text or for text on white). Themed surfaces get the six `--brand-*` roles from
+  `accentCssVars()` inside `.ff-event-theme`; host chrome, Operator, the logo and the QR plate
+  never do. The unit test in `lib/theme/accents.test.ts` is the contrast safeguard.
+- **The prebuilt `sharp` can't decode HEVC HEIC** (it reads the container and decodes AV1 HEIF
+  only). iPhones deliver JPEG through `accept="image/*"`; a desktop `.heic` fails to decode. Don't
+  assume HEIC works without a test against a real HEVC file (`test/fixtures/theme-sample.heic`).
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

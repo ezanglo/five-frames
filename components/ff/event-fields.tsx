@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Clock, Eye, Globe, Hash } from "lucide-react";
+import { Clock, Eye, Globe } from "lucide-react";
 import type { EventRow } from "@/lib/db/types";
 import { labelItems, REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
-import { Counter, Field, SelectInput, TextArea, TextInput, Toggle } from "./field";
+import { Field, SelectInput, TextInput } from "./field";
 
 /** Welcome message limit (DS04: max 140 welcome). */
 export const WELCOME_MAX = 140;
@@ -23,11 +23,13 @@ export function EventDetailsFields({
   event,
   timezones,
   onNameChange,
+  onTimezoneChange,
   layout = "stack",
 }: {
   event: Pick<EventRow, "name" | "event_date" | "timezone"> | null;
   timezones: string[];
   onNameChange?: (value: string) => void;
+  onTimezoneChange?: (value: string) => void;
   layout?: "stack" | "grid";
 }) {
   return (
@@ -61,6 +63,7 @@ export function EventDetailsFields({
           id="timezone"
           name="timezone"
           defaultValue={event?.timezone ?? "Asia/Manila"}
+          onChange={(e) => onTimezoneChange?.(e.target.value)}
           icon={<Globe />}
         >
           {timezones.map((tz) => (
@@ -74,60 +77,22 @@ export function EventDetailsFields({
   );
 }
 
-/** Welcome message + hashtag (Create · Look "Make it yours", Settings · Look & welcome). */
-export function WelcomeFields({
+/**
+ * After the party (Create · Details, Settings · Event & gallery): reveal timing and gallery
+ * visibility (product.md §7.4, §8.2) — the same fields with the same defaults as before; only
+ * their place moved (design-direction "Create → Look is only the look"). The sharing setting
+ * lives in Look as Guest keepsakes.
+ */
+export function AfterPartyFields({
   event,
-  onMessageChange,
+  timezone: timezoneOverride,
 }: {
-  event: Pick<EventRow, "host_message" | "hashtag"> | null;
-  onMessageChange?: (value: string) => void;
-}) {
-  const [message, setMessage] = useState(event?.host_message ?? "");
-  return (
-    <div className="flex flex-col gap-5">
-      <Field
-        label="Welcome message"
-        htmlFor="hostMessage"
-        optional
-        aside={<Counter value={message.length} max={WELCOME_MAX} />}
-        hint="Shown to guests on the join screen and at the top of the gallery."
-      >
-        <TextArea
-          id="hostMessage"
-          name="hostMessage"
-          value={message}
-          maxLength={Math.max(WELCOME_MAX, event?.host_message?.length ?? 0)}
-          onChange={(e) => {
-            setMessage(e.target.value);
-            onMessageChange?.(e.target.value);
-          }}
-          placeholder="Thanks for celebrating with us! Snap your five favorites."
-        />
-      </Field>
-      <Field label="Hashtag" htmlFor="hashtag" optional hint="Printed on the share cards guests create.">
-        <TextInput
-          id="hashtag"
-          name="hashtag"
-          defaultValue={event?.hashtag ?? ""}
-          placeholder="#LeoGrad2026"
-          icon={<Hash />}
-        />
-      </Field>
-    </div>
-  );
-}
-
-/** Reveal timing, gallery visibility and the sharing toggle (product.md §7.4, §8.2, §10). */
-export function GalleryFields({
-  event,
-}: {
-  event: Pick<
-    EventRow,
-    "reveal_mode" | "reveal_at" | "visibility" | "sharing_enabled" | "timezone"
-  > | null;
+  event: Pick<EventRow, "reveal_mode" | "reveal_at" | "visibility" | "timezone"> | null;
+  /** The timezone currently chosen in the same form, for the custom reveal time hint. */
+  timezone?: string;
 }) {
   const [revealMode, setRevealMode] = useState(event?.reveal_mode ?? "after_event");
-  const timezone = event?.timezone ?? "Asia/Manila";
+  const timezone = timezoneOverride ?? event?.timezone ?? "Asia/Manila";
 
   return (
     <div className="flex flex-col gap-5">
@@ -177,16 +142,6 @@ export function GalleryFields({
           ))}
         </SelectInput>
       </Field>
-      <label className="flex items-center justify-between gap-4 rounded-lg bg-surface-subtle p-4">
-        <span className="flex flex-col gap-0.5">
-          <span className="text-label font-semibold text-ink">Guest sharing</span>
-          <span className="text-caption font-medium text-ink-muted">
-            Lets guests share a FiveFrames card of their own photos. It can’t stop anyone sharing
-            photos already on their phone.
-          </span>
-        </span>
-        <Toggle name="sharingEnabled" defaultChecked={event?.sharing_enabled ?? true} />
-      </label>
     </div>
   );
 }

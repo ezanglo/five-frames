@@ -101,7 +101,7 @@ export function PreviewSheet({
 
         <div className="ff-safe-bottom relative -mt-6 flex flex-col gap-4 rounded-t-sheet bg-surface px-5 pt-6 lg:mt-0 lg:justify-center lg:gap-5 lg:overflow-y-auto lg:rounded-tr-none lg:rounded-bl-sheet lg:px-10 lg:py-12">
           <div className="hidden flex-col gap-1.5 lg:flex">
-            <p className="tabular text-label font-semibold text-brand">
+            <p className="tabular text-label font-semibold text-brand-ink">
               Shot {shot} of {SHOTS_PER_GUEST}
             </p>
             <h2 className="font-heading text-title font-semibold text-ink">Keep this one?</h2>

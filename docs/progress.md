@@ -1,93 +1,125 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-30 (Full Set keepsakes: **design amendment done — awaiting human visual
-approval** (board sections 11–17). Earlier, product amendment accepted and architecture amended
-as **D20 (accepted)** and Slice 16 Phases A/B. Before that
-the same day, Event Theme & Keepsakes: product spec accepted, architecture/roadmap prepared as D19
-+ Slices 15–17, **design pass done — awaiting human visual approval**, implementation **not
-started** — see the section below. Earlier the same day: brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
-`awaiting human visual approval`, see "UI/UX redesign — contracted designer handoff" below. Slice
-14 — full-flow real-device and venue-condition validation — is still `awaiting human
-verification`; its checklist predates the redesign, so run it against the redesigned UI. Earlier
-note: a focused `/e2e-validate` pass found two defects (host downloads navigating instead of
-saving; a refunded payment misclassified as an unresolved duplicate), both repaired — see
-"Regression protection added for human-found defects" → "Slice 14". Same day, follow-up pass:
-the Operator Console, branded share card, 404/error pages and app icons moved onto the design
-system too — nothing in the app still uses the retired look.)
+Last updated: 2026-09-30 (**Slice 15 — event theme foundation: `complete`** — automated and
+browser verification green, and the user passed all six visual/taste checks. One bounded open
+decision remains on HEVC HEIC (non-blocking; see the Slice 15 section). The user approved the Event Theme &
+Keepsakes design and the Full Set amendment the same day; D19/D20 accepted. Slice 14 —
+full-flow real-device and venue-condition validation — is still `awaiting human verification`;
+run its checklist against the redesigned UI. The earlier brand identity, marketing motion and
+contracted-handoff redesign passes remain `awaiting human visual approval` — see their sections.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
 
-## Event Theme & Keepsakes (2026-09-30): `designed (Single-photo + Full Set) — awaiting human visual approval; implementation not started`
+## Slice 15 — Event theme foundation (2026-09-30): `complete`
 
-- **Product:** accepted in product.md §10 / §11.3 (theme image, curated accent, hashtag; keepsakes
-  replacing the share card; themed signage; host-only Draft previews; invariant 14). **Amended
-  the same day:** two keepsake families, five **Single-photo** styles and five **Full Set** styles
-  that combine a session's five committed captures in commit order, one of them built on the
-  brandmark (§10.2.2, criteria 54–66).
-- **Architecture:** decision D19, extended by **D20 (Full Set; accepted)**. Architecture §7a (theme), §7b (keepsakes: two families in one registry and renderer;
-  the Full Set route derives the five captures server-side, ordered `(committed_at, slot_index)`
-  with no schema change; deterministic cover crops; on demand, never persisted; Slice 16
-  measurement gate), §7c (themed signage, placeholder-QR previews), §10 threat model.
-- **Design:** `docs/design-direction.md` → "Event Theme & Keepsakes" (the rules) and
-  `docs/design-handoff/FiveFrames_Theme_Keepsakes_v1.0/` (the rendered board: HTML + one PNG per
-  section). It covers the seven curated colors with contrast-verified roles (no custom picker),
-  the Look studio for Create and Settings, control states, five keepsake styles (Print
-  (preselected), Booth, Poster, Journal, Album), the one-step guest picker, and the four themed
-  signage formats with the Draft placeholder QR.
-- **Full Set design: done — awaiting human visual approval.** The rules are in
-  `docs/design-direction.md` → "Full Set keepsakes". The rendered reference is board sections
-  11–17 (`sections/11-…` to `17-…png`), added to the same Theme & Keepsakes board, with sections
-  00–10 unchanged.
-  - **Styles:** Signature (preselected; the brandmark's construction), Strip, Grid, Spotlight,
-    Prints.
-  - **Canvas:** `FULL_SET_CANVAS` 1200 × 1800 (2:3, 2.16 MP).
-  - **Crop focus:** `50% 30%` for the whole family.
-  - **Slots:** every style's slot rectangles are specified.
-  - **Guest IA:** a One photo · Your five family switch in the accepted picker, present only while
-    the Full Set is available, plus one "Your five, together" card on completion / Your photos.
-  - **Host:** an "All five" family in the Look studio.
-  - **Fit with architecture:** no product, architecture or decision change, and nothing
-    impossible under D20.
-  - **Slice 16 notes:**
-    - Prints rotates its print wrappers (as Album already does); its declared slots are the
-      unrotated windows.
-    - DOM/Satori parity must be checked for `lineClamp` and Spotlight's radial glow.
-  - It still blocks only Slice 16 Phase B, until approved.
-- **Roadmap:** Slice 15 (theme foundation) → Slice 16 (keepsakes; Phase A Single-photo, retires
-  share cards and `share_path`; Phase B Full Set) and Slice 17 (themed signage + previews). Slices
-  15 and 17 are unchanged by the Full Set amendment.
-- **Code:** unchanged. The build still has no theme, one share card, and unthemed signage. The
-  current signage draws accent brackets inside the QR plate's padding and pads with fewer than 4
-  modules, which the design (and architecture §7c) forbid. Slice 17 fixes this.
-- **Design dependencies the slices must pick up:** Slice 15 needs new guest-scope tokens
-  `--brand-ink` (accent text; today's guest `text-brand` usages fail contrast with marigold) and
-  `--brand-foreground` (button text, which is ink on marigold). It also moves reveal/visibility
-  from Create → Look to Create → Details, splits Settings into Event & gallery · Look · Links, and
-  updates the stale "share card" copy on the hashtag and sharing fields. Slice 16 builds the
-  five templates in the Satori subset the board uses, then (Phase B) the five Full Set templates,
-  their slot rects, `coverCrop` at `50% 30%`, the family switch and the completion card. Slice 17
-  builds the field + scan-side layouts.
-- **Human visual approval needed (before or during Slice 15):** open the board and review, at
-  390 and 1440, Create → Look (Overview is the host's moment), Settings → Look, all five styles in
-  portrait and landscape (themed and default), the guest picker (original vs keepsake reads
-  clearly, a cancelled share is silent, sharing off shows nothing), the four signage formats, and
-  the Draft preview QR (obviously not a working code). Printing and scanning real signage, and
-  real-device share sheets, stay human checks in Slices 16–17. They can't be judged from the
-  board.
-- **Full Set taste review** (board §11–17). Judge:
-  - whether all five styles feel distinct;
-  - whether Signature reads as the FiveFrames mark and deserves to be the default over Grid;
-  - whether the §14 mixed-orientation crops are acceptable;
-  - whether the theme image never reads as a sixth photo;
-  - whether the branding (especially Signature's wordmark-only mark) is subtle enough;
-  - whether the One photo · Your five switch is instantly understood;
-  - whether the default violet event still looks premium.
-- **Next:** approve (or adjust) the Single-photo design and the Full Set amendment. `/build-app`
-  Slice 15 does not depend on the Full Set design and can start once the Single-photo design is
-  approved. Slice 16 Phase B needs the Full Set approval.
+Design status: the user **approved** the Event Theme & Keepsakes design and the Full Set
+amendment on 2026-09-30 (`docs/design-direction.md` → "Event Theme & Keepsakes",
+`docs/design-handoff/FiveFrames_Theme_Keepsakes_v1.0/`, sections 00–17). They are the
+implementation target for Slices 15–17. Product §10 / §11.3, D19 and D20 are accepted.
+
+**Built (criteria 39, 40 guest-screen portion, 41 guest-screen portion, 42 configure portion, 43):**
+
+- **Schema** `supabase/migrations/20260930000000_event_theme.sql` (applied to dev):
+  `events.theme_image_path` (DB check: must sit in the event's own folder), `events.accent_color`
+  (default `violet`, key-shaped check), existing `hashtag` normalized (the one dev value `#EZMARBIE`
+  → `EZMARBIE`; invalid ones cleared) with a shape check, and the private `event-theme` bucket
+  (15 MB; JPEG/PNG/WebP/HEIC/HEIF).
+- **`lib/theme/`**: the seven curated accents with fixed roles (`deriveAccentRoles`,
+  `accentCssVars`; unknown key → violet), WCAG contrast helpers, hashtag rules (≤ 30, letters incl.
+  accented, digits, `_`, stored without `#`), theme-image limits and refusal copy, the Look preview
+  message protocol. Guest role tokens: `--brand-base/-primary/-foreground/-ink/-highlight/-tint`,
+  scoped by `.ff-event-theme`; guest components use `text-brand-ink` / `text-brand-foreground`.
+- **Theme image pipeline** (`lib/dal/event-theme.ts`, `lib/media/theme-image.ts`,
+  `lib/media/theme-storage.ts`): begin (owner, editable state, declared size/type) → signed PUT to
+  a server-chosen `{event}/{uuid}.upload` → commit (download, decode-by-content, reject
+  SVG/GIF/TIFF/PDF/spoofed, animated WebP/APNG/multi-frame, > 15 MB, > 40 MP, short edge < 600;
+  auto-orient, strip all metadata, ≤ 2400 px, JPEG or PNG only with real transparency) → swap
+  (ownership-predicated update of `theme_image_path` only) → prune the folder to the current
+  object. Remove = clear + prune. Editable in every state before expiry; never after expiry or
+  once media is deleted.
+- **Delivery**: signed URLs only after each surface's check — host ownership (any state incl.
+  Draft), guest current `event_token` on an activated event (capture need not be open), gallery
+  only while granted to link holders. The locked and "only me" gallery load no theme at all.
+  Operator DAL results strip `theme_image_path`. D18 permanent deletion empties the event's theme
+  folder and clears the pointer, and reruns safely.
+- **Host UI**: Create → Details gains the "After the party" card (reveal timing + visibility, same
+  fields and defaults). Create → Look is the studio (`components/ff/look/`): controls (theme image,
+  event color radiogroup + inline sample, hashtag, welcome message, Guest keepsakes = the existing
+  sharing toggle) beside a sticky stage (Overview · Guest screens · Keepsakes · Signage) at
+  ≥ 1024, one column + "See it everywhere" below. Settings splits into Event & gallery · Look ·
+  Links (`settings/`, `settings/look`, `settings/links`) with the unsaved-changes guard (amber
+  card, Discard/Save, `beforeunload`, confirm before switching sub-section). The theme image saves
+  on its own commit; everything else waits for Continue/Save changes. The host event cover uses the
+  theme image; host chrome stays violet.
+- **Guest UI**: join (open, not open yet, closed, full), Your Five, completion, own view and the
+  granted gallery take the accent roles, the theme image header (cover at 50% 35% under the
+  scrim) and the hashtag after the date; without an image the no-cover glow takes the event base
+  color. Capture/preview/viewer stay dark around the photo (only their buttons take the accent);
+  live/success/danger status colors are unchanged.
+- **Preview foundation**: the guest-screen preview is the real join screen rendered by a
+  host-only route (`/events/[id]/preview/guest`, ownership-checked, no token) inside a scaled
+  same-origin frame, updated live by validated `postMessage`. Keepsake and signage objects are
+  presentational DOM drawings of the board (`components/ff/look/output-previews.tsx`: Print,
+  Signature, four signage formats with a non-code dot-field plate). `lib/keepsakes/styles.ts`
+  holds both families' ids/labels/preselected styles for Slice 16 to extend.
+
+**Automated verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test`
+277/277 ✔ (31 files). New: `lib/theme/accents.test.ts` (7 keys × fill/text, ink/white, ink/tint,
+onDark/night ≥ 4.5; unknown key → violet; CSS vars only from the registry),
+`lib/theme/hashtag.test.ts`, `lib/theme/preview.test.ts`, `lib/keepsakes/styles.test.ts`,
+`lib/media/theme-image.test.ts` (EXIF/GPS stripped, orientation, resize, transparency, WebP,
+AV1-HEIF, real HEVC HEIC fixture, SVG/GIF/TIFF/PDF/spoofed/animated WebP/APNG/oversize/40 MP/
+too-small refused), and `lib/dal/event-theme.integration.test.ts` against real dev Postgres +
+Storage (replace/remove leave exactly the current object or none; refused replacement keeps the
+previous image; Storage refuses over-limit and SVG PUTs; host B can't begin/commit/remove/read
+host A's theme or reach A's folder; malformed upload id refused; DB refuses an out-of-folder
+path; theme edits never touch activation/tokens/payment/lifecycle columns; guest token/rotation;
+locked/private gallery gets nothing; Operator gets no path; expired → not editable; D18 deletion
+empties the folder and reruns; accent/hashtag round trip incl. clear back to default).
+
+**Browser verification (Playwright/Chromium against local `next dev` + dev Supabase, a synthetic
+dev host):** 390/768/1024/1280/1440. Create Details (moved card), Create Look default → marigold
+→ image upload (uploading/processing/saved) → GIF refused → real HEIC refused calmly with the image
+kept → small image warning → Continue → reload round trip; Keepsakes and Signage tabs; Settings
+Look: color change shows Unsaved, sub-section switch asks, `beforeunload` fires, image
+upload/remove save independently while the color stays unsaved, Discard, Save changes + reload;
+Event & gallery and Links (activated and Draft). Guest: themed join (image, marigold, hashtag),
+default long-name event, Your Five, desktop story panel and 768 sheet, granted gallery themed,
+locked and "only me" gallery with no theme URL or hashtag in the HTML. Swatches 44 × 44, arrow
+keys move the color, hashtag field 16 px with associated error. Two defects found and fixed during
+this pass: the guest-preview frame painted black in Chromium (content was hidden with
+`visibility`, which throttles iframe rendering — now opacity), and the Overview/tabs overflowed at
+1024–1440. Amber text (3.9:1) moved to icons only. This is emulation, not real-device proof.
+
+**Open decision (bounded architecture/implementation conflict): HEVC HEIC.** Architecture
+assumed the capture `sharp` build decodes HEIC. It doesn't: prebuilt sharp 0.35 / libvips 8.18
+reads HEIF containers and decodes AV1 HEIF but has no HEVC decoder (evidence: the real HEVC
+fixture fails with "Decoder plugin generated an error"; every committed capture in dev is
+JPEG/PNG, so the Slice 2 "HEIC on iPhone" pass was iOS transcoding to JPEG). Current behavior:
+iPhones deliver JPEG through `accept="image/*"` (theme control and capture both use it); a
+desktop `.heic` theme upload is refused with "We couldn't read that HEIC photo. Try saving it as a
+JPG first. Your current image is unchanged." The same file as a **capture** would fail commit
+(no frame consumed; the guest sees a retry error). Options for the user: (a) accept as-is and
+document "save as JPG" for desktop HEIC; (b) client-side HEIC→JPEG conversion in the browser
+(new dependency, e.g. libheif WASM); (c) a custom libvips build with libde265 (not available on
+Vercel's prebuilt path). No external image service was added. Recommendation: (a) for MVP.
+
+**Interim states Slices 16–17 replace:** the Look keepsake/signage objects are presentational
+drawings (Slice 16 swaps in the real templates; Slice 17 the signage renderer and live QR); the
+downloadable signage and the share card are still the unthemed Slice 8/10 outputs; the existing
+QR quiet-zone/bracket defect is untouched (Slice 17). "Guest keepsakes" copy precedes the
+keepsake feature (the toggle still governs today's share card). The small-image warning shows
+right after upload only (the flag isn't stored).
+
+**Human verification — passed (reported by the user 2026-09-30, "all looks good"):** all six
+taste checks — Create → Look desktop studio and Overview; Create → Look on a phone (color
+feedback, "See it everywhere", Continue); Settings → Look's two save models; all seven colors on
+guest join and Your Five (incl. marigold); a themed guest header's balance and legibility; and
+the default event (violet, no image, no hashtag) still looking finished. Real-device checks
+(camera/picker, share sheets, in-app browsers) stay with Slices 14 and 16.
 
 ## Brand identity rollout (2026-09-30): `awaiting human visual approval`
 
@@ -308,7 +340,9 @@ are also no longer in `.env.local`.
 
 **Slices 1–13: complete. Slice 14 (full-flow real-device and venue-condition validation,
 product.md, roadmap criteria 29/30) is `awaiting human verification` — status set 2026-09-23.
-Slices 15–17 (Event Theme & Keepsakes) are planned and not started, and wait on a design pass.**
+Slice 15 (event theme foundation) is `complete`; Slices 16
+(keepsakes) and 17 (themed signage) are not started. The Event Theme & Keepsakes design (incl.
+the Full Set amendment) is approved.**
 
 Slice 14 is defined by the roadmap itself as human-run, not automated ("Human-run on real
 devices. Not automated. ... this is a regression and end-to-end pass, not the first look at
@@ -1696,8 +1730,10 @@ device available) will be recorded honestly as a known limitation rather than cl
 verification`.** Everything automatable is done and passing (see above). The checklist above is
 the exit condition; there is no further automatable work in this slice.
 
-**Then: Event Theme & Keepsakes.** Design pass first, then Slice 15 → 16/17 (roadmap). MVP launch
-now also requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
+**Slice 15 — event theme foundation: `complete`.** The HEVC HEIC decision is still open
+(non-blocking). **Next: Slice 16** (keepsakes, Phase A
+Single-photo then Phase B Full Set) or **Slice 17** (themed signage) — both depend only on 15.
+MVP launch requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
 mutation until Slices 14–17 are PASS or honestly-recorded BLOCKED with no unresolved
 launch-blocking defect.
 
@@ -1709,8 +1745,8 @@ launch-blocking defect.
 | Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
 | Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews are now product — Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
-| Event Theme & Keepsakes design pass not done (accent set, five keepsake styles, picker, Look step, themed guest screens/signage) | Design prerequisite | Slices 15–17 |
-| Whether hosts may pick a free custom accent color in addition to the curated set (product.md §19) | Open design question, non-blocking — architecture ships the curated set and allows adding custom colors later (D19) | Slice 15 |
+| HEVC HEIC can't be decoded by the prebuilt `sharp` (desktop `.heic` theme images are refused calmly; the same file as a capture fails commit without consuming a frame). Options and recommendation in the Slice 15 section | Open decision (architecture/implementation conflict) | Theme image, capture derivatives |
+| Look keepsake/signage previews are presentational until Slices 16/17; downloadable signage and the share card are still unthemed | Known interim state | Slices 16–17 |
 | Slice 16's legacy `…/share` object cleanup and `share_path` drop run against the dev Supabase project, which also backs Vercel Production today (see below) | Known interim state | Slice 16 |
 | Operator Console, share card, 404/error pages and app icons moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
 | Supabase Auth email templates (confirmation, password reset) still Supabase defaults — dashboard configuration, not repo code | Follow-up design task | Host signup and password-reset emails |

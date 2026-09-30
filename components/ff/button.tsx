@@ -24,17 +24,17 @@ const BASE =
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    "bg-brand text-ink-inverse shadow-glow hover:bg-[color-mix(in_srgb,var(--brand-primary),black_8%)] active:bg-[color-mix(in_srgb,var(--brand-primary),black_18%)] active:shadow-none disabled:bg-line disabled:text-ink-muted disabled:shadow-none aria-disabled:bg-line aria-disabled:text-ink-muted aria-disabled:shadow-none",
+    "bg-brand text-brand-foreground shadow-glow hover:bg-[color-mix(in_srgb,var(--brand-primary),black_8%)] active:bg-[color-mix(in_srgb,var(--brand-primary),black_18%)] active:shadow-none disabled:bg-line disabled:text-ink-muted disabled:shadow-none aria-disabled:bg-line aria-disabled:text-ink-muted aria-disabled:shadow-none",
   secondary:
     "border border-line bg-surface-subtle text-ink hover:bg-[color-mix(in_srgb,var(--color-surface-subtle),var(--color-text-primary)_4%)] active:bg-line disabled:text-ink-placeholder",
   dark: "bg-ink text-ink-inverse hover:bg-black active:bg-black disabled:bg-line disabled:text-ink-muted",
-  onTint: "bg-surface text-brand hover:bg-surface-subtle active:bg-surface-subtle disabled:text-ink-placeholder",
+  onTint: "bg-surface text-brand-ink hover:bg-surface-subtle active:bg-surface-subtle disabled:text-ink-placeholder",
   outline:
-    "border border-brand bg-surface text-brand hover:bg-brand-tint active:bg-brand-tint disabled:border-line disabled:text-ink-placeholder",
+    "border border-brand bg-surface text-brand-ink hover:bg-brand-tint active:bg-brand-tint disabled:border-line disabled:text-ink-placeholder",
   danger:
     "bg-danger-tint text-danger hover:bg-[color-mix(in_srgb,var(--color-status-danger-tint),var(--color-status-danger)_8%)] active:bg-[color-mix(in_srgb,var(--color-status-danger-tint),var(--color-status-danger)_14%)] disabled:opacity-60",
   frosted: "ff-frosted text-ink-inverse hover:bg-white/25",
-  text: "rounded-md px-0 text-brand hover:underline underline-offset-4",
+  text: "rounded-md px-0 text-brand-ink hover:underline underline-offset-4",
 };
 
 const SIZES: Record<ButtonSize, string> = {

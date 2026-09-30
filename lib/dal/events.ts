@@ -8,6 +8,8 @@ import {
 } from "@/lib/events/lifecycle";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import type { EventRow, GalleryVisibility, RevealMode } from "@/lib/db/types";
+import { isAccentKey } from "@/lib/theme/accents";
+import { InvalidHashtagError, normalizeHashtag } from "@/lib/theme/hashtag";
 
 /**
  * Every function here takes hostId and scopes its query by it. There is no function
@@ -24,8 +26,22 @@ export type EventConfigInput = {
   visibility: GalleryVisibility;
   sharingEnabled: boolean;
   hashtag: string | null;
+  /** A curated registry key (lib/theme/accents.ts). Theme image changes go through
+   *  lib/dal/event-theme.ts, never through here. */
+  accentColor: string;
 };
 
+export class InvalidAccentError extends Error {
+  constructor() {
+    super("Choose one of the event colors.");
+    this.name = "InvalidAccentError";
+  }
+}
+
+/**
+ * Validates on every write (architecture §7a): the hashtag is normalized (no "#") or refused,
+ * and the accent must be a curated key. Throws rather than silently dropping a bad value.
+ */
 function toRow(input: Partial<EventConfigInput>) {
   const row: Record<string, unknown> = {};
   if (input.name !== undefined) row.name = input.name;
@@ -37,7 +53,15 @@ function toRow(input: Partial<EventConfigInput>) {
   if (input.visibility !== undefined) row.visibility = input.visibility;
   if (input.sharingEnabled !== undefined)
     row.sharing_enabled = input.sharingEnabled;
-  if (input.hashtag !== undefined) row.hashtag = input.hashtag;
+  if (input.hashtag !== undefined) {
+    const hashtag = normalizeHashtag(input.hashtag);
+    if (!hashtag.ok) throw new InvalidHashtagError(hashtag.reason);
+    row.hashtag = hashtag.value;
+  }
+  if (input.accentColor !== undefined) {
+    if (!isAccentKey(input.accentColor)) throw new InvalidAccentError();
+    row.accent_color = input.accentColor;
+  }
   return row;
 }
 

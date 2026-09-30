@@ -1,11 +1,11 @@
 "use server";
 
 import { redirect, notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { requireHost } from "@/lib/auth/host-session";
 import {
   closeCapture,
   createDraftEvent,
-  getEventForHost,
   openCapture,
   revokeEventToken,
   revokeGalleryToken,
@@ -20,6 +20,15 @@ import {
   type ModerationAction,
 } from "@/lib/dal/captures";
 import { startProviderCheckout } from "@/lib/dal/payments";
+import {
+  beginThemeImageUpload,
+  commitThemeImageUpload,
+  removeThemeImage,
+  type BeginThemeUploadResult,
+  type CommitThemeUploadResult,
+} from "@/lib/dal/event-theme";
+import { DEFAULT_ACCENT, isAccentKey } from "@/lib/theme/accents";
+import { HASHTAG_ERROR, normalizeHashtag } from "@/lib/theme/hashtag";
 import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
@@ -36,7 +45,7 @@ function field(formData: FormData, key: string): string | null {
   return value.trim();
 }
 
-/** Event details (Create · Details, Settings · Event details): name, date, timezone. */
+/** Event details (Create · Details, Settings · Event & gallery): name, date, timezone. */
 function parseDetails(formData: FormData): Pick<EventConfigInput, "name" | "eventDate" | "timezone"> | null {
   const name = field(formData, "name");
   if (!name) return null;
@@ -48,11 +57,11 @@ function parseDetails(formData: FormData): Pick<EventConfigInput, "name" | "even
   };
 }
 
-/** Welcome, gallery and sharing (Create · Look, Settings). */
-function parseLook(
+/** After the party (Create · Details, Settings · Event & gallery): reveal timing and visibility. */
+function parseAfterParty(
   formData: FormData,
   timezone: string,
-): Omit<EventConfigInput, "name" | "eventDate" | "timezone"> {
+): Pick<EventConfigInput, "revealMode" | "revealAt" | "visibility"> {
   const revealModeRaw = field(formData, "revealMode") ?? "after_event";
   const revealMode = REVEAL_MODES.includes(revealModeRaw as RevealMode)
     ? (revealModeRaw as RevealMode)
@@ -66,7 +75,6 @@ function parseLook(
   const revealAtLocal = field(formData, "revealAt");
 
   return {
-    hostMessage: field(formData, "hostMessage"),
     revealMode,
     // Interpreted as wall-clock time in the event's own timezone, not the server
     // process's timezone — a bare `new Date(revealAtLocal)` would silently use the
@@ -76,8 +84,33 @@ function parseLook(
         ? zonedDateTimeLocalToUtcIso(revealAtLocal, timezone)
         : null,
     visibility,
-    sharingEnabled: formData.get("sharingEnabled") === "on",
-    hashtag: field(formData, "hashtag"),
+  };
+}
+
+type LookInput = Pick<EventConfigInput, "hostMessage" | "hashtag" | "accentColor" | "sharingEnabled">;
+
+/**
+ * Look (Create · Look, Settings · Look): event color, hashtag, welcome message and the Guest
+ * keepsakes toggle (the existing sharing setting). The theme image is not here — it saves on its
+ * own the moment its upload commits (architecture §7a). The hashtag and accent are validated
+ * again in the DAL; this only turns a bad value into a calm form error.
+ */
+function parseLook(formData: FormData): { ok: true; input: LookInput } | { ok: false; error: string } {
+  const rawHashtag = formData.get("hashtag");
+  const hashtag = normalizeHashtag(typeof rawHashtag === "string" ? rawHashtag : "");
+  if (!hashtag.ok) return { ok: false, error: HASHTAG_ERROR[hashtag.reason] };
+
+  const accentRaw = field(formData, "accentColor") ?? DEFAULT_ACCENT;
+  if (!isAccentKey(accentRaw)) return { ok: false, error: "Choose one of the event colors." };
+
+  return {
+    ok: true,
+    input: {
+      hostMessage: field(formData, "hostMessage"),
+      hashtag: hashtag.value,
+      accentColor: accentRaw,
+      sharingEnabled: formData.get("sharingEnabled") === "on",
+    },
   };
 }
 
@@ -91,11 +124,14 @@ export async function createEventAction(
   if (!details) return { error: "Give your event a name." };
 
   const draft = await createDraftEvent(host.id, details.name);
-  await updateEventConfig(host.id, draft.id, details);
+  await updateEventConfig(host.id, draft.id, {
+    ...details,
+    ...parseAfterParty(formData, details.timezone),
+  });
   redirect(`/events/${draft.id}/setup?step=look`);
 }
 
-/** Create · Details for an existing draft. */
+/** Create · Details for an existing draft (details and the After the party card). */
 export async function saveDetailsStepAction(
   eventId: string,
   _prev: EventFormState,
@@ -105,46 +141,95 @@ export async function saveDetailsStepAction(
   const details = parseDetails(formData);
   if (!details) return { error: "Give your event a name." };
 
-  const updated = await updateEventConfig(host.id, eventId, details);
+  const updated = await updateEventConfig(host.id, eventId, {
+    ...details,
+    ...parseAfterParty(formData, details.timezone),
+  });
   if (!updated) notFound();
   redirect(`/events/${eventId}/setup?step=look`);
 }
 
-/** Create · Look: welcome message, hashtag, reveal timing, visibility, sharing. */
+/** Create · Look: color, hashtag, welcome message, Guest keepsakes. Continue with nothing set
+ *  keeps the defaults — the default event. */
 export async function saveLookStepAction(
   eventId: string,
   _prev: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
   const host = await requireHost();
-  const event = await getEventForHost(host.id, eventId);
-  if (!event) notFound();
+  const look = parseLook(formData);
+  if (!look.ok) return { error: look.error };
 
-  const updated = await updateEventConfig(host.id, eventId, parseLook(formData, event.timezone));
+  const updated = await updateEventConfig(host.id, eventId, look.input);
   if (!updated) notFound();
   redirect(`/events/${eventId}/setup?step=share`);
 }
 
-/** Settings tab: every editable field in one save. */
-export async function updateEvent(eventId: string, formData: FormData) {
+/** Settings · Event & gallery: name, date, timezone, reveal timing, visibility. */
+export async function saveEventAndGalleryAction(
+  eventId: string,
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
   const host = await requireHost();
-
   const details = parseDetails(formData);
-  if (!details) {
-    throw new Error("Event name is required.");
-  }
+  if (!details) return { error: "Give your event a name." };
 
-  const input: Partial<EventConfigInput> = {
+  const updated = await updateEventConfig(host.id, eventId, {
     ...details,
-    ...parseLook(formData, details.timezone),
-  };
-
-  const updated = await updateEventConfig(host.id, eventId, input);
-  if (!updated) {
-    notFound();
-  }
-
+    ...parseAfterParty(formData, details.timezone),
+  });
+  if (!updated) notFound();
   redirect(`/events/${eventId}/settings?saved=1`);
+}
+
+/** Settings · Look: the same fields as Create · Look, saved with Save changes. */
+export async function saveLookSettingsAction(
+  eventId: string,
+  _prev: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  const host = await requireHost();
+  const look = parseLook(formData);
+  if (!look.ok) return { error: look.error };
+
+  const updated = await updateEventConfig(host.id, eventId, look.input);
+  if (!updated) notFound();
+  redirect(`/events/${eventId}/settings/look?saved=1`);
+}
+
+/**
+ * Theme image, step 1 (architecture §7a): a signed upload capability for one server-chosen path
+ * in this host's own event folder. Host session and ownership are checked here and in the DAL.
+ */
+export async function beginThemeImageUploadAction(
+  eventId: string,
+  file: { sizeBytes: number; contentType: string },
+): Promise<BeginThemeUploadResult> {
+  const host = await requireHost();
+  return beginThemeImageUpload(host.id, eventId, {
+    sizeBytes: Number(file.sizeBytes),
+    contentType: String(file.contentType).toLowerCase(),
+  });
+}
+
+/** Theme image, steps 2–4: normalize, swap, prune. Saves immediately — not with the form. */
+export async function commitThemeImageUploadAction(
+  eventId: string,
+  uploadId: string,
+): Promise<CommitThemeUploadResult> {
+  const host = await requireHost();
+  const result = await commitThemeImageUpload(host.id, eventId, String(uploadId));
+  if (result.kind === "saved") revalidatePath(`/events/${eventId}`, "layout");
+  return result;
+}
+
+/** Remove the theme image (after the host confirms). Accent, hashtag and everything else stay. */
+export async function removeThemeImageAction(eventId: string) {
+  const host = await requireHost();
+  const result = await removeThemeImage(host.id, eventId);
+  if (result.kind === "removed") revalidatePath(`/events/${eventId}`, "layout");
+  return result;
 }
 
 /**
