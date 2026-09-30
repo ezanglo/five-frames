@@ -10,7 +10,6 @@ import {
 import {
   precheckThemeImageFile,
   THEME_IMAGE_REFUSAL_COPY,
-  themeUploadContentType,
   type ThemeImageRefusal,
 } from "@/lib/theme/image";
 import { Button } from "@/components/ff/button";
@@ -82,6 +81,7 @@ export function ThemeImageControl({
   useEffect(() => releaseLocalUrl, []);
 
   async function upload(file: File) {
+    // Refuses HEIC/HEIF, other formats and oversized files before anything is uploaded.
     const precheck = precheckThemeImageFile(file);
     if (!precheck.ok) {
       setPhase({ kind: "refused", reason: precheck.reason });
@@ -92,7 +92,7 @@ export function ThemeImageControl({
     releaseLocalUrl();
     const localUrl = URL.createObjectURL(file);
     localUrlRef.current = localUrl;
-    const contentType = themeUploadContentType(file);
+    const contentType = file.type.toLowerCase();
     setJustSaved(false);
     setPhase({ kind: "uploading", progress: 0, localUrl });
     setAnnouncement("Uploading your theme image.");
@@ -159,7 +159,8 @@ export function ThemeImageControl({
     <input
       ref={inputRef}
       type="file"
-      // image/* rather than an explicit list: iOS then hands over its photos as JPEG.
+      // image/* rather than an explicit list: iOS Safari then usually hands over its photos
+      // already converted to JPEG. A raw HEIC chosen anyway is refused by the pre-check.
       accept="image/*"
       className="sr-only"
       tabIndex={-1}
@@ -205,7 +206,7 @@ export function ThemeImageControl({
           <ImagePlus className="size-5 text-brand-ink" aria-hidden />
           <p className="text-label font-bold text-ink">Add a theme image</p>
           <p className="max-w-[280px] text-caption font-medium text-ink-muted">
-            A photo or artwork for your event. JPG, PNG or HEIC. Big images look best on posters.
+            A photo or artwork for your event. JPG, PNG or WebP. Big images look best on posters.
           </p>
           <Button
             variant="secondary"

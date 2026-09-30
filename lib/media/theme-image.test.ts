@@ -5,6 +5,8 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { normalizeThemeImage } from "./theme-image";
 
+const fixture = (name: string) => path.resolve(import.meta.dirname, "../../test/fixtures", name);
+
 function solid(width: number, height: number, channels: 3 | 4 = 3, alpha = 1) {
   return sharp({
     create: {
@@ -89,26 +91,29 @@ describe("normalizeThemeImage", () => {
     expect(result.ok && result.contentType).toBe("image/jpeg");
   });
 
-  it("accepts a decodable HEIF container (AV1-coded)", async () => {
-    const heif = await solid(1200, 900).heif({ compression: "av1" }).toBuffer();
-    const result = await normalizeThemeImage(heif);
-    expect(result.ok && result.contentType).toBe("image/jpeg");
-  });
-
-  it("routes a real HEVC HEIC through the HEIF branch and refuses it calmly on this runtime", async () => {
-    // A genuine HEVC HEIC made by macOS `sips` (test/fixtures). sharp's prebuilt libvips parses
-    // it (format heif, compression hevc) but ships no HEVC decoder, so decode fails. If a future
-    // runtime can decode HEVC, the same call starts succeeding and this test still passes.
-    const heic = readFileSync(path.resolve(import.meta.dirname, "../../test/fixtures/theme-sample.heic"));
+  it("refuses a raw HEIC (HEVC) before decoding it: not supported in MVP", async () => {
+    // A genuine HEVC HEIC made by macOS `sips` (test/fixtures). The deployed sharp reads its
+    // header (format heif, compression hevc) but has no HEVC decoder (architecture §7a).
+    const heic = readFileSync(fixture("theme-sample.heic"));
     const meta = await sharp(heic).metadata();
     expect([meta.format, meta.compression]).toEqual(["heif", "hevc"]);
+    expect(await normalizeThemeImage(heic)).toEqual({ ok: false, reason: "heic" });
+  });
 
-    const result = await normalizeThemeImage(heic);
-    if (result.ok) {
-      expect(result.contentType).toBe("image/jpeg");
-    } else {
-      expect(result.reason).toBe("heic_undecodable");
-    }
+  it("refuses a raw HEIF too, even one this sharp could decode (AV1-coded)", async () => {
+    const heif = await solid(1200, 900).heif({ compression: "av1" }).toBuffer();
+    expect(await normalizeThemeImage(heif)).toEqual({ ok: false, reason: "heic" });
+  });
+
+  it("treats a photo the platform already converted from HEIC to JPEG simply as a JPEG", async () => {
+    // The same HEIC fixture converted by macOS ImageIO (`sips -s format jpeg`), which is what a
+    // browser hands over when it transcodes a picked iPhone photo. It carries camera EXIF.
+    const transcoded = readFileSync(fixture("theme-sample-transcoded.jpg"));
+    expect((await sharp(transcoded).metadata()).format).toBe("jpeg");
+    const result = await normalizeThemeImage(transcoded);
+    expect(result.ok && [result.contentType, result.width, result.height]).toEqual(["image/jpeg", 1200, 900]);
+    if (!result.ok) return;
+    expect((await sharp(result.buffer).metadata()).exif).toBeUndefined();
   });
 
   it("refuses SVG, even though libvips could rasterize it", async () => {

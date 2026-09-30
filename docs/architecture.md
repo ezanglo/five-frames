@@ -488,12 +488,19 @@ reserve/commit gate, that makes "connection drops mid-upload" cheap for large fi
 - **Keepsakes** (§7b) are further derived outputs, rendered on demand from display derivatives
   (one for a Single-photo keepsake, five for a Full Set) and never stored. They replace Slice
   10's share cards. Never a mutation of the original.
-- **HEIC/HEIF:** accepted on upload. **Correction (Slice 15, 2026-09-30):** the prebuilt `sharp`
-  0.35 / libvips 8.18 binary parses HEIF containers and decodes AV1-coded HEIF, but ships no HEVC
-  decoder, so a genuine HEVC `.heic` fails to decode. The Slice 2 iPhone pass worked because iOS
-  Safari hands `accept="image/*"` pickers a JPEG (no HEIC capture exists in dev). A desktop HEIC
-  file therefore can't produce derivatives today; see docs/progress.md → Slice 15 for the open
-  decision.
+- **HEIC/HEIF (measured in Slice 15, 2026-09-30; supersedes the earlier "accepted on upload"
+  assumption):** raw HEIC/HEIF is **not supported in MVP** (product.md §14). The standard,
+  deployment-compatible prebuilt `sharp` 0.35 / libvips 8.18 reads a HEIF header and decodes
+  AV1-coded HEIF, but has no HEVC decoder, so a genuine iPhone HEIC
+  (`test/fixtures/theme-sample.heic`) fails to decode. The Slice 2 real-iPhone pass that was
+  recorded as "HEIC works" was in fact a JPEG: iOS Safari converted the photo it handed to the
+  `accept="image/*"` picker (every committed capture in dev is JPEG/PNG). So directly supported
+  raw formats are JPEG, PNG and static WebP; an iPhone photo works when the browser or platform
+  delivers it already converted to JPEG, which isn't guaranteed on every platform. No client-side
+  conversion or custom image stack is added for MVP. The theme image refuses HEIC/HEIF up front
+  (§7a). The capture path still accepts a raw HEIC upload and then fails at derivative
+  processing (commit fails, no frame consumed); an early rejection there is a tracked maintenance
+  follow-up (docs/progress.md).
 
 ### Private delivery
 
@@ -538,7 +545,8 @@ the row the app already loads, not a new entity.
 
 - **Bucket:** a new private bucket, `event-theme` (`public = false`), created by migration. Its
   own `file_size_limit` (**15 MB**) and `allowed_mime_types` (`image/jpeg`, `image/png`,
-  `image/webp`, `image/heic`, `image/heif`) are enforced by Storage at upload time. Kept separate
+  `image/webp`; HEIC/HEIF removed by the forward migration `20260930010000`) are enforced by
+  Storage at upload time. Kept separate
   from `captures` so theme media can never be mistaken for, counted with, or downloaded as a
   capture (product.md §10.1).
 - **Layout:** flat, one folder per event: `{event_id}/{upload_id}.upload` (the raw upload, transient)
@@ -548,10 +556,11 @@ the row the app already loads, not a new entity.
   1. *Begin*: server action mints a signed upload URL for a fresh `…/{upload_id}.upload` path (the
      D7 mechanism). Theme files are small enough that the standard signed PUT is the normal path.
      The existing TUS-above-6 MB client helper may be reused unchanged.
-  2. *Commit*: the server verifies the object exists, then normalizes it with `sharp`. It decodes,
-     rejects anything with more than one frame/page (animated WebP/PNG, multi-image HEIC) or over a
-     ~40-megapixel decode cap, rejects a shortest edge under 600 px, auto-orients, strips all
-     metadata (EXIF/GPS never reaches a guest), and resizes to a ≤ 2400 px long edge. Output is
+  2. *Commit*: the server verifies the object exists, then normalizes it with `sharp`. It refuses
+     HEIC/HEIF from its header before decoding, then decodes, rejects anything with more than one
+     frame/page (animated WebP/PNG) or over a ~40-megapixel decode cap, rejects a shortest edge
+     under 600 px, auto-orients, strips all metadata (EXIF/GPS never reaches a guest), and
+     resizes to a ≤ 2400 px long edge. Output is
      JPEG, or PNG only when the source has transparency.
   3. *Swap*: one ownership-predicated `UPDATE events SET theme_image_path = $new`.
   4. *Prune*: list the event's folder and delete every object other than the current
@@ -560,10 +569,12 @@ the row the app already loads, not a new entity.
   - Any failure before step 3 leaves the previous image in place (product.md §13). Leftovers from a
     crash or a concurrent upload are just "not current" objects, and the next prune removes them.
     No lock or saga is needed.
-- **Formats (engineering constraint, product.md §10.1/§19):** JPEG, PNG, HEIC/HEIF (decoded by the
-  same `sharp` build captures already use — which in practice means AV1-coded HEIF only; HEVC HEIC
-  is refused calmly and leaves the previous image, see §7 "HEIC/HEIF"), and static WebP. **Not accepted:** SVG (script-capable
-  markup, never ingested), GIF, animated images, PDF/multi-page, RAW, video. Recommended source:
+- **Formats (product.md §10.1/§14):** JPEG, PNG and static WebP, identified from the file's own
+  header, never by the declared type. **Not accepted:** raw HEIC/HEIF (see §7 "HEIC/HEIF";
+  refused in the browser pre-check by type or name, at *Begin* by declared type, by Storage's
+  MIME list, and at *Commit* by header, each with "choose or export it as JPG, PNG or WebP" and
+  the previous image kept), SVG (script-capable markup, never ingested), GIF, animated images,
+  PDF/multi-page, RAW, video. Recommended source:
   ≥ 1600 px on the long edge so the poster format prints cleanly. Whether to warn below that is a
   design copy question.
 
@@ -1274,7 +1285,7 @@ traffic to track, not before.
 | Risk | Impact | Response |
 |---|---|---|
 | In-app browsers (FB/Messenger/IG) restrict camera, file picker, or direct storage upload | Core guest flow broken for a large share of PH users | Validated inside the first capture slice, on real devices, as an exit condition — not deferred to final QA |
-| HEIC conversion needed and expensive or lossy | Photo pipeline rework | Accept originals untouched regardless; derivative path is isolated behind `lib/media/` |
+| HEIC conversion needed and expensive or lossy | Photo pipeline rework | Materialized in Slice 15: the prebuilt `sharp` can't decode HEVC HEIC. MVP accepts JPEG/PNG/WebP directly and relies on browser conversion where it happens (§7 "HEIC/HEIF"); no client conversion or custom image stack. Originals stay untouched; the derivative path is isolated behind `lib/media/` |
 | Venue network worse than resumable upload can absorb | Guests lose captures | Reservation TTL guarantees no permanently lost frame; measure real failure rates during capture-slice device testing |
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |

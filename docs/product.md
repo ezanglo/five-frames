@@ -341,7 +341,7 @@ Themed outputs also use the event's existing name and date. The existing **welco
 - Decorative, event-branding media: for example an engagement or wedding photo, a birthday photo, a reunion or trip photo, or company-event artwork or illustration.
 - It is **not** a guest capture, not one of anyone's five frames, and never replaces or modifies a captured original. It doesn't appear in the gallery, and isn't counted in capture or moderation counts, the host's capture downloads, or Operator Console counts.
 - One image at a time. The host can replace or remove it whenever event configuration is editable. Removing it returns every surface to the default no-image treatment.
-- Supported: one still photo or artwork in the common image formats hosts' phones and computers produce — at minimum JPEG and PNG, plus HEIC/HEIF photos to the same extent captures support them (§14). Not supported: video, animated images, multi-page documents, or multiple layers. A sensible maximum file size applies; the exact limit and conversion path are architecture/design details.
+- Supported: one still photo or artwork as JPEG, PNG or static WebP. Raw HEIC/HEIF files are not supported in MVP (§14). Not supported: video, animated images, multi-page documents, or multiple layers. A sensible maximum file size applies; the exact limit is an architecture/design detail.
 - An unsupported or failed upload leaves the previous theme image (or the default) in place, with a calm explanation.
 - FiveFrames decides how the image is cropped and placed on each surface. The host picks the image but does not lay it out surface by surface.
 - **Who sees it:** anyone who can reach a surface that shows it. That means guests holding the event link (including before joining and while capture is closed), anyone who sees printed or digital signage, and anyone a guest shares a keepsake with. At upload, the host is told plainly that the theme image is public-facing event presentation, not private gallery content. It is still delivered in the app through access-checked, non-guessable URLs (§8.4), and it is permanently deleted along with the event's media (§15.2).
@@ -651,7 +651,7 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 
 - Store the **original untouched**, plus derived **display** and **thumbnail** assets. **Keepsakes** of both families (§10.2) are further derived outputs. Whether they are kept after generation is an architecture decision; if kept, they follow the event's retention and deletion.
 - The event **theme image** (§10.1) is event presentation media, kept separately from guest captures, delivered privately (§8.4), and permanently deleted with the event's media.
-- Must accept common iPhone/Android formats, including **HEIC/HEIF** if still prevalent on target devices/browsers. The exact conversion path is to be validated during implementation rather than designed up front.
+- Accepted image formats are **JPEG, PNG and static WebP**. **Raw HEIC/HEIF files are not supported in MVP**, and FiveFrames does not claim to decode HEIC. A photo taken as HEIC on an iPhone often reaches FiveFrames already converted to JPEG by the browser or platform, and then works like any JPEG; that conversion depends on the browser and isn't guaranteed.
 - Large media uploads go **directly to storage**, not proxied through the application server.
 - Upload should be resilient to interruption (resumable or safely restartable) on weak venue connections.
 
@@ -726,7 +726,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 **Explicitly left to architecture**
 - How frame limits are enforced (reservation rows, constraints, transactions, or otherwise).
 - Realtime mechanism (sockets, polling, or provider-native).
-- Image derivative pipeline and HEIC handling specifics.
+- Image derivative pipeline specifics.
 - How keepsakes, signage, and theme previews are rendered (where, with what, and whether/how outputs are cached or retained), and how a theme change reaches outputs generated afterwards.
 - For Full Set keepsakes: how a render proves all five captures belong to the requesting guest's session and are committed and non-hidden, how commit order is established, output dimensions, how crops keep subjects in frame across mixed orientations, and the cost of rendering from five source images.
 - How the theme image is stored, processed, and delivered, and its exact accepted formats and size limit.
@@ -812,12 +812,11 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 **Open — do not block MVP definition**
 - Exact safety-net close duration after the event (48–72 hours).
 - Exact expiry grace period before permanent deletion (~30 days).
-- Whether HEIC still requires conversion on target devices (validate during implementation).
 - Final payment provider selection.
 - Whether bulk download is a zip, a batched flow, or provider-native.
 - Copy and legal text for refunds, retention and deletion (needs a business/legal decision before launch).
 - Whether hosts may pick a free custom accent color in addition to FiveFrames' curated set (§10.1). This is a design decision; the contrast safeguard applies either way.
-- Exact theme image formats beyond JPEG/PNG/HEIC and the maximum file size (§10.1) — left to architecture/design.
+- Exact theme image maximum file size (§10.1) — left to architecture/design.
 - Exact timing and criteria for moving launch price from ₱999 toward the ₱1,490 target (needs a business decision once early paid-event data exists).
 - Exact demo content/mechanism (sample media vs. fully local/non-persistent demonstration) — left to architecture and design.
 - Which specific individual(s) hold operator accounts at launch (expected: the founder only, or a very small number of staff) and when/how that expands to additional staff — the qualification rule itself (§5) is decided, only headcount and timing remain open.

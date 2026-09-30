@@ -150,9 +150,10 @@ change, not a refactor.
   for white text or for text on white). Themed surfaces get the six `--brand-*` roles from
   `accentCssVars()` inside `.ff-event-theme`; host chrome, Operator, the logo and the QR plate
   never do. The unit test in `lib/theme/accents.test.ts` is the contrast safeguard.
-- **The prebuilt `sharp` can't decode HEVC HEIC** (it reads the container and decodes AV1 HEIF
-  only). iPhones deliver JPEG through `accept="image/*"`; a desktop `.heic` fails to decode. Don't
-  assume HEIC works without a test against a real HEVC file (`test/fixtures/theme-sample.heic`).
+- **Raw HEIC/HEIF is not supported in MVP** (product.md §14). The prebuilt `sharp` can't decode
+  HEVC HEIC. A photo only works when the browser has already converted it to JPEG, and that isn't
+  guaranteed, so never claim FiveFrames decodes HEIC. Refuse it early (see `isHeicUpload` in
+  `lib/theme/image.ts`) and test against the real fixture `test/fixtures/theme-sample.heic`.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

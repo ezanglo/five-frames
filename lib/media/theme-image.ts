@@ -24,7 +24,7 @@ export type NormalizedThemeImage = {
 export type ThemeImageNormalization = NormalizedThemeImage | { ok: false; reason: ThemeImageRefusal };
 
 /** Formats identified by decoding the bytes themselves, never by the declared MIME type. */
-const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp", "heif"]);
+const ACCEPTED_FORMATS = new Set(["jpeg", "png", "webp"]);
 
 /** APNG carries an `acTL` chunk before the first `IDAT`; libvips reads only the first frame. */
 function isAnimatedPng(buffer: Buffer): boolean {
@@ -39,9 +39,10 @@ function isAnimatedPng(buffer: Buffer): boolean {
  * XMP, IPTC and the ICC profile, after conversion to sRGB), resized to a ≤ 2400 px long edge,
  * and re-encoded as JPEG — or PNG only when the source actually has transparent pixels.
  *
- * Refused: anything whose decoded format isn't JPEG/PNG/WebP/HEIF (SVG, GIF, TIFF/RAW, PDF,
- * video, text with a spoofed type), any animation or multi-frame/multi-page image, sources over
- * 15 MB or ~40 MP, and anything with a shortest edge under 600 px. A refusal never touches the
+ * Refused: anything whose decoded format isn't JPEG/PNG/WebP (SVG, GIF, TIFF/RAW, PDF, video,
+ * text with a spoofed type), HEIC/HEIF of any coding (not supported in MVP — the deployed `sharp`
+ * has no HEVC decoder; architecture §7a), any animation or multi-frame/multi-page image, sources
+ * over 15 MB or ~40 MP, and anything with a shortest edge under 600 px. A refusal never touches the
  * current theme image; the caller decides what to keep.
  */
 export async function normalizeThemeImage(input: Buffer): Promise<ThemeImageNormalization> {
@@ -55,6 +56,8 @@ export async function normalizeThemeImage(input: Buffer): Promise<ThemeImageNorm
     return { ok: false, reason: "unsupported" };
   }
 
+  // Reading the header is enough to recognise HEIC/HEIF, so it is refused before any decode.
+  if (metadata.format === "heif") return { ok: false, reason: "heic" };
   if (!metadata.format || !ACCEPTED_FORMATS.has(metadata.format)) {
     return { ok: false, reason: "unsupported" };
   }
@@ -99,12 +102,6 @@ export async function normalizeThemeImage(input: Buffer): Promise<ThemeImageNorm
       small: Math.max(width, height) < THEME_IMAGE_RECOMMENDED_LONG_EDGE,
     };
   } catch {
-    // The prebuilt sharp/libvips build parses HEIC containers but ships no HEVC decoder, so a
-    // genuine HEVC HEIC fails here (docs/progress.md → Slice 15 HEIC finding). Say so calmly
-    // instead of the generic refusal, which would tell the host to pick a HEIC.
-    if (metadata.format === "heif" && metadata.compression === "hevc") {
-      return { ok: false, reason: "heic_undecodable" };
-    }
     return { ok: false, reason: "unsupported" };
   }
 }

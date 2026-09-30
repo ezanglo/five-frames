@@ -379,13 +379,13 @@ Both the design pass and the Full Set amendment are done and were approved by th
 ## Slice 15 — Event theme foundation
 
 **Status (2026-09-30):** `complete` — automated, browser and human visual verification passed.
-One bounded open decision remains: HEVC HEIC images (docs/progress.md → Slice 15).
+HEIC resolved as option (a): raw HEIC/HEIF is not supported in MVP (docs/progress.md → Slice 15).
 
 **Objective:** A host can give an event a theme (image, accent, hashtag) or skip it, and guest
 screens show it through private, access-checked delivery.
 
 - Migration: `events.theme_image_path`, `events.accent_color` (default `violet`); normalize or clear
-  existing `hashtag` values; private `event-theme` bucket (15 MB, JPEG/PNG/WebP/HEIC/HEIF).
+  existing `hashtag` values; private `event-theme` bucket (15 MB, JPEG/PNG/WebP; raw HEIC/HEIF not supported in MVP).
 - `lib/theme/`: curated accent registry with labels + `deriveAccentRoles`; hashtag validator.
 - Theme image begin/commit/swap/prune and remove (architecture §7a), ownership-scoped and limited to
   editable states. Calm failure leaves the previous image.

@@ -23,6 +23,7 @@ import type { EventRow } from "@/lib/db/types";
 import {
   THEME_IMAGE_MAX_BYTES,
   THEME_IMAGE_MIME_TYPES,
+  isHeicUpload,
   type ThemeImageRefusal,
 } from "@/lib/theme/image";
 import { themeViewFrom, type EventThemeView } from "@/lib/theme/view";
@@ -80,6 +81,7 @@ export async function beginThemeImageUpload(
   if (!Number.isFinite(declared.sizeBytes) || declared.sizeBytes <= 0) {
     return { kind: "refused", reason: "unsupported" };
   }
+  if (isHeicUpload({ type: declared.contentType })) return { kind: "refused", reason: "heic" };
   if (declared.sizeBytes > THEME_IMAGE_MAX_BYTES) return { kind: "refused", reason: "too_large" };
   if (!(THEME_IMAGE_MIME_TYPES as readonly string[]).includes(declared.contentType)) {
     return { kind: "refused", reason: "unsupported" };

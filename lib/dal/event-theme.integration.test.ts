@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServiceClient } from "@/lib/supabase/service-client";
@@ -191,6 +193,62 @@ describe("event theme image", { timeout: 60_000 }, () => {
       reason: "missing",
     });
     expect((await row(event.id)).theme_image_path).toBeNull();
+  });
+
+  describe("raw HEIC/HEIF (not supported in MVP)", () => {
+    const fixture = (name: string) => readFileSync(path.resolve(import.meta.dirname, "../../test/fixtures", name));
+
+    it("is refused before any upload capability exists", async () => {
+      const event = await newEvent();
+      for (const contentType of ["image/heic", "image/heif"]) {
+        expect(await beginThemeImageUpload(hostAId, event.id, { sizeBytes: 24_315, contentType })).toEqual({
+          kind: "refused",
+          reason: "heic",
+        });
+      }
+      expect(await folder(event.id)).toEqual([]);
+    });
+
+    it("Storage refuses a HEIC body on a signed URL", async () => {
+      const event = await newEvent();
+      const begun = await beginThemeImageUpload(hostAId, event.id, { sizeBytes: 24_315, contentType: "image/jpeg" });
+      if (begun.kind !== "ready") throw new Error("expected ready");
+      for (const contentType of ["image/heic", "image/heif"]) {
+        const put = await fetch(begun.signedUrl, {
+          method: "PUT",
+          body: new Uint8Array(fixture("theme-sample.heic")),
+          headers: { "content-type": contentType },
+        });
+        expect(put.ok).toBe(false);
+      }
+      expect(await folder(event.id)).toEqual([]);
+    });
+
+    it("HEIC/HEIF bytes declared as JPEG are refused on commit; the previous image stays", async () => {
+      const event = await newEvent();
+      await upload(event.id, await photo());
+      const before = (await row(event.id)).theme_image_path;
+      const beforeUrl = (await getEventThemeForHost(hostAId, event.id))!.imageUrl!;
+
+      const heic = await upload(event.id, fixture("theme-sample.heic"), "image/jpeg");
+      expect(heic.committed).toEqual({ kind: "refused", reason: "heic" });
+      const heif = await sharp({ create: { width: 1200, height: 900, channels: 3, background: "#335577" } })
+        .heif({ compression: "av1" })
+        .toBuffer();
+      expect((await upload(event.id, heif, "image/jpeg")).committed).toEqual({ kind: "refused", reason: "heic" });
+
+      // No new authoritative path, the refused raw uploads are gone, the old image still serves.
+      expect((await row(event.id)).theme_image_path).toBe(before);
+      expect(await folder(event.id)).toEqual([before]);
+      expect((await fetch(beforeUrl)).ok).toBe(true);
+    });
+
+    it("a photo already converted to JPEG is simply a JPEG and saves normally", async () => {
+      const event = await newEvent();
+      const { committed } = await upload(event.id, fixture("theme-sample-transcoded.jpg"));
+      expect(committed?.kind).toBe("saved");
+      expect((await row(event.id)).theme_image_path).toMatch(/\.jpg$/);
+    });
   });
 
   it("another host can't begin, commit, remove or read this event's theme", async () => {

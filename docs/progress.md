@@ -1,8 +1,8 @@
 # FiveFrames — Progress
 
 Last updated: 2026-09-30 (**Slice 15 — event theme foundation: `complete`** — automated and
-browser verification green, and the user passed all six visual/taste checks. One bounded open
-decision remains on HEVC HEIC (non-blocking; see the Slice 15 section). The user approved the Event Theme &
+browser verification green, and the user passed all six visual/taste checks. HEIC resolved as
+option (a): raw HEIC/HEIF isn't supported in MVP; see the Slice 15 section. The user approved the Event Theme &
 Keepsakes design and the Full Set amendment the same day; D19/D20 accepted. Slice 14 —
 full-flow real-device and venue-condition validation — is still `awaiting human verification`;
 run its checklist against the redesigned UI. The earlier brand identity, marketing motion and
@@ -26,7 +26,8 @@ implementation target for Slices 15–17. Product §10 / §11.3, D19 and D20 are
   `events.theme_image_path` (DB check: must sit in the event's own folder), `events.accent_color`
   (default `violet`, key-shaped check), existing `hashtag` normalized (the one dev value `#EZMARBIE`
   → `EZMARBIE`; invalid ones cleared) with a shape check, and the private `event-theme` bucket
-  (15 MB; JPEG/PNG/WebP/HEIC/HEIF).
+  (15 MB). `20260930010000_event_theme_raw_formats.sql` (applied to dev) narrows its MIME list to
+  JPEG/PNG/WebP.
 - **`lib/theme/`**: the seven curated accents with fixed roles (`deriveAccentRoles`,
   `accentCssVars`; unknown key → violet), WCAG contrast helpers, hashtag rules (≤ 30, letters incl.
   accented, digits, `_`, stored without `#`), theme-image limits and refusal copy, the Look preview
@@ -69,12 +70,15 @@ implementation target for Slices 15–17. Product §10 / §11.3, D19 and D20 are
 **Automated verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test`
 277/277 ✔ (31 files). New: `lib/theme/accents.test.ts` (7 keys × fill/text, ink/white, ink/tint,
 onDark/night ≥ 4.5; unknown key → violet; CSS vars only from the registry),
-`lib/theme/hashtag.test.ts`, `lib/theme/preview.test.ts`, `lib/keepsakes/styles.test.ts`,
-`lib/media/theme-image.test.ts` (EXIF/GPS stripped, orientation, resize, transparency, WebP,
-AV1-HEIF, real HEVC HEIC fixture, SVG/GIF/TIFF/PDF/spoofed/animated WebP/APNG/oversize/40 MP/
-too-small refused), and `lib/dal/event-theme.integration.test.ts` against real dev Postgres +
-Storage (replace/remove leave exactly the current object or none; refused replacement keeps the
-previous image; Storage refuses over-limit and SVG PUTs; host B can't begin/commit/remove/read
+`lib/theme/hashtag.test.ts`, `lib/theme/preview.test.ts`, `lib/theme/image.test.ts` (pre-check:
+HEIC/HEIF by type or name, a browser-converted JPEG named `.HEIC` accepted), `lib/keepsakes/styles.test.ts`,
+`lib/media/theme-image.test.ts` (EXIF/GPS stripped, orientation, resize, transparency, WebP, an
+ImageIO-converted JPEG of the HEIC fixture accepted as JPEG; real HEVC HEIC, AV1-HEIF,
+SVG/GIF/TIFF/PDF/spoofed/animated WebP/APNG/oversize/40 MP/too-small refused), and
+`lib/dal/event-theme.integration.test.ts` against real dev Postgres + Storage (replace/remove
+leave exactly the current object or none; refused replacement keeps the previous image; Storage
+refuses over-limit, SVG and HEIC/HEIF PUTs; HEIC/HEIF refused at begin, and as spoofed JPEG at
+commit with the previous image and path unchanged; host B can't begin/commit/remove/read
 host A's theme or reach A's folder; malformed upload id refused; DB refuses an out-of-folder
 path; theme edits never touch activation/tokens/payment/lifecycle columns; guest token/rotation;
 locked/private gallery gets nothing; Operator gets no path; expired → not editable; D18 deletion
@@ -94,18 +98,24 @@ this pass: the guest-preview frame painted black in Chromium (content was hidden
 `visibility`, which throttles iframe rendering — now opacity), and the Overview/tabs overflowed at
 1024–1440. Amber text (3.9:1) moved to icons only. This is emulation, not real-device proof.
 
-**Open decision (bounded architecture/implementation conflict): HEVC HEIC.** Architecture
-assumed the capture `sharp` build decodes HEIC. It doesn't: prebuilt sharp 0.35 / libvips 8.18
-reads HEIF containers and decodes AV1 HEIF but has no HEVC decoder (evidence: the real HEVC
-fixture fails with "Decoder plugin generated an error"; every committed capture in dev is
-JPEG/PNG, so the Slice 2 "HEIC on iPhone" pass was iOS transcoding to JPEG). Current behavior:
-iPhones deliver JPEG through `accept="image/*"` (theme control and capture both use it); a
-desktop `.heic` theme upload is refused with "We couldn't read that HEIC photo. Try saving it as a
-JPG first. Your current image is unchanged." The same file as a **capture** would fail commit
-(no frame consumed; the guest sees a retry error). Options for the user: (a) accept as-is and
-document "save as JPG" for desktop HEIC; (b) client-side HEIC→JPEG conversion in the browser
-(new dependency, e.g. libheif WASM); (c) a custom libvips build with libde265 (not available on
-Vercel's prebuilt path). No external image service was added. Recommendation: (a) for MVP.
+**HEIC — resolved, option (a) (user, 2026-09-30).** Measured: the deployed-compatible prebuilt
+`sharp` 0.35 / libvips 8.18 has no HEVC decoder, so a genuine iPhone HEIC fixture fails to decode.
+The Slice 2 "HEIC on iPhone" pass was a JPEG converted by iOS Safari (every committed capture in
+dev is JPEG/PNG). MVP rule (product.md §10.1/§14, architecture §7/§7a): raw formats supported
+directly are JPEG, PNG and static WebP; raw HEIC/HEIF is not supported; a photo the browser
+hands over already converted to JPEG is just a JPEG. No client conversion, custom libvips build
+or image service. The theme image refuses HEIC/HEIF before anything is uploaded (browser
+pre-check by type or name; `begin` by declared type), Storage refuses the MIME types, and commit
+refuses HEIF-family bytes by header. The copy is "HEIC and HEIF files aren’t supported. Choose
+or export the photo as a JPG, PNG or WebP. Your current image is unchanged." After this change:
+typecheck ✔ · lint ✔ · build ✔ · `pnpm test` 288/288 ✔ (32 files). No browser re-run: the
+visible change is that refusal line's wording, and it appears where the earlier HEIC refusal did,
+which was already verified in the browser.
+
+**Follow-up (bounded, not Slice 15):** raw HEIC supplied directly to the existing guest-capture
+path currently fails during derivative processing. Normal tested iPhone Photos selection supplied
+JPEG. Add an early, calm unsupported-format rejection for genuinely raw HEIC in a future
+maintenance objective unless later evidence justifies native conversion.
 
 **Interim states Slices 16–17 replace:** the Look keepsake/signage objects are presentational
 drawings (Slice 16 swaps in the real templates; Slice 17 the signage renderer and live QR); the
@@ -1503,7 +1513,8 @@ Vercel deployment described above for real HTTPS.
    reservation rather than losing or duplicating it.
 6. **HEIC on a real iPhone** — pass. Committed and produced a viewable JPEG derivative; resolves
    product.md §19's open question — no dedicated HEIC conversion step is needed, `sharp` handles
-   it on the existing derivative path.
+   it on the existing derivative path. *(Corrected in Slice 15: the browser supplied a JPEG, so
+   this didn't exercise raw HEIC; raw HEIC is unsupported in MVP — see the Slice 15 section.)*
 
 ## Manual verification results (Slice 3 exit condition) — all passed, reported 2026-09-21
 
@@ -1730,8 +1741,7 @@ device available) will be recorded honestly as a known limitation rather than cl
 verification`.** Everything automatable is done and passing (see above). The checklist above is
 the exit condition; there is no further automatable work in this slice.
 
-**Slice 15 — event theme foundation: `complete`.** The HEVC HEIC decision is still open
-(non-blocking). **Next: Slice 16** (keepsakes, Phase A
+**Slice 15 — event theme foundation: `complete`** (HEIC resolved as option (a)). **Next: Slice 16** (keepsakes, Phase A
 Single-photo then Phase B Full Set) or **Slice 17** (themed signage) — both depend only on 15.
 MVP launch requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
 mutation until Slices 14–17 are PASS or honestly-recorded BLOCKED with no unresolved
@@ -1745,7 +1755,7 @@ launch-blocking defect.
 | Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
 | Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews are now product — Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
-| HEVC HEIC can't be decoded by the prebuilt `sharp` (desktop `.heic` theme images are refused calmly; the same file as a capture fails commit without consuming a frame). Options and recommendation in the Slice 15 section | Open decision (architecture/implementation conflict) | Theme image, capture derivatives |
+| Raw HEIC supplied directly to guest capture fails at derivative processing (no frame consumed; retry error) instead of an early, calm unsupported-format refusal. The theme image already refuses it up front (Slice 15) | Maintenance follow-up | Guest capture |
 | Look keepsake/signage previews are presentational until Slices 16/17; downloadable signage and the share card are still unthemed | Known interim state | Slices 16–17 |
 | Slice 16's legacy `…/share` object cleanup and `share_path` drop run against the dev Supabase project, which also backs Vercel Production today (see below) | Known interim state | Slice 16 |
 | Operator Console, share card, 404/error pages and app icons moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
