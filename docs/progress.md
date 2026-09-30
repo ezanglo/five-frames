@@ -1,7 +1,8 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-30 (Full Set keepsakes: product amendment accepted, architecture amended as
-**D20 (accepted)** and Slice 16 Phases A/B; **Full Set design amendment pending**. Before that
+Last updated: 2026-09-30 (Full Set keepsakes: **design amendment done — awaiting human visual
+approval** (board sections 11–17). Earlier, product amendment accepted and architecture amended
+as **D20 (accepted)** and Slice 16 Phases A/B. Before that
 the same day, Event Theme & Keepsakes: product spec accepted, architecture/roadmap prepared as D19
 + Slices 15–17, **design pass done — awaiting human visual approval**, implementation **not
 started** — see the section below. Earlier the same day: brand identity v1.0 applied — see "Brand identity rollout" below. Before that, marketing motion polish — see "Marketing motion polish". Before that: contracted UI/UX designer handoff implemented across the whole app —
@@ -19,7 +20,7 @@ History and reasoning live in [docs/decisions.md](./decisions.md) (consequential
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
 
-## Event Theme & Keepsakes (2026-09-30): `designed (Single-photo) — awaiting human visual approval; Full Set design pending; implementation not started`
+## Event Theme & Keepsakes (2026-09-30): `designed (Single-photo + Full Set) — awaiting human visual approval; implementation not started`
 
 - **Product:** accepted in product.md §10 / §11.3 (theme image, curated accent, hashtag; keepsakes
   replacing the share card; themed signage; host-only Draft previews; invariant 14). **Amended
@@ -36,9 +37,25 @@ appending narrative.
   the Look studio for Create and Settings, control states, five keepsake styles (Print
   (preselected), Booth, Poster, Journal, Album), the one-step guest picker, and the four themed
   signage formats with the Draft placeholder QR.
-- **Full Set design: not started.** It needs a bounded `/design-app` amendment
-  (`docs/design-direction.md` → "Full Set keepsakes" lists what it must decide). It blocks only
-  Slice 16 Phase B.
+- **Full Set design: done — awaiting human visual approval.** The rules are in
+  `docs/design-direction.md` → "Full Set keepsakes". The rendered reference is board sections
+  11–17 (`sections/11-…` to `17-…png`), added to the same Theme & Keepsakes board, with sections
+  00–10 unchanged.
+  - **Styles:** Signature (preselected; the brandmark's construction), Strip, Grid, Spotlight,
+    Prints.
+  - **Canvas:** `FULL_SET_CANVAS` 1200 × 1800 (2:3, 2.16 MP).
+  - **Crop focus:** `50% 30%` for the whole family.
+  - **Slots:** every style's slot rectangles are specified.
+  - **Guest IA:** a One photo · Your five family switch in the accepted picker, present only while
+    the Full Set is available, plus one "Your five, together" card on completion / Your photos.
+  - **Host:** an "All five" family in the Look studio.
+  - **Fit with architecture:** no product, architecture or decision change, and nothing
+    impossible under D20.
+  - **Slice 16 notes:**
+    - Prints rotates its print wrappers (as Album already does); its declared slots are the
+      unrotated windows.
+    - DOM/Satori parity must be checked for `lineClamp` and Spotlight's radial glow.
+  - It still blocks only Slice 16 Phase B, until approved.
 - **Roadmap:** Slice 15 (theme foundation) → Slice 16 (keepsakes; Phase A Single-photo, retires
   share cards and `share_path`; Phase B Full Set) and Slice 17 (themed signage + previews). Slices
   15 and 17 are unchanged by the Full Set amendment.
@@ -50,8 +67,9 @@ appending narrative.
   `--brand-foreground` (button text, which is ink on marigold). It also moves reveal/visibility
   from Create → Look to Create → Details, splits Settings into Event & gallery · Look · Links, and
   updates the stale "share card" copy on the hashtag and sharing fields. Slice 16 builds the
-  five templates in the Satori subset the board uses. Slice 17 builds the field + scan-side
-  layouts.
+  five templates in the Satori subset the board uses, then (Phase B) the five Full Set templates,
+  their slot rects, `coverCrop` at `50% 30%`, the family switch and the completion card. Slice 17
+  builds the field + scan-side layouts.
 - **Human visual approval needed (before or during Slice 15):** open the board and review, at
   390 and 1440, Create → Look (Overview is the host's moment), Settings → Look, all five styles in
   portrait and landscape (themed and default), the guest picker (original vs keepsake reads
@@ -59,9 +77,17 @@ appending narrative.
   the Draft preview QR (obviously not a working code). Printing and scanning real signage, and
   real-device share sheets, stay human checks in Slices 16–17. They can't be judged from the
   board.
-- **Next:** approve (or adjust) the Single-photo design, and run the Full Set `/design-app`
-  amendment. `/build-app` Slice 15 does not depend on the Full Set design and can
-  start once the existing design is approved.
+- **Full Set taste review** (board §11–17). Judge:
+  - whether all five styles feel distinct;
+  - whether Signature reads as the FiveFrames mark and deserves to be the default over Grid;
+  - whether the §14 mixed-orientation crops are acceptable;
+  - whether the theme image never reads as a sixth photo;
+  - whether the branding (especially Signature's wordmark-only mark) is subtle enough;
+  - whether the One photo · Your five switch is instantly understood;
+  - whether the default violet event still looks premium.
+- **Next:** approve (or adjust) the Single-photo design and the Full Set amendment. `/build-app`
+  Slice 15 does not depend on the Full Set design and can start once the Single-photo design is
+  approved. Slice 16 Phase B needs the Full Set approval.
 
 ## Brand identity rollout (2026-09-30): `awaiting human visual approval`
 

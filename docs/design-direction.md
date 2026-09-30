@@ -2,8 +2,9 @@
 
 **Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
 pass, "Desktop and browser" below). **Event Theme & Keepsakes: designed 2026-09-30, not built,
-awaiting human visual approval** (see that section). **Full Set keepsakes: not yet designed.
-They need a bounded `/design-app` amendment** (see "Full Set keepsakes" in that section). The contracted FiveFrames
+awaiting human visual approval** (see that section). **Full Set keepsakes: designed 2026-09-30
+as an amendment to that board, not built, awaiting human visual approval** (see "Full Set
+keepsakes" in that section). The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24
@@ -32,8 +33,9 @@ Contracted designer handoff, in `docs/design-handoff/`:
   SVG exports of the symbol, wordmark, lockups, favicons and app icons. See "Brand identity".
 - `FiveFrames_Theme_Keepsakes_v1.0/` — the Event Theme & Keepsakes design (2026-09-30): one board
   (HTML + a PNG per section) covering the Look studio, Settings → Look, control states, the five
-  keepsake styles, the guest picker, and themed signage with Draft previews. See "Event Theme &
-  Keepsakes".
+  keepsake styles, the guest picker, and themed signage with Draft previews. Sections 11–17 are
+  the Full Set amendment (five Full Set styles, the Signature construction, crop pressure tests,
+  the family switch, completion, and host Look). See "Event Theme & Keepsakes".
 
 Don't duplicate the handoff here — open it. This file records only what an implementer needs.
 
@@ -55,7 +57,7 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Logo components: `BrandMark` (symbol), `BrandLockup`; `Wordmark` = lockup + Host/Operator tag | `components/ff/brand-mark.tsx`, `components/ff/wordmark.tsx` |
 | App icons (the symbol: adaptive SVG tab icon, violet-tile `.ico`, full-bleed violet Apple icon) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
 | Branded share card (Satori; tokens mirrored by hex, fonts as bundled TTFs). Replaced by the keepsake registry in Slice 16 | `lib/media/share-card.tsx`, `lib/media/fonts/` |
-| *Planned (Slices 15–17):* curated accent registry + roles; keepsake style registry; themed signage | `lib/theme/`, `lib/keepsakes/`, `lib/media/signage.ts` |
+| *Planned (Slices 15–17):* curated accent registry + roles; keepsake style registry (both families, incl. Full Set slot rects and `coverCrop`); themed signage | `lib/theme/`, `lib/keepsakes/`, `lib/media/signage.ts` |
 | Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
@@ -173,7 +175,8 @@ print are in `docs/design-handoff/FiveFrames_Identity_v1.0/`. In code, the geome
   surfaces (`onLight`), white + highlight violet on ink, night surfaces and photos (`onDark`),
   solid white on violet (`onViolet`). No other colourways, no gradients, no outlines.
 - **Where it appears:** every header via `Wordmark`, the marketing mockups, the Open Graph image,
-  the border of every keepsake (the share card's foot until Slice 16), the top of all four signage
+  the border of every keepsake (the share card's foot until Slice 16; the Signature Full Set
+  carries the wordmark alone, because its photos already draw the symbol), the top of all four signage
   formats, and the app icons. It is never themed: the event accent never replaces its violet
   centre.
 - **Open items:** the wordmark is a modified public typeface; a type designer should redraw it
@@ -291,8 +294,9 @@ and the label beside it names the color, so selection is never shown by color al
 
 ### The five keepsake styles (`lib/keepsakes/`)
 
-These are the **Single-photo** family (product.md §10.2.1). The Full Set family is separate and
-not yet designed (see "Full Set keepsakes" below).
+These are the **Single-photo** family (product.md §10.2.1). The Full Set family is separate (see
+"Full Set keepsakes" below). In the guest picker it is the second segment of one family switch,
+never more thumbnails in this row.
 
 Canvas **1080 × 1350 (4:5)** for all five. Order and ids: `print` (preselected), `booth`,
 `poster`, `journal`, `album`.
@@ -344,41 +348,215 @@ Rules for all five:
 - **Motion:** on open the photo settles into the preselected style (240ms `--ease-settle`), and
   style changes cross-fade in 160ms. Under reduced motion both are instant.
 
-### Full Set keepsakes (awaiting `/design-app` amendment)
+### Full Set keepsakes (designed 2026-09-30 — awaiting human visual approval)
 
-**Status: not designed.** Product: product.md §10.2.2 and criteria 54–66. Architecture: D20 and
-architecture §7b. The Single-photo styles above are unchanged. Nothing here is a design decision
-yet.
+These are the second keepsake family: five styles, each made from all five of a guest's committed
+photos. The board is sections 11–17 of `FiveFrames_Theme_Keepsakes_v1.0/`.
 
-**The amendment must decide:**
+- Behavior: product.md §10.2.2 and criteria 54–66.
+- Architecture: D20 and architecture §7b. This section changes neither.
+- The Single-photo styles above are unchanged.
 
-- the five Full Set compositions and their names;
-- the preselected style;
-- the exact geometry of the signature brandmark-derived style (two landscape, two portrait, then
-  the closing square; no four corners meeting; capture 5 in the square);
-- the one shared Full Set canvas size;
-- mixed-orientation rules and the crop focus bias;
-- the picker information architecture (a separate choice from the Single-photo picker, never ten
-  in one list);
-- where the Full Set appears in the own view and the completion state (calm, and absent until
-  available);
-- the Full Set previews in the host Look studio;
-- mobile and desktop presentation.
+#### The five styles (`lib/keepsakes/`, `family: "fullSet"`)
 
-**Constraints it inherits from architecture (not open):**
+Canvas **`FULL_SET_CANVAS` = 1200 × 1800 (2:3, 2.16 MP)** for all five. Why 2:3:
 
-- The Satori CSS subset, as for the Single-photo styles.
-- One canvas for all five Full Set styles, at or below about 2.5 MP.
-- Each style declares five slot rectangles in commit order.
-- Every slot is a deterministic cover crop with a per-template focus, never content-aware.
-- The theme image never occupies or resembles a slot.
-- No guest message, display name, welcome message or per-photo metadata. The event date is
-  optional per style.
+- It is exactly a 4 × 6 in print at 300 ppi, the standard photo and photobooth sheet.
+- Five photos each get real area on a phone screen.
+- It shows whole in messaging apps, Stories and the camera roll.
+- Tradeoff: Instagram's feed crops anything taller than 4:5.
 
-**Crop note for the design:** at the logo's literal frame ratio (76:36, about 2.1:1), a portrait
-capture in a landscape slot shows only about 35% of its height. The construction is canonical,
-but the design should choose slot ratios and compositions that still look intentional with
-ordinary mixed-orientation sets.
+Order and ids: `signature` (**preselected**), `strip`, `grid`, `spotlight`, `prints`.
+
+| Style · picker line | Composition (why it exists) | Theme image | Maker's mark |
+|---|---|---|---|
+| **Signature** · "The FiveFrames shape, made of your five" | The brandmark's construction made of photographs (below). The one composition only FiveFrames can own | A 128 px circular **seal** beside the name. Absent without an image | **Wordmark only**, 28 px, onLight, right of the caption row |
+| **Strip** · "A photobooth strip on your event" | The booth ritual: a white paper strip of five 384 × 278 frames, top to bottom, laid on the event, with the name set large beside it | **Full-bleed ground** under night (0.62 → 0.42 → 0.9). Without an image, the ground is the accent fill | Lockup on the strip's own foot, onLight |
+| **Grid** · "All five, side by side" | Equal weight: a 2 × 3 sheet of near-square cells, the sixth being an accent **end card** (name, date, hashtag). The most forgiving crop | **Not used**. The end card is the color | Lockup on the end card: white, or ink on marigold |
+| **Spotlight** · "Your first photo leads, four follow" | Hierarchy: photo 1 as a 1072 px square, photos 2–5 as a 4:5 filmstrip, and an identity band at the foot | **Soft crop behind the name** in the 264 px foot band, under a night wash. Without an image: night + accent glow | Lockup in the band, one-colour white |
+| **Prints** · "Five prints on your event's colour" | Objecthood: five instant-style prints with square 404 px windows, at −3° … +2.4°, on the accent tint | **Faint texture** in the surface (12%, then a 55% tint wash) | Lockup bottom-right on the tint, onLight |
+
+**Names:** short, warm words a guest understands in a five-thumbnail row.
+
+- **Signature** marks the house style without design jargon. "Five" repeats the family label,
+  "Mark" and "Form" are designer words, and "Studio" says nothing.
+- "Grid", not "Gallery": the gallery is a different product surface.
+- "Spotlight", not "Hero" or "Feature".
+
+**Default: Signature.** It is the most ownable composition, and in every pressure-test set it stays
+credible: faces survive, and the failures are side crops, not lost heads. **Grid** is the
+robustness benchmark (no photo loses more than 27%). If pilot feedback on crops is poor, Grid is
+the fallback default, and that is a one-constant change.
+
+#### Signature geometry (derived from `SYMBOL_FRAMES`)
+
+Slot *n* is `SYMBOL_FRAMES[n]`: landscape top, portrait right, landscape bottom, portrait left,
+then the closing square. They turn clockwise, and no four corners meet.
+
+| # | Slot | x, y | w × h | ratio |
+|---|---|---|---|---|
+| 1 | Landscape · top | 72, 72 | 672 × 448 | 3 : 2 |
+| 2 | Portrait · right | 768, 72 | 360 × 760 | 36 : 76 |
+| 3 | Landscape · bottom | 456, 856 | 672 × 448 | 3 : 2 |
+| 4 | Portrait · left | 72, 544 | 360 × 760 | 36 : 76 |
+| 5 | Square · closing | 456, 544 | 288 × 288 | 1 : 1 |
+
+The form is 1056 × 1232 at (72, 72), with a gutter of 24.
+
+- **Refinements of the literal mark:**
+  - The portrait arms keep the mark's exact 36:76.
+  - The landscape arms open from 2.11:1 to 3:2. Phone photos are mostly portrait, and those arms
+    receive them, so a 3:4 photo keeps 50% of its height instead of 35%.
+  - The gutter narrows from 8/120 to 24 px, and the radius drops to 4 px.
+  - The form becomes 6:7, which leaves the 2:3 canvas a caption row instead of an empty third.
+  - A square translation with thin gutters (arms 1.84:1, 41% kept) was also rejected (board §12).
+- **Color lives in the centre:** slot 5 sits on a 10 px mat in the accent *base*, inside its
+  gutter, with 14 px of paper left to its neighbours. Otherwise the style's only accents are the
+  date square and the hashtag ink.
+- **Caption row** (vertically centred in the 496 px below the form): optional seal, then the
+  Fraunces name (80 → 66 → 56 → 48 by length, 2 lines), then the accent square + date + hashtag
+  (Jakarta 30), with the wordmark on the same centre line.
+- **Test:** the same kind of geometry test as `logo.test.ts`:
+  - the slots tile the form with 24 px gutters;
+  - slots 1 and 3 are 3:2, and slots 2 and 4 are 36:76;
+  - slot 5 is square and sits between slots 1–4;
+  - no point is a corner of four slots.
+
+#### Slot rectangles for the other four (canvas px, commit order)
+
+- **Strip:** x 126; y 126 + i·296; 384 × 278. The strip paper is 444 × 1608 at (96, 96), and the
+  lockup sits in its 118 px foot.
+- **Grid:** 526 × 544 cells at (64, 64), (610, 64), (64, 628), (610, 628), (64, 1192). The end
+  card is at (610, 1192).
+- **Spotlight:** slot 1 is (64, 64, 1072 × 1072). Slots 2–5 are 253 × 316 at y 1156, with x at
+  64 / 337 / 610 / 883. The band runs from y 1536 to the bottom.
+- **Prints:** 404 × 404 windows at (116, 110), (674, 174), (142, 690), (652, 754), (128, 1260).
+  Each print (452 × 514, a 24 px border and an 86 px lip) is rotated −3°, 2.4°, 1.8°, −2.2°, −1.4°
+  about its own centre.
+  - The declared slot is the unrotated window, so D20's in-bounds, non-overlapping test applies
+    as written.
+  - Rotation is template composition, as with the accepted Album style.
+  - No print overlaps another's window.
+
+#### Mixed orientation and crops
+
+- **One focus constant for the family: `object-position: 50% 30%`.** It is centred across, and
+  30% from the top when height is trimmed. That is architecture's rule ("centred, top-biased
+  when a taller photo fills a wider slot") written as one value, and it is identical in the
+  server pre-crop (`coverCrop`) and the DOM preview. No per-photo or content-aware focus.
+- **Slot range:** 1 : 2.11 (only Signature's portrait arms) to 3 : 2. There are no other extreme
+  slots.
+- **Worst case kept** (trimmed dimension) for portrait 3:4 / landscape 4:3 / 9:16 / 16:9:
+
+  | Style | 3:4 | 4:3 | 9:16 | 16:9 |
+  |---|---|---|---|---|
+  | Signature | 50 | 36 | 38 | 27 |
+  | Strip | 54 | 97 | 41 | 78 |
+  | Grid | 78 | 73 | 58 | 54 |
+  | Spotlight | 75 | 60 | 56 | 45 |
+  | Prints | 75 | 75 | 56 | 56 |
+
+  (Percentages.) Board §14 renders all five styles against six sets: 5 portrait, 5 landscape,
+  3P + 2L, 2P + 3L, square-ish, and awkward subjects.
+- **Accepted limitation:** a subject in the bottom quarter of a portrait photo is cut off in a
+  wide slot (Signature 1, Strip 1). Only content analysis could fix that, and D20 excludes it.
+  There is no crop control either (product.md §10.5).
+
+#### Rules for all five
+
+- **Nothing is drawn inside a slot.** Slot radius is 2–4 px. The theme image is never a
+  capture-sized rectangle: it is a seal, a ground, a band behind type, a texture, or absent.
+- **Text:**
+  - The name is the only Fraunces. It steps down by length, then clamps (2–4 lines by style).
+  - The date and hashtag are Jakarta. A missing date or hashtag collapses its space, and a long
+    hashtag ellipsizes.
+  - Minimum type on the canvas is 27 px.
+  - There is no message, display name, welcome message, per-photo data, count, QR or URL.
+- **Every theme state looks finished:** fully themed, accent only, and default violet with
+  nothing set (board §13, including a 46-character name and a 27-character hashtag).
+- **Satori subset**, as for the Single-photo styles. Check parity for `lineClamp` and for the
+  Spotlight band's radial glow in Slice 16. If the glow drifts, a linear gradient is an
+  acceptable fallback.
+
+#### Guest experience
+
+- **Availability** comes from the server flag (`getFullSetSources` + sharing on). While it is
+  false, the Full Set is **absent**: no card, no family switch, no disabled segment, no teaser,
+  no progress. That applies with fewer than five photos, with a photo hidden, and permanently
+  after a deletion.
+- **Completion and "Your photos" (own view):** one tint card between the photo list and
+  *Download my photos*. The card has a small tilted Signature thumbnail, the title **Your five,
+  together**, the line "All five photos in one keepsake." and an on-tint button, **See them
+  together**. *Download my photos* stays the one accent primary. The same card appears in the
+  desktop split shell's action region.
+- **Picker IA:**
+  - The picker ("Make a keepsake") gains a two-segment switch above the stage, **One photo ·
+    Your five**, only while the Full Set is available.
+  - Each family shows only its own five thumbnails and preselects its own default (Print ·
+    Signature). Ten styles never appear together.
+  - It opens on **One photo** from a photo, and on **Your five** from the card.
+  - Switching family keeps the picker open and prepares the new family's preselected style.
+  - At 390, the 2:3 stage is about 262 × 393 and the thumbnails are 58 × 87.
+- **Your five subtitle:** "One new image made from your five photos. Your originals stay exactly
+  as you took them."
+- **States:** exactly the Single-photo model.
+  - Preparing ("Getting it ready…" for the selected style only).
+  - Ready (Share inside the gesture), and Save (always, `?download=1`).
+  - Style switch: aborts the previous fetch, 160 ms cross-fade.
+  - Share cancelled: silent.
+  - Couldn't prepare: calm note, and Try again replaces Share.
+  - No share sheet: Save keepsake becomes the primary.
+  - Saved: one line.
+  - The filename is `fiveframes-{event}-{style}.jpg`.
+- **Became unavailable while open:** if a prepare returns not-found, the switch disappears.
+  - From a photo, the picker falls back to One photo, with one neutral line: "Your five together
+    isn't available right now."
+  - From the card, it returns to the completion screen, where the card is now gone.
+  - Moderation is never explained.
+- **Desktop ≥ 1024:** the accepted photo-viewer pattern.
+  - A subtle stage with the keepsake at viewport height − 120 (about 504 × 756 at 1440, and
+    about 420 × 630 at 1024).
+  - A 400 / 380 panel containing: the family switch, the subtitle, the five styles as a
+    labelled list (thumb, name, line, "· default", tint + ring + check when selected), Share /
+    Save, and the originals row "Original photos · Exactly as you took them · Download".
+- **Copy never says** unlock, complete(d), 5/5, reward, challenge, "Full Set" (an internal and
+  host term), or "frames" for styles.
+
+#### Host Look studio
+
+- **Overview (≥ 1280):** the Keepsakes object becomes a pair: a Signature Full Set with the Print
+  keepsake laid over its corner. Below 1280 it stays the single Print, as accepted.
+- **Keepsakes tab:**
+  - A family switch, **One photo · All five** (hosts' words; guests see "Your five"). It
+    defaults to One photo.
+  - "All five" shows one large style and the list of five, with "guests start here" on Signature.
+  - Each row carries Image / Color / Hashtag chips, struck through where the style doesn't use
+    that part (Grid: no image).
+  - The note under the list reads: "Guests who keep all five photos can also make one keepsake
+    of all five. You preview the styles here; only guests make their own."
+  - There is no Portrait/Landscape toggle for All five, because the samples already mix
+    orientations.
+- **Mobile Look:** two chips under the Keepsakes tab pick the family. It shows one large
+  swipeable preview.
+- **Samples:** five bundled illustrated photos in the order portrait, portrait, landscape,
+  portrait, square. Slot 1 of Signature and of Strip therefore always shows real portrait-in-
+  landscape cropping.
+- **Sharing off** dims both families with the existing line. **Draft** previews are allowed.
+  There is no download or "make" action on the host side.
+- **Demo:** unchanged. The accepted board has no `/demo` keepsake surface. If one is added,
+  D14 and D20 already allow DOM previews of either family on sample photos, with no route calls.
+
+#### References (inspiration only)
+
+The FiveFrames brandmark construction is the primary reference. Besides it:
+
+- **Photobooth strips and 4 × 6 booth sheets** (the Korean self-photo-studio prints already
+  cited above): the canvas ratio, and Strip's paper-on-event object.
+- **Photographers' contact sheets:** Grid's equal weight and end card.
+- **Instant-print layouts, and the marketing hero's five prints**
+  (`components/ff/marketing/hero-prints.tsx`): Prints.
+
+No branded template is copied. The references are not wedding-specific.
 
 ### Signage (`lib/media/signage.ts`)
 
@@ -500,3 +678,10 @@ one:
   editors, stickers or clip-art, calling keepsake styles "frames", tying the five styles to the
   five-photo allowance, anything themed inside or under a QR plate, and a keepsake that crops the
   guest's photo or puts the brandmark on it.
+- For Full Sets:
+  - any locked, greyed, teaser or progress state before five;
+  - a Full Set built from four photos or with a gap filled;
+  - a theme image the size or shape of a capture;
+  - a per-photo or content-aware crop focus;
+  - "unlock", "complete" or "5/5" copy;
+  - showing all ten styles in one list.
