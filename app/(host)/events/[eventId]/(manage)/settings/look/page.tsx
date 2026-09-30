@@ -19,10 +19,10 @@ export default async function LookSettingsPage({
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; preview?: string }>;
 }) {
   const { eventId } = await params;
-  const { saved } = await searchParams;
+  const { saved, preview } = await searchParams;
   const host = await requireHost();
   const event = await getEventForHost(host.id, eventId);
   if (!event) notFound();
@@ -36,6 +36,8 @@ export default async function LookSettingsPage({
       dateLabel={formatEventDate(event.event_date)}
       eventDate={event.event_date}
       activated={Boolean(event.activated_at)}
+      liveCode={Boolean(event.activated_at && event.event_token)}
+      initialTab={preview === "signage" ? "signage" : undefined}
       initial={{
         accent: theme?.accent ?? "violet",
         hashtag: event.hashtag ?? "",

@@ -1,19 +1,169 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-01 (**Slice 16 — keepsakes, both families: `awaiting human verification`.**
-Phase A (Single-photo) and Phase B (Full Set) are built. Automated, browser, parity and Vercel
-Preview performance verification passed; the real-device share/save checklist is pending (Slice 16
-section). The `share_path` drop migration is written and deliberately unapplied (deployment
-order). Slice 15 is `complete`. Slice 14 is still `awaiting human verification`; its §7 share-card
-checks are superseded by Slice 16's. The brand identity, marketing motion and contracted-handoff
-redesign passes remain `awaiting human visual approval`; see their sections.)
+Last updated: 2026-10-01 (**Slice 17 — themed signage and pre-activation previews: `awaiting
+human verification`.** All four formats are built on one renderer with the QR quiet-zone repair,
+the Draft placeholder QR, and real-renderer previews in Look → Signage. Automated, integration and
+browser verification passed; the physical print-and-scan checklist is pending (Slice 17 section).
+Slice 16 is `complete` (real-device share/save passed, reported 2026-10-01). Slice 15 is
+`complete`. The `share_path` drop migration is still written and deliberately unapplied
+(deployment order). Slice 14 is still `awaiting human verification`. The brand identity, marketing
+motion and contracted-handoff redesign passes remain `awaiting human visual approval`; see their
+sections.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
 
-## Slice 16 — Keepsakes, both families (2026-10-01): `awaiting human verification`
+## Slice 17 — Themed signage and pre-activation previews (2026-10-01): `awaiting human verification`
+
+One signage system (product.md §10.1, §11.3; D19 item 5; architecture §7c) in the four accepted
+compositions of board §09–10 (`docs/design-direction.md` → "Signage"). Criteria 35, 42 (preview
+portion), 49, 50, 51, 52, 53 and the signage portions of 40 and 41 are implemented; 51 (and the
+physical side of 50) still need the human print-and-scan checks below.
+
+**Built:**
+
+- **Renderer** (`lib/media/signage.ts`): `renderEventSignage(format, input)` /
+  `renderEventSignageSvg`. The input is closed: `{ eventName, eventDate, hashtag, accent:
+  AccentRoles, themeImage: Buffer | null, qr }`. It returns a self-contained SVG and is never
+  persisted.
+  - `qr` is `{ kind: "live", captureUrl }` or `{ kind: "preview" }`. Only `liveSignageQr(event,
+    origin)` makes a live one, and only for `activated_at` + a current `event_token`. `preview`
+    carries no field at all.
+  - QR modules are one vector path in ink on a white plate, error correction fixed at M.
+  - Text is outlined from the bundled brand TTFs (`lib/media/signage-fonts.ts`, `opentype.js`).
+    The preview `<img>`, a browser print, print-shop software and a TV all show the same letters,
+    and the long-name rules measure the real outlines. Characters the fonts lack (emoji, CJK) fall
+    back to an escaped `<text>` run. The `<title>` is escaped with `lib/media/svg.ts`'s `escapeXml`.
+  - The theme image is cover-cropped to the field (`coverCrop`, focus 50% 35%), flattened onto
+    night, and embedded as a JPEG data URI: never a storage URL. The QR format never uses it. An
+    undecodable image falls back to the night + accent field.
+- **Geometry** (`lib/media/signage-layout.ts`, pure): canvases 600 × 720, 700 × 500, 1200 × 1800,
+  1920 × 1080. QR sizes 336, 212, 540, 520. Identity field none, 280 left, 780 top, 1040 left. The
+  scrim, glows, lockup positions and type steps are the board's.
+  - **Quiet-zone repair:** the plate is sized for a 29-module symbol plus 4 modules each side, so
+    padding is ≥ 4 modules at every size (our 22-character tokens give 33 modules). Nothing is drawn
+    in the plate but the modules.
+  - Brackets sit outside the plate with ≥ 9 units of clear gap. Band = accent `fill`, brackets and
+    glows = accent `base`; the plate and modules are never themed.
+  - Long names step down (QR 36/32/28 · table 30/26/22 · poster 108/92/76/64 · digital
+    120/102/84/72), wrap to 2/3/2/3 lines, and must fit their region. An ellipsis is the last
+    resort. A hashtag that doesn't fit beside the date drops to its own line (poster, digital),
+    steps down, and only then ellipsizes. No hashtag = no "#" and no space.
+  - Safe areas: QR 32 in and above the band; table card 25 (0.25 in); poster 72 (6%); digital 5%
+    title-safe.
+  - Two small deviations from the board, both to honor a documented rule: the digital scan column
+    is centred at x = 1464 (not 1480) so plate, brackets and instruction stay inside the 5%
+    title-safe inset; the table card's brackets are 11 units out (not 9) so the clear gap is ≥ 9.
+  - The name measures are the board's own (it sets "Family Homecoming Weekend" at 36 on the QR
+    format, and "The Reyes–Villanueva Family" at 76 on the poster).
+- **DAL** (`lib/dal/signage.ts`): `getSignageDownload` (ownership + activated + token, saved
+  theme, live QR) and `getSignagePreview` (ownership + editable state; live QR if one exists,
+  otherwise the placeholder; applies unsaved `accent`/`hashtag` only after the registry and hashtag
+  validator accept them; preview image ≤ 1200 px). Neither writes. `readThemeImageBytes` moved to
+  `lib/dal/event-theme.ts`, shared with keepsakes.
+- **Routes:**
+  - `GET /events/[id]/signage/[format]`: the download. Unchanged path, 404 semantics and SVG
+    attachment. It now uses `private, no-store` and `nosniff`.
+  - New `GET /events/[id]/signage/[format]/preview`: inline only, `private, no-store`, CSP
+    `default-src 'none'; img-src data:; …; sandbox`.
+  - `next.config.ts` traces the fonts into both routes.
+- **Host UI** (`components/ff/look/signage-preview.tsx`): Look → Signage shows the renderer's own
+  SVG for all four formats. It has the format switcher and each format's size and use. The
+  Overview table card is the real output too.
+  - Draft: "Draft preview" badge, no download, and "The code here is a placeholder…".
+  - Activated: dark "Download {format}" (the existing route) and "Uses your event's real QR…".
+  - Unsaved changes disable Download with "Downloads use your saved look…". A revoked capture
+    link shows the placeholder and points to Settings → Links.
+  - The hashtag is debounced, and the last render stays on screen while the next loads.
+  - The Slice 15 drawings (`output-previews.tsx`) are deleted.
+- **Create → Share:** keeps the QR, link, Download QR and Table card. The tip now says all four
+  formats are in **Look → Signage** and links to `settings/look?preview=signage`, which opens that
+  tab. The "poster and phone-screen version are on your dashboard" line is gone. The dashboard's
+  "Phone screen" link reads "Digital".
+
+**Automated verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test`
+436/436 ✔ (38 files; Slice 15/16 suites unchanged and green). New dependencies: `opentype.js`
+(runtime), `jsqr` and `@types/opentype.js` (dev).
+
+- `lib/media/signage.test.ts` (75 tests). Per format × live/preview × image/none:
+  - exact canvas; white plate on white;
+  - quiet zone ≥ 4 modules;
+  - no field, image, band, bracket, lockup or text rect intersects the plate;
+  - bracket gap ≥ 9; everything inside the safe area; no text overlap.
+  - Theme image only on field formats, as a data URI.
+  - Default no-image/no-hashtag field; fixed copy and outlined lockup.
+  - All 7 accents on band/brackets, with the plate still white and the modules ink.
+  - Hostile names (`<script>`, quotes, `&`, emoji) produce no markup.
+  - Long-name step-down, wrap and ellipsis, and 30-character hashtags shown whole.
+  - **Real QR decoding (`jsqr` on the librsvg raster, `test/qr-decode.ts`):**
+    - every live format decodes whole-sign to exactly `{origin}/e/{event_token}`, with no image
+      and with a photo;
+    - camera-framed on a deliberately busy seeded-noise theme (full-range noise defeats jsQR's
+      whole-frame finder search, a decoder limit);
+    - the table card in all 7 accents;
+    - the rasterized 4-module ring is pure white (≥ 250) over the busy theme.
+  - Preview: no URL, token or `/e/`; does not decode whole or framed, even with a smuggled
+    `captureUrl`; identical placeholder for every event. Theme changes leave the module path
+    byte-identical.
+- `lib/dal/signage.integration.test.ts` (9 tests, real dev Postgres + Storage):
+  - Draft: previews all formats with the placeholder, downloads 404, nothing is minted and
+    `updated_at` is unchanged.
+  - An unactivated row holding a token still leaks nothing.
+  - Activated downloads and previews decode exactly; host B gets nothing; unknown formats refuse.
+  - The theme image is embedded (never its path or a storage URL), on field formats only.
+  - Theme changes alter the look, never the destination. Unsaved preview choices are validated
+    and never saved.
+  - Rotation moves future signage to the new token. Revoke → no download, placeholder preview,
+    neither token present.
+  - An expired event gets no preview. No gallery token anywhere.
+
+**Browser verification (Playwright/Chromium, local `next dev` + dev Supabase, a synthetic host and
+three events, since deleted):**
+- Create → Look (Draft):
+  - Overview shows the real table card with the placeholder.
+  - The Signage tab matches board §10 at 1440. Marigold picked but unsaved re-rendered it.
+  - All four formats load, with no download link and no token in the page.
+  - HTTP: the Draft download is 404 for all formats; the preview is 200 inline, no-store, with CSP.
+- Share: the "Look → Signage" link opens Settings → Look on the Signage tab.
+- Activated: the real QR and "Download {format}" for all four; the download is an SVG attachment.
+- Typing a hashtag disables Download and shows the save note. `beforeunload` still guards.
+- 390 (long name, long hashtag, rose, image; all four chips visible after a fix, below), 768,
+  1024 and 1280: no horizontal overflow.
+- **Parity:** for the four activated formats, the preview `<img>` and the downloaded SVG drawn in
+  Chromium differ by mean Δ 0 and max Δ 0 of 255. The canvases were checked for real content.
+- One defect was found and fixed: at 390 the format switcher hid "Digital" off its edge. It is now
+  full-width with tighter chips on phones.
+- This is emulation: not device, print or scan proof.
+
+**Human verification needed (physical print and real phones, not screenshots or Chromium).**
+Setup:
+- Activate a test event (dev PayMongo test mode or the dev activate script).
+- Give it a **deliberately busy theme image**, a hashtag, and the accent under test.
+- Download each format from Settings → Look → Signage. Keep one Draft event for items 5–6.
+
+1. **QR format:** print it (any size, e.g. 5 × 6 in). Scan it with a real iPhone camera and a
+   real Android camera. Expected: it opens exactly this event's `/e/{token}` capture page.
+2. **Table card:** print at 7 × 5 in and scan from normal table distance (30–60 cm). Expected: the
+   same link, first try.
+3. **Poster:** print at 24 × 36 in, or the largest representative sample you can (e.g. A3 or
+   tabloid, scaled to width). Scan from 1–2 m. Expected: the same link. The name, lockup and
+   instruction survive an A-series trim.
+4. **Digital:** open the SVG full-screen on a phone or tablet and, if available, a TV or monitor.
+   Scan it with another phone. Expected: the same link. Nothing important is cut off by TV
+   overscan.
+5. **Accents:** repeat one scan (any format) in at least marigold, midnight and one more accent.
+   Expected: every accent scans; no theme color or image enters the white margin around the code.
+6. **Draft:** the Draft Signage tab is visibly a preview (badge, "PREVIEW / Not a working code"),
+   has no download, and scanning the placeholder from the screen resolves to nothing.
+7. **Rotation (optional):** after Settings → Links → new capture link, a fresh download scans to
+   the new link. A previously printed copy stops working, per existing token semantics.
+
+Reply PASS / FAIL / BLOCKED per item. Record the results here and fix any FAIL inside Slice 17.
+Mark Slice 17 `complete` only when 1–6 pass.
+
+## Slice 16 — Keepsakes, both families (2026-10-01): `complete`
 
 The one keepsake/sharing system (product.md §10.2–§10.3, D19, D20, architecture §7b), in two
 families from one registry, one renderer, one DAL module (`lib/dal/keepsakes.ts`), one picker and
@@ -177,23 +327,11 @@ one sharing toggle. It is rendered on demand and never persisted: no row, no obj
   3. only then `supabase db push` the drop.
 - Nothing in Production was mutated.
 
-**Human verification needed (real devices, not emulation; supersedes Slice 14 §7 and the Slice 10
-checklist).** Use an activated event with sharing on and a guest with five kept photos. Test from
-the own-photo viewer (Keepsake → Share) and from "See them together".
-
-1. **iPhone Safari**
-   - Single-photo Share opens the native sheet with `fiveframes-…-print.jpg`.
-   - Full Set Share works the same way.
-   - Cancel the sheet: no message, Share still works.
-   - Retry Share.
-   - Save keepsake saves the JPEG.
-2. **Android Chrome:** the same Share / cancel / retry / Save checks.
-3. **Facebook in-app browser:** Save works (or Share where offered); no dead end.
-4. **Messenger in-app browser:** the same as Facebook.
-5. **Instagram in-app browser:** the same as Facebook.
-6. **Visual:** compare one saved Single-photo and one saved Full Set with their picker previews.
-
-Reply PASS / FAIL / BLOCKED per item. Record the results here, and fix any FAIL inside Slice 16.
+**Human verification — passed (reported by the user 2026-10-01):** both keepsake families passed
+the required real-device Share/Save checks. These were iPhone Safari and Android Chrome share
+sheets (including cancel and retry), save in the Facebook, Messenger and Instagram in-app
+browsers, and a saved-vs-preview visual comparison. They supersede Slice 14 §7 and the Slice 10
+checklist.
 
 ## Slice 15 — Event theme foundation (2026-09-30): `complete`
 
@@ -299,10 +437,9 @@ path currently fails during derivative processing. Normal tested iPhone Photos s
 JPEG. Add an early, calm unsupported-format rejection for genuinely raw HEIC in a future
 maintenance objective unless later evidence justifies native conversion.
 
-**Interim states Slice 17 replaces:** the Look signage objects are presentational drawings (Slice
-17 swaps in the signage renderer and live QR). The downloadable signage is still the unthemed
-Slice 8 output, and the QR quiet-zone/bracket defect is untouched (Slice 17). Keepsake previews
-became the real templates in Slice 16. The small-image warning shows right after upload only (the
+**Interim states, since replaced:** the Look signage drawings and the unthemed Slice 8 signage
+(with its quiet-zone/bracket defect) were replaced by Slice 17. The keepsake previews were
+replaced by the real templates in Slice 16. The small-image warning shows right after upload only (the
 flag isn't stored).
 
 **Human verification — passed (reported by the user 2026-09-30, "all looks good"):** all six
@@ -531,10 +668,10 @@ are also no longer in `.env.local`.
 
 **Slices 1–13: complete. Slice 14 (full-flow real-device and venue-condition validation,
 product.md, roadmap criteria 29/30) is `awaiting human verification` — status set 2026-09-23.
-Slice 15 (event theme foundation) is `complete`; Slice 16
-(keepsakes, both families) is `awaiting human verification`; Slice 17 (themed signage) is not
-started. The Event Theme & Keepsakes design (incl.
-the Full Set amendment) is approved.**
+Slices 15 (event theme foundation) and 16 (keepsakes, both families) are `complete`; Slice 17
+(themed signage and pre-activation previews) is `awaiting human verification` (print-and-scan
+checklist in its section). The Event Theme & Keepsakes design (incl. the Full Set amendment) is
+approved.**
 
 Slice 14 is defined by the roadmap itself as human-run, not automated ("Human-run on real
 devices. Not automated. ... this is a regression and end-to-end pass, not the first look at
@@ -1274,10 +1411,8 @@ see prior verification records in git history if needed.
   that, and `cancel_url` is understood as only a browser redirect, never a session cancellation —
   so the post-redirect page shows a "confirming with PayMongo" note keyed off `?checkout=pending`
   and the existing `DashboardPoller` picks up the real state once the webhook lands.
-  **Signage** (`lib/media/signage.ts`): four formats (`qr`, `table-card`, `poster`, `digital`),
-  each a self-contained SVG with the QR code embedded as a data URI (via the `qrcode` package) —
-  deliberately not rasterized through `sharp`, to avoid depending on system fonts being present
-  in the serverless runtime for text rendering. Served by the host-authenticated
+  **Signage** (`lib/media/signage.ts`; themed and rebuilt in Slice 17, see that section): four
+  formats (`qr`, `table-card`, `poster`, `digital`), each a self-contained SVG. Served by the host-authenticated
   `app/(host)/events/[eventId]/signage/[format]/route.ts`, which 404s unless the event is
   activated and has a real `event_token` (invariant 7: nothing to render before payment), and
   builds the encoded capture URL from the same `lib/http/base-url.ts` helper. Every format carries
@@ -1836,7 +1971,7 @@ never a working guest link before payment).
 **3. Physical QR and signage** — print or display each signage format (`qr`, `table-card`,
 `poster`, `digital` at `/events/[eventId]/signage/[format]`) for an **activated** event; scan
 with a real phone camera. Expected: every format scans to the correct event's capture link;
-signage carries no per-event photo/identity beyond the event name (product.md §11.3); an
+signage is themed per product.md §11.3 (the detailed print-and-scan checklist is Slice 17's); an
 unpaid/unactivated event's signage route 404s (already covered structurally — the route refuses
 unless `activated_at` and a real `event_token` exist — but worth a real scan-attempt check that
 no old/cached link works).
@@ -1927,8 +2062,10 @@ verification`.** Everything automatable is done and passing (see above). The che
 the exit condition; there is no further automatable work in this slice.
 
 **Slice 15 — event theme foundation: `complete`** (HEIC resolved as option (a)). **Slice 16 —
-keepsakes, both families: `awaiting human verification`** (checklist in its section). **Next:
-Slice 17** (themed signage) once Slice 16's device checks are reported.
+keepsakes, both families: `complete`.** **Slice 17 — themed signage and pre-activation previews:
+`awaiting human verification`** (print-and-scan checklist in its section). Slice 17 is the last
+Event Theme & Keepsakes slice. There is no further roadmap feature slice; what remains is human
+verification (Slices 14, 17) and the release follow-ups in the blockers table.
 MVP launch requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
 mutation until Slices 14–17 are PASS or honestly-recorded BLOCKED with no unresolved
 launch-blocking defect.
@@ -1937,15 +2074,14 @@ launch-blocking defect.
 
 | Item | Type | Affects |
 |---|---|---|
-| Slice 14 full human verification checklist not yet run (see above) — this is now the single gating item for MVP completion | Manual verification pending | Entire guest/host/operator flow on real devices; see checklist above |
+| Slice 14 full human verification checklist not yet run (see above) — a gating item for MVP completion, with Slice 17's print-and-scan checks | Manual verification pending | Entire guest/host/operator flow on real devices; see checklist above |
 | Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
 | Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews are now product — Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
 | Raw HEIC supplied directly to guest capture fails at derivative processing (no frame consumed; retry error) instead of an early, calm unsupported-format refusal. The theme image already refuses it up front (Slice 15) | Maintenance follow-up | Guest capture |
-| Slice 16 real-device share/save checklist (iPhone Safari, Android Chrome, FB/Messenger/IG in-app save, preview-vs-export visual) not yet run | Manual verification pending | Slice 16 |
+| Slice 17 print-and-scan checklist (QR, table card, poster, digital; busy theme; several accents; Draft placeholder) not yet run | Manual verification pending | Slice 17 |
 | `share_path` drop migration `20260930020000` is written but unapplied. Deploy code that no longer uses `share_path` wherever the database is served, rerun `pnpm ops:retire-share-cards --apply`, then apply it (Slice 16 section) | Deployment-order dependency | Next deploy / release |
 | Before real production traffic, reconcile Vercel function placement with the Singapore Supabase region, and verify representative latency after the region is intentionally configured. Functions currently run in US East (`iad1`) | Deployment configuration follow-up | Release / bounded maintenance |
-| Look signage previews are presentational until Slice 17; downloadable signage is still unthemed | Known interim state | Slice 17 |
 | Operator Console, 404/error pages and app icons (the share card is retired) moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
 | Supabase Auth email templates (confirmation, password reset) still Supabase defaults — dashboard configuration, not repo code | Follow-up design task | Host signup and password-reset emails |
 | `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |

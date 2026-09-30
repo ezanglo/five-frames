@@ -283,8 +283,15 @@ export default async function EventSetupPage({
                 </ButtonAnchor>
               </div>
               <p className="text-caption font-medium text-ink-muted">
-                Tip: print the QR on table cards or show it on a screen near the entrance. A poster
-                and phone-screen version are on your dashboard.
+                Tip: print the QR on table cards or show it on a screen near the entrance. All four
+                signage formats (QR, table card, poster and digital) are in{" "}
+                <Link
+                  href={`/events/${eventId}/settings/look?preview=signage`}
+                  className="ff-focus rounded-sm font-semibold text-brand-ink underline-offset-4 hover:underline"
+                >
+                  Look → Signage
+                </Link>
+                .
               </p>
             </div>
           </div>

@@ -24,15 +24,9 @@ import {
   type SingleStyleId,
 } from "@/lib/keepsakes/styles";
 import { cn } from "@/lib/utils";
-import { FitCanvas } from "./fit-canvas";
 import { GuestPhonePreview } from "./guest-phone-preview";
-import {
-  SIGNAGE_FORMATS,
-  SignagePreview,
-  type OutputPreviewContent,
-  type SignageFormat,
-} from "./output-previews";
 import { SegmentedTabs, tabPanelProps } from "./segmented-tabs";
+import { SignageImage, SignagePanel, themeImageKey, type SignageLook } from "./signage-preview";
 
 export type LookPreviewProps = {
   eventId: string;
@@ -41,6 +35,12 @@ export type LookPreviewProps = {
   state: LookPreviewState;
   sharingEnabled: boolean;
   activated: boolean;
+  /** Activated with a current capture link: signage shows and downloads the real QR. */
+  liveCode: boolean;
+  /** Unsaved color/hashtag changes: signage downloads wait for Save (they use the saved look). */
+  dirty: boolean;
+  /** Open on this tab (e.g. the Share step's "Look → Signage" link). */
+  initialTab?: "signage";
 };
 
 type StageTab = "overview" | "guest" | "keepsakes" | "signage";
@@ -60,13 +60,8 @@ function useIsDesktop(): boolean | null {
   return desktop;
 }
 
-function contentOf(state: LookPreviewState): OutputPreviewContent {
-  return {
-    name: state.name,
-    dateLabel: state.dateLabel,
-    hashtag: state.hashtag,
-    imageUrl: state.imageUrl,
-  };
+function signageLookOf(eventId: string, state: LookPreviewState): SignageLook {
+  return { eventId, accent: state.accent, hashtag: state.hashtag, imageKey: themeImageKey(state.imageUrl) };
 }
 
 /**
@@ -143,11 +138,14 @@ function LookStage({
   state,
   sharingEnabled,
   activated,
+  liveCode,
+  dirty,
+  initialTab,
   className,
 }: LookPreviewProps & { className?: string }) {
   const idBase = useId();
-  const [tab, setTab] = useState<StageTab>("overview");
-  const content = contentOf(state);
+  const [tab, setTab] = useState<StageTab>(initialTab ?? "overview");
+  const signage = signageLookOf(eventId, state);
   const keepsakeContext = keepsakeContextOf(state, eventDate);
 
   return (
@@ -195,9 +193,7 @@ function LookStage({
               </div>
               <div className="hidden w-[34%] max-w-[320px] min-w-0 flex-col gap-4 xl:flex">
                 <div className="shadow-[0_18px_36px_rgb(21_20_26/0.16)]">
-                  <FitCanvas width={700} height={500}>
-                    <SignagePreview format="table-card" content={content} />
-                  </FitCanvas>
+                  <SignageImage look={signage} format="table-card" />
                 </div>
                 <ObjectLabel>Signage</ObjectLabel>
               </div>
@@ -212,17 +208,28 @@ function LookStage({
           {tab === "keepsakes" && (
             <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} large />
           )}
-          {tab === "signage" && <SignagePanel content={content} activated={activated} large />}
+          {tab === "signage" && (
+            <SignagePanel look={signage} activated={activated} liveCode={liveCode} dirty={dirty} large />
+          )}
         </div>
       </div>
     </section>
   );
 }
 
-function LookMobilePreview({ eventId, eventDate, state, sharingEnabled, activated }: LookPreviewProps) {
+function LookMobilePreview({
+  eventId,
+  eventDate,
+  state,
+  sharingEnabled,
+  activated,
+  liveCode,
+  dirty,
+  initialTab,
+}: LookPreviewProps) {
   const idBase = useId();
-  const [tab, setTab] = useState<Exclude<StageTab, "overview">>("guest");
-  const content = contentOf(state);
+  const [tab, setTab] = useState<Exclude<StageTab, "overview">>(initialTab ?? "guest");
+  const signage = signageLookOf(eventId, state);
   const keepsakeContext = keepsakeContextOf(state, eventDate);
 
   return (
@@ -259,7 +266,9 @@ function LookMobilePreview({ eventId, eventDate, state, sharingEnabled, activate
           {tab === "keepsakes" && (
             <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} />
           )}
-          {tab === "signage" && <SignagePanel content={content} activated={activated} />}
+          {tab === "signage" && (
+            <SignagePanel look={signage} activated={activated} liveCode={liveCode} dirty={dirty} />
+          )}
         </div>
       </div>
     </section>
@@ -419,70 +428,6 @@ function KeepsakesPanel({
           Guests won’t see these until you turn them on
         </p>
       )}
-    </div>
-  );
-}
-
-/**
- * Signage: the four formats with the placeholder plate. The real renderer, the live QR once
- * activated and downloads from here arrive with themed signage (Slice 17); until then the
- * printable files stay on the dashboard.
- */
-function SignagePanel({
-  content,
-  activated,
-  large,
-}: {
-  content: OutputPreviewContent;
-  activated: boolean;
-  large?: boolean;
-}) {
-  const idBase = useId();
-  const [format, setFormat] = useState<SignageFormat>("table-card");
-  const spec = SIGNAGE_FORMATS.find((f) => f.id === format)!;
-  const portrait = spec.height > spec.width;
-
-  return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedTabs
-          idBase={idBase}
-          label="Signage format"
-          size="sm"
-          value={format}
-          onChange={setFormat}
-          tabs={SIGNAGE_FORMATS.map((f) => ({ id: f.id, label: f.label }))}
-        />
-        <span className="inline-flex h-7 items-center gap-1.5 rounded-full bg-surface px-3 text-micro font-bold tracking-[0.06em] text-ink uppercase">
-          <Lock className="size-3 text-warning" aria-hidden />
-          {activated ? "Preview · placeholder QR" : "Draft preview · placeholder QR"}
-        </span>
-      </div>
-      <div
-        {...tabPanelProps(idBase, format)}
-        className="flex flex-1 flex-col items-center justify-center gap-4"
-      >
-        <div
-          className={cn(
-            "shadow-[0_18px_36px_rgb(21_20_26/0.14)]",
-            portrait ? (large ? "w-[min(100%,320px)]" : "w-[62%]") : large ? "w-[min(100%,560px)]" : "w-full",
-          )}
-        >
-          <FitCanvas width={spec.width} height={spec.height}>
-            <SignagePreview format={format} content={content} />
-          </FitCanvas>
-        </div>
-        <div className="flex w-full flex-col gap-1 text-center text-caption font-medium text-ink-muted">
-          <p>
-            <span className="font-semibold text-ink">{spec.label}</span> · {spec.size}. {spec.use}
-          </p>
-          <p>
-            {activated
-              ? "The code here is a placeholder. Your printable signage is on your dashboard."
-              : "The code here is a placeholder. Your real QR and downloads arrive when you activate."}
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

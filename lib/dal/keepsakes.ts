@@ -5,7 +5,7 @@ import { getEventByToken } from "@/lib/dal/events";
 import { getGuestSession } from "@/lib/dal/guest-sessions";
 import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
 import { downloadCaptureObject } from "@/lib/media/storage";
-import { downloadThemeObject } from "@/lib/media/theme-storage";
+import { readThemeImageBytes } from "@/lib/dal/event-theme";
 import { keepsakeFilename } from "@/lib/keepsakes/filename";
 import { renderFullSetKeepsakeJpeg, renderSingleKeepsakeJpeg } from "@/lib/keepsakes/render";
 import { isFullSetStyleId, isSingleStyleId, type FullSetStyleId, type SingleStyleId } from "@/lib/keepsakes/styles";
@@ -117,27 +117,6 @@ export async function reconfirmKeepsakeSources(
   return "ok";
 }
 
-// Theme image bytes, per server instance. Paths are immutable (each upload gets a new UUID),
-// so this needs no invalidation; it is bounded so a long-lived instance can't grow without end.
-const themeCache = new Map<string, Promise<Buffer | null>>();
-const THEME_CACHE_LIMIT = 16;
-
-function themeImageBytes(event: EventRow): Promise<Buffer | null> {
-  const path = event.theme_image_path;
-  if (!path) return Promise.resolve(null);
-  let cached = themeCache.get(path);
-  if (!cached) {
-    cached = downloadThemeObject(path).catch((error) => {
-      console.warn("keepsake: theme image unavailable", error);
-      themeCache.delete(path);
-      return null;
-    });
-    if (themeCache.size >= THEME_CACHE_LIMIT) themeCache.delete(themeCache.keys().next().value!);
-    themeCache.set(path, cached);
-  }
-  return cached;
-}
-
 /** Only the fields a keepsake may show; the rest of the row never reaches the renderer. */
 function keepsakeEventSource(event: EventRow) {
   return {
@@ -214,7 +193,7 @@ async function renderAndConfirmSingle(
   try {
     const [photo, themeImage] = await Promise.all([
       downloadCaptureObject(capture.display_path!),
-      themeImageBytes(access.event),
+      readThemeImageBytes(access.event),
     ]);
     if (!photo) return { kind: "render_failed" };
     bytes = await renderSingleKeepsakeJpeg({
@@ -311,7 +290,7 @@ async function renderAndConfirmFullSet(
   let bytes: Buffer;
   try {
     const [themeImage, ...photos] = await Promise.all([
-      themeImageBytes(access.event),
+      readThemeImageBytes(access.event),
       ...captures.map((c) => downloadCaptureObject(c.display_path!)),
     ]);
     // A missing source is a retryable failure — never a partial or substituted Full Set.

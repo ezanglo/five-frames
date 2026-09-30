@@ -1067,6 +1067,24 @@ sibling inline route; an implementation choice). It is never a separate mock-up.
 Nothing here is a screenshot, so previews cannot drift from production output except through
 DOM/Satori rendering differences, which each style's visual check covers.
 
+### As built (Slice 17)
+
+- **One renderer, pure geometry plus a writer.** `lib/media/signage-layout.ts` turns the closed
+  input into rectangles and text lines, and `lib/media/signage.ts` draws exactly that. The tests
+  check scannability as geometry: plate, ≥ 4-module padding, nothing intersecting it. They also
+  decode the rasterized output with a real QR decoder.
+- **Text is outlined** from the bundled brand TTFs (`opentype.js`), like the lockup. A signage
+  file therefore needs no fonts to print or display, the long-name rules measure the real glyphs,
+  and host text reaches the SVG as path data. Only glyphs the fonts lack (emoji, CJK) are written
+  as `<text>`, and those are escaped, as is the `<title>`.
+- **Preview route:** `/events/[id]/signage/[format]/preview`. It is owner-only, requires an
+  editable state, is inline only, and sends `no-store` and a sandboxing CSP. It is the same
+  renderer, with the host's unsaved accent and hashtag applied after the same validation a save
+  uses. The theme image is embedded at ≤ 1200 px instead of the download's full size; the crop is
+  identical.
+- The plate is sized for a 29-module symbol, the smallest a capture URL can produce. Longer URLs
+  keep the format's QR size, and their quiet zone only grows.
+
 ---
 
 ## 8. Payment

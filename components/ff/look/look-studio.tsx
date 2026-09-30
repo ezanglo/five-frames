@@ -43,6 +43,8 @@ export function LookStudio({
   dateLabel,
   eventDate,
   activated,
+  liveCode = false,
+  initialTab,
   initial,
   action,
   backHref,
@@ -55,6 +57,9 @@ export function LookStudio({
   /** The raw `event_date`, for the keepsake templates' own date formats. */
   eventDate: string | null;
   activated: boolean;
+  /** Activated with a current capture link, so signage has its real QR. */
+  liveCode?: boolean;
+  initialTab?: "signage";
   initial: LookInitial;
   action: (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
   backHref?: string;
@@ -139,7 +144,16 @@ export function LookStudio({
   );
 
   const preview = (
-    <LookPreview eventId={eventId} eventDate={eventDate} state={previewState} sharingEnabled={values.sharingEnabled} activated={activated} />
+    <LookPreview
+      eventId={eventId}
+      eventDate={eventDate}
+      state={previewState}
+      sharingEnabled={values.sharingEnabled}
+      activated={activated}
+      liveCode={liveCode}
+      dirty={dirty}
+      initialTab={initialTab}
+    />
   );
 
   if (mode === "create") {

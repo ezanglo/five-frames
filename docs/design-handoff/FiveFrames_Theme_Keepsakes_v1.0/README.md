@@ -4,7 +4,7 @@ The design target for roadmap Slices 15–17 (product.md §10 / §11.3, decision
 rules an implementer needs are in [docs/design-direction.md → "Event Theme &
 Keepsakes"](../../design-direction.md). This folder holds the rendered reference.
 
-**Status:** approved by the user 2026-09-30 (sections 00–17). Slice 15 built the theme foundation (Look studio, Settings → Look, themed guest screens) and Slice 16 the keepsakes of both families; themed signage (Slice 17) is not built yet.
+**Status:** approved by the user 2026-09-30 (sections 00–17). Slice 15 built the theme foundation (Look studio, Settings → Look, themed guest screens), Slice 16 the keepsakes of both families, and Slice 17 the themed signage.
 
 - Sections 00–10 are the v1.0 design.
 - Sections 11–17 are the **Full Set amendment** (2026-09-30): a second keepsake family of five

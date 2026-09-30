@@ -160,6 +160,10 @@ change, not a refactor.
   nothing for an absolutely positioned box sized in percent or by `right`/`bottom` insets (use
   pixel sizes), and rejects `undefined` style values. Large blurred shadows dominate render time,
   so the export uses pre-blurred bitmaps. After any template change, re-check DOM/export parity.
+- **Signage draws only what `lib/media/signage-layout.ts` places.** Any new mark, text or image
+  on a sign goes into the layout model first, so `signage.test.ts` checks it against the plate,
+  the quiet zone and the safe area. Text is outlined from the bundled TTFs, not `<text>`. Keep the
+  real-decoder tests (`test/qr-decode.ts`) passing for every format.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

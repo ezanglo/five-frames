@@ -242,7 +242,7 @@ export default async function EventDashboardPage({
         <span className="text-ink-muted">More signage:</span>
         <SignageLink eventId={eventId} format="table-card" label="Table card" />
         <SignageLink eventId={eventId} format="poster" label="Poster" />
-        <SignageLink eventId={eventId} format="digital" label="Phone screen" />
+        <SignageLink eventId={eventId} format="digital" label="Digital" />
       </div>
     </SectionCard>
   ) : (

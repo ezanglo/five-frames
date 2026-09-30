@@ -3,8 +3,8 @@
 **Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
 pass, "Desktop and browser" below). **Event Theme & Keepsakes and its Full Set amendment:
 approved by the user 2026-09-30** as the implementation target for Slices 15–17 (see that
-section). Slices 15 (theme foundation) and 16 (keepsakes, both families) are built; themed signage
-(Slice 17) is not. The contracted FiveFrames
+section). Slices 15 (theme foundation), 16 (keepsakes, both families) and 17 (themed signage) are built;
+Slice 17 awaits its print-and-scan checks. The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24
@@ -58,8 +58,9 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | App icons (the symbol: adaptive SVG tab icon, violet-tile `.ico`, full-bleed violet Apple icon) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
 | Bundled brand TTFs for server-rendered images (keepsakes, Open Graph); the DOM keepsake previews load the same files | `lib/media/fonts/`, `components/ff/keepsakes/fonts.ts` |
 | Curated accent registry + roles (`deriveAccentRoles`, `accentCssVars`), hashtag rules, theme-image limits (Slice 15) | `lib/theme/` |
-| Look studio: controls, swatches, hashtag field, theme-image control, preview stage, and the Slice 15 presentational keepsake/signage objects | `components/ff/look/` |
-| Keepsakes: registry (`styles.ts`), geometry and slot rects (`geometry.ts`), `coverCrop`, closed inputs (`context.ts`), the ten templates for both render targets (`templates/`), the export pipeline (`render.tsx`); guest picker and DOM preview in `components/ff/keepsakes/`. Themed signage is Slice 17 | `lib/keepsakes/`, `components/ff/keepsakes/`, `lib/media/signage.ts` |
+| Look studio: controls, swatches, hashtag field, theme-image control, preview stage; the Signage tab shows the signage renderer's own SVGs (`signage-preview.tsx`) | `components/ff/look/` |
+| Keepsakes: registry (`styles.ts`), geometry and slot rects (`geometry.ts`), `coverCrop`, closed inputs (`context.ts`), the ten templates for both render targets (`templates/`), the export pipeline (`render.tsx`); guest picker and DOM preview in `components/ff/keepsakes/` | `lib/keepsakes/`, `components/ff/keepsakes/` |
+| Signage: format registry, geometry (every rule below), outlined text, the renderer | `lib/media/signage-formats.ts`, `signage-layout.ts`, `signage-fonts.ts`, `signage.ts` |
 | Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
@@ -574,8 +575,11 @@ carrying the lockup, the Fraunces name, date and hashtag), a **white scan side**
 
 - **The QR plate is never themed:** ink modules on white. Padding = 4 modules at every size.
   Nothing inside the plate. Accent brackets sit **outside** it (a gap of at least 9 units). The
-  plate always rests on white, never on the theme image. *Today's renderer draws its brackets
-  inside the plate padding and pads with fewer than 4 modules. Slice 17 fixes both.*
+  plate always rests on white, never on the theme image. (Slice 17 fixed the Slice 8 renderer,
+  which drew brackets inside the plate padding and padded with fewer than 4 modules.)
+- As built, two positions differ slightly from the board so that its own rules hold: the digital
+  scan column is centred at x = 1464 (inside the 5% title-safe inset), and the table card's
+  brackets are 11 units out (a true ≥ 9-unit gap with a 4-unit stroke).
 - The theme image only ever fills the field under the night gradient (0.15–0.25 → 0.92), cropped
   `xMidYMid slice` biased to the upper third. A low-quality image degrades to a soft background;
   it is never behind the QR or instruction.
@@ -658,9 +662,8 @@ one:
   404 as a missing one (invariant 9).
 - **Branded share card**: retired in Slice 16. The keepsake styles replaced it ("Event Theme &
   Keepsakes"), and Print takes its role as the calm default.
-- **Signage SVGs** (`lib/media/signage.ts`) use the tokens and fonts, but the current layout (one
-  composition at four sizes, brackets inside the plate padding) is superseded by the themed
-  signage design. The landing page (`app/page.tsx`) uses the tokens and fonts.
+- The landing page (`app/page.tsx`) uses the tokens and fonts. (Signage now follows the themed
+  signage design above.)
 - **Not in the repo:** Supabase Auth email templates (confirmation, password reset) are set in the
   Supabase dashboard and still use Supabase's defaults.
 

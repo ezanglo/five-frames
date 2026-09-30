@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
-import { renderEventSignageSvg, SIGNAGE_FORMATS, type SignageFormat } from "@/lib/media/signage";
+import { getSignageDownload } from "@/lib/dal/signage";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
 
 /**
- * Host-authenticated signage download (product.md §11.3, architecture §8b). Ownership-
- * checked via getEventForHost, and refuses before `activated_at`/`event_token` exist —
- * signage is rendered from the real capture link, so there is nothing to render for an
- * unpaid event (invariant 7: no distributable link/QR before payment).
+ * Host-authenticated signage download (product.md §11.3, architecture §7c). Ownership-checked,
+ * and refuses before `activated_at`/`event_token` exist: a download always carries the live QR,
+ * so there is nothing to download for an unpaid event (invariant 7). The Look page's inline
+ * preview is the sibling `preview` route.
  */
 export async function GET(
   _request: Request,
@@ -17,29 +16,17 @@ export async function GET(
   const { eventId, format } = await params;
   const host = await requireHost();
 
-  const event = await getEventForHost(host.id, eventId);
-  if (!event || !event.activated_at || !event.event_token) {
+  const download = await getSignageDownload(host.id, eventId, format, await getRequestBaseUrl());
+  if (!download) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!SIGNAGE_FORMATS.includes(format as SignageFormat)) {
-    return NextResponse.json({ error: "Unknown signage format" }, { status: 404 });
-  }
-
-  const baseUrl = await getRequestBaseUrl();
-  const captureUrl = `${baseUrl}/e/${event.event_token}`;
-
-  const svg = await renderEventSignageSvg(format as SignageFormat, {
-    eventName: event.name,
-    captureUrl,
-  });
-
-  const safeName = event.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "event";
-
-  return new NextResponse(svg, {
+  return new NextResponse(download.svg, {
     headers: {
-      "Content-Type": "image/svg+xml",
-      "Content-Disposition": `attachment; filename="${safeName}-${format}.svg"`,
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${download.filename}"`,
+      "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
     },
   });
 }

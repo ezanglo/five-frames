@@ -249,3 +249,31 @@ async function themeViewForEvent(event: EventRow, mayShowImage: boolean): Promis
       : null;
   return themeViewFrom(event, imageUrl);
 }
+
+// ---------------------------------------------------------------------------------------------
+// Bytes for the server renderers (keepsakes, signage). Never reaches a browser as a URL: the
+// caller has already made its own access check on `event`, and embeds the result.
+// ---------------------------------------------------------------------------------------------
+
+// Per server instance. Paths are immutable (each upload gets a new UUID), so this needs no
+// invalidation; it is bounded so a long-lived instance can't grow without end.
+const themeBytesCache = new Map<string, Promise<Buffer | null>>();
+const THEME_BYTES_CACHE_LIMIT = 16;
+
+export function readThemeImageBytes(event: EventRow): Promise<Buffer | null> {
+  const path = event.theme_image_path;
+  if (!path || event.media_deleted_at) return Promise.resolve(null);
+  let cached = themeBytesCache.get(path);
+  if (!cached) {
+    cached = downloadThemeObject(path).catch((error) => {
+      console.warn("theme image unavailable", error);
+      themeBytesCache.delete(path);
+      return null;
+    });
+    if (themeBytesCache.size >= THEME_BYTES_CACHE_LIMIT) {
+      themeBytesCache.delete(themeBytesCache.keys().next().value!);
+    }
+    themeBytesCache.set(path, cached);
+  }
+  return cached;
+}
