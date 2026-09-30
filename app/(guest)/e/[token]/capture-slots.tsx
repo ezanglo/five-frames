@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import * as tus from "tus-js-client";
-import { Camera, Clock, Image as ImageIcon, Pointer, RefreshCw, Share2 } from "lucide-react";
+import { Camera, Clock, Image as ImageIcon, Pointer, RefreshCw } from "lucide-react";
 import { reserveSlot, commitSlot } from "./actions";
 import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, TUS_CHUNK_SIZE_BYTES } from "@/lib/media/constants";
 import type { ReserveResponse } from "./actions";
@@ -17,8 +18,8 @@ import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 import { PreviewSheet } from "@/components/ff/preview-sheet";
 import { EmptySlotFace, ShotNumber, ShotProgress, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { firstName, formatEventTime } from "@/lib/events/format";
-import { DownloadOwnPhotosButton, OwnPhotoList, type OwnPhoto } from "./own-photos";
-import { useShareCapture } from "./use-share-capture";
+import { DownloadOwnPhotosButton, KeepsakeViewerActions, OwnPhotoList, type OwnPhoto } from "./own-photos";
+import { useKeepsakePicker, type GuestKeepsakes } from "./keepsakes";
 
 /** Guest message limit shown in the UI (DS04: max 100 guest). The server stays authoritative. */
 const MESSAGE_MAX = 100;
@@ -123,7 +124,7 @@ export function CaptureSlots({
   theme,
   timezone,
   guestName,
-  sharingEnabled,
+  keepsakes,
   initialCaptures,
 }: {
   token: string;
@@ -133,7 +134,8 @@ export function CaptureSlots({
   theme: EventThemeView | null;
   timezone: string;
   guestName: string;
-  sharingEnabled: boolean;
+  /** Null when keepsakes are off: no keepsake action anywhere, originals unaffected. */
+  keepsakes: GuestKeepsakes | null;
   initialCaptures: {
     id: string;
     slotIndex: number;
@@ -160,6 +162,7 @@ export function CaptureSlots({
     }
     return next;
   });
+  const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -168,10 +171,13 @@ export function CaptureSlots({
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const pendingKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { share, pendingCaptureId, error: shareError, status: shareStatus } = useShareCapture(
-    token,
-    eventName,
+  // Declared before `keptPhotos` is computed below, so it reads the current slots itself.
+  const keptForKeepsakes = slots.flatMap((slot) =>
+    slot?.status === "committed"
+      ? [{ id: slot.id, message: slot.message, thumbnailUrl: slot.thumbnailUrl, displayUrl: slot.displayUrl, downloadUrl: slot.downloadUrl }]
+      : [],
   );
+  const { openFor, picker } = useKeepsakePicker(keepsakes, keptForKeepsakes);
 
   const storageKey = pendingStorageKey(eventId);
 
@@ -340,6 +346,10 @@ export function CaptureSlots({
       });
       clearPending();
       resetAttemptUI();
+      // With all five kept, ask the server whether "Your five, together" is available: the
+      // flag comes only from getFullSetAvailability, never from counting slots here.
+      const keptNow = slots.filter((slot, i) => i !== slotIndex && slot?.status === "committed").length + 1;
+      if (keepsakes && keptNow === SHOTS_PER_GUEST) router.refresh();
       return;
     }
     if (committed.kind === "not_uploaded") {
@@ -422,21 +432,6 @@ export function CaptureSlots({
     />
   );
 
-  const shareFeedback = (
-    <>
-      {shareError && (
-        <p className="text-caption font-medium text-danger" role="alert">
-          {shareError}
-        </p>
-      )}
-      {!shareError && shareStatus && (
-        <p className="text-caption font-medium text-ink-muted" role="status">
-          {shareStatus}
-        </p>
-      )}
-    </>
-  );
-
   if (allCaptured && !composing) {
     return (
       <GuestShell
@@ -459,11 +454,9 @@ export function CaptureSlots({
           </span>
         </div>
         <OwnPhotoList
-          token={token}
-          eventName={eventName}
           timezone={timezone}
           guestName={guestName}
-          sharingEnabled={sharingEnabled}
+          keepsakes={keepsakes}
           photos={keptPhotos}
         />
         <HighlightCard
@@ -574,8 +567,6 @@ export function CaptureSlots({
           )}
         </div>
 
-        {shareFeedback}
-
         {phase === "resuming" ? (
           <InfoCard
             icon={<RefreshCw />}
@@ -643,28 +634,22 @@ export function CaptureSlots({
           photos={viewerPhotos}
           initialIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
-          extraAction={
-            sharingEnabled
-              ? (photo) => (
-                  <Button
-                    variant="frosted"
-                    size="lg"
-                    onClick={() => share(photo.id)}
-                    disabled={pendingCaptureId === photo.id}
-                    aria-label="Share this photo"
-                  >
-                    {pendingCaptureId === photo.id ? (
-                      <RefreshCw className="animate-spin" aria-hidden />
-                    ) : (
-                      <Share2 aria-hidden />
-                    )}
-                    Share
-                  </Button>
+          downloadLabel="Download original"
+          keepsakeActions={
+            keepsakes
+              ? (viewed) => (
+                  <KeepsakeViewerActions
+                    onOpen={() => {
+                      const own = keptPhotos.find((p) => p.id === viewed.id);
+                      if (own) openFor(own);
+                    }}
+                  />
                 )
               : undefined
           }
         />
       )}
+      {picker}
       </div>
     </>
   );

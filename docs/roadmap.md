@@ -411,6 +411,11 @@ visual check of themed guest screens with and without an image, each accent, lon
 
 ## Slice 16 — Keepsakes, both families (replacing share cards)
 
+**Status (2026-10-01):** `awaiting human verification`. Phase A (Single-photo) and Phase B (Full
+Set) are built and pass automated, browser and Preview-performance verification. Real-device
+share and save checks remain (docs/progress.md → Slice 16). The `share_path` drop migration is
+written and deliberately unapplied until a deployment-order step is done (architecture §7b).
+
 **Objective:** A guest turns their own photos into themed keepsakes and shares or saves them. There
 are two families: **Single-photo** (any one capture, five styles) and **Full Set** (once their
 session has five committed, visible captures: all five together, five styles). Originals stay

@@ -18,7 +18,6 @@ type CaptureStoragePaths = {
   storage_path: string;
   display_path: string | null;
   thumbnail_path: string | null;
-  share_path: string | null;
 };
 
 export type PermanentDeletionOutcome =
@@ -61,13 +60,13 @@ export async function permanentlyDeleteEventMedia(
 
   const { data, error } = await supabase
     .from("captures")
-    .select("storage_path, display_path, thumbnail_path, share_path")
+    .select("storage_path, display_path, thumbnail_path")
     .eq("event_id", eventId);
   if (error) throw error;
 
   const rows = data as CaptureStoragePaths[];
   const paths = rows.flatMap((row) =>
-    [row.storage_path, row.display_path, row.thumbnail_path, row.share_path].filter(
+    [row.storage_path, row.display_path, row.thumbnail_path].filter(
       (path): path is string => path !== null,
     ),
   );

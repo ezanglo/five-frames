@@ -477,7 +477,7 @@ const PROMISES = [
   {
     icon: <Download />,
     title: "Your originals, untouched",
-    body: "Previews and share cards are separate files. You can download every original until your photos are deleted.",
+    body: "Previews and keepsakes are separate files. You can download every original until your photos are deleted.",
   },
   {
     icon: <Check />,

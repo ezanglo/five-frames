@@ -11,8 +11,8 @@ chosen by design; still on demand and never persisted — §7b, §10, §11, §13
 Event Theme & Keepsakes, decision D19: theme config on `events`, a
 private `event-theme` bucket, keepsakes rendered on demand from a closed five-style registry and
 never persisted (replacing share cards and `share_path`), themed signage with a placeholder-QR
-Draft preview — §4, §7a–§7c, §10. **Slice 15 (§7a, theme foundation) is implemented; §7b
-keepsakes and §7c themed signage are not yet** (roadmap Slices 16–17). Earlier: Slice 12 lifecycle automation and retention, D18.)
+Draft preview — §4, §7a–§7c, §10. **Slice 15 (§7a, theme foundation) and Slice 16 (§7b, keepsakes
+of both families) are implemented; §7c themed signage is not yet** (roadmap Slice 17). Earlier: Slice 12 lifecycle automation and retention, D18.)
 
 ---
 
@@ -69,7 +69,7 @@ solving any requirement in the spec.
 | Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit); also normalizes the theme image (D19, planned) |
-| Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built for the share card (Slice 10); evolves into the Single-photo and Full Set keepsake families (D19, D20, planned) |
+| Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built — Slice 16: both keepsake families (D19, D20); the Slice 10 share card is retired |
 | Signage | Self-contained SVG strings + `qrcode` | Built — Slice 8; theming and Draft preview planned (D19) |
 | Scheduled work | Vercel Cron | Built — Slice 12 (`GET /api/cron/lifecycle`, daily, `vercel.json`) |
 | Tests | Vitest (unit + integration against real Postgres) | Installed and in use since Slice 1 |
@@ -151,7 +151,8 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   once, when the row becomes `committed`, and never rewritten; with `slot_index` it gives a
   session's committed captures a total, stable order (Full Set photo order, §7b). `share_path` (Slice 10's
   share-card cache) is **retired** by D19: keepsakes are not persisted, so nothing replaces it
-  (§7b).
+  (§7b). No code reads or writes it; its drop migration waits on a deployment order (§7b
+  "Migration from share cards").
 - **`payments`** — one row per event, source-agnostic (§8, D16). Not yet built (Slice 7/8 land
   it), so it is designed to carry provider and manual payment together from the start rather than
   retrofitted:
@@ -670,20 +671,26 @@ identically in two places:
 
 ```
 KeepsakeContext = {                                // shared by both families
-  event: { name, dateLabel|null, hashtag|null }    // dateLabel from event_date
-  theme: { accent: AccentRoles, image: bytes|null }
+  event: { name, date|null, hashtag|null }         // date: parts derived from event_date only
+  theme: { accent: AccentRoles, image: { src }|null }
 }
 SingleKeepsakeInput = KeepsakeContext & {
   style: SingleStyleId
-  photo: { bytes, width, height }                  // the capture's display derivative
+  photo: { src, width, height }                    // the capture's display derivative
   message: string|null                             // the capture's committed message
 }
 FullSetKeepsakeInput = KeepsakeContext & {
   style: FullSetStyleId
   photos: [SlotPhoto, SlotPhoto, SlotPhoto, SlotPhoto, SlotPhoto]  // canonical order, cropped to slot
 }
-SlotPhoto = { bytes, width, height }
+SlotPhoto = { src }
 ```
+
+As built (Slice 16, `lib/keepsakes/context.ts`): images are `src` strings — a data URI of bytes the
+server has already prepared, or a signed/bundled URL in a DOM preview — so one template serves
+both targets. `date` is a small struct (`label`, `stamp`, `day`, `monthYear`, `weekday`) because
+the styles print the same event date in different forms (Booth's `18.10.2026`, Journal's numeral);
+it is still event information only. Exact-key tests pin every shape.
 
 One context builder copies only these fields from the event row. It never copies the guest display
 name, the welcome message, tokens, links, counts, timezone, lifecycle, payment or host data. A unit
@@ -962,6 +969,24 @@ content-addressed persisted output.
 **The routes write nothing: no row and no object.** So no failure can consume a frame, change a
 capture's state, or touch an original.
 
+### As built (Slice 16)
+
+- **Every image is prepared for the exact box its template draws it in**: the Single-photo window,
+  each Full Set slot, and each style's theme-image box (`THEME_IMAGE_BOXES`), all via `coverCrop`
+  and `sharp`. So `object-fit`/`object-position` never matter on export, and the DOM preview's CSS
+  crop is the same crop.
+- **Two targets, one template.** A few concerns serialize differently for Satori and the browser
+  (`lib/keepsakes/templates/target.ts`, `parts.tsx`): line clamping, single-line ellipsis, fonts
+  (the same TTFs reach the DOM through `next/font/local`), and large drop shadows. Shadows are CSS
+  in the preview and a pre-blurred bitmap on export (the same σ = blur/2 rule), because resvg's
+  Gaussian blurs were the dominant render cost; parity is unchanged.
+- The renderer reads its bundled TTFs from disk; `next.config.ts` traces them into the keepsake
+  routes.
+- Each render logs one structured `keepsake.render` line (family, style, outcome, ms, KB, sampled
+  peak RSS), with no guest, capture or event identifiers.
+- The Slice 16 gate was met on a Vercel Preview co-located with the database (measurements in
+  docs/progress.md). The on-demand, never-persisted strategy stands for both families.
+
 ### Migration from share cards
 
 - `lib/media/share-card.tsx` → `lib/keepsakes/` (its layout may become one of the Single-photo
@@ -972,6 +997,13 @@ capture's state, or touch an original.
 - `captures.share_path` is retired. Stop reading and writing it. An idempotent cleanup deletes the
   existing `…/share` objects and nulls the column. Then a forward migration drops the column, and
   D18 deletion stops listing it. Until the drop, deletion keeps handling it.
+- **As built:** the new code neither reads nor writes `share_path`, and D18 no longer lists it.
+  `pnpm ops:retire-share-cards [--apply]` deletes `…/share` objects, deriving each path from the
+  capture's `storage_path`, so it needs no column and reruns as a no-op. Migration
+  `20260930020000_retire_share_cards.sql` drops the column. **Deployment order:** the column must
+  outlive any deployment still running the old code against that database. (1) Deploy code that no
+  longer uses `share_path` everywhere that database is served. (2) Rerun the cleanup with
+  `--apply`, which catches any cards old code made in between. (3) Only then apply the migration.
 - `events.sharing_enabled` is unchanged. It now governs making, sharing and saving keepsakes of
   both families (product.md §10.3), and it never affects original downloads.
 
@@ -1267,6 +1299,11 @@ Weighted toward the invariants, not toward coverage percentage.
 - **Local:** `next dev` against the development Supabase project. Supabase local is used where
   deterministic integration tests need it.
 - Schema changes are migrations in `supabase/migrations/`, applied forward. No ad-hoc dashboard edits.
+
+**Function region (found in Slice 16):** the Vercel project runs functions in its default US East
+region (`iad1`) while Supabase is in `ap-southeast-1`, so every query and storage read crosses the
+Pacific. Function placement should be reconciled with the database region before real production
+traffic (a deployment-configuration step, recorded in docs/progress.md).
 
 The development Supabase project (`five-frames-dev`) is provisioned (Slice 1). Vercel, production
 Supabase, and PayMongo are not yet provisioned — each happens in the slice that first requires it.

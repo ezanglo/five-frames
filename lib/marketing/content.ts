@@ -174,7 +174,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: "Can I download the original photos?",
         answer: [
           "Yes, one at a time or all at once, whenever you like until your event’s photos are deleted.",
-          "Originals are never modified. Previews and share cards are made as separate files.",
+          "Originals are never modified. Previews and keepsakes are made as separate files.",
         ],
       },
       {

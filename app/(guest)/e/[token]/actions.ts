@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { getEventByToken } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
 import { commitCapture, filenameForGuestOriginal, reserveCapture } from "@/lib/dal/captures";
-import { getShareCardForGuestCapture } from "@/lib/dal/share-cards";
 import {
   getGuestSessionIdFromCookie,
   setGuestSessionCookie,
@@ -161,35 +160,4 @@ export async function commitSlot(
   ]);
 
   return { kind: "committed", capture: outcome.capture, thumbnailUrl, displayUrl, downloadUrl };
-}
-
-/**
- * The guest sharing flow (product.md §10): generates or retrieves the branded share card for
- * one of the requesting guest's own captures. Server-authoritative like every other guest
- * action here — the event is resolved fresh from the token, the guest session from the signed
- * cookie, and the actual ownership/eligibility check happens in the DAL, not in this action.
- * Returned as a data URL rather than a signed storage URL: the card is synthesized content,
- * not an original media object, the same reasoning lib/media/signage.ts already applies to
- * signage (an access-gated route builds and hands back bytes directly, no separate credential).
- */
-export type ShareCardResponse =
-  | { kind: "ok"; dataUrl: string }
-  | { kind: "sharing_disabled" }
-  | { kind: "not_found" }
-  | { kind: "not_joined" };
-
-export async function getShareCard(
-  token: string,
-  captureId: string,
-): Promise<ShareCardResponse> {
-  const event = await getEventByToken(token);
-  if (!event) return { kind: "not_found" };
-
-  const guestSessionId = await getGuestSessionIdFromCookie(token, event.id);
-  if (!guestSessionId) return { kind: "not_joined" };
-
-  const outcome = await getShareCardForGuestCapture(event, guestSessionId, captureId);
-  if (outcome.kind !== "ok") return outcome;
-
-  return { kind: "ok", dataUrl: `data:image/png;base64,${outcome.bytes.toString("base64")}` };
 }

@@ -41,6 +41,7 @@ export function LookStudio({
   eventId,
   eventName,
   dateLabel,
+  eventDate,
   activated,
   initial,
   action,
@@ -51,6 +52,8 @@ export function LookStudio({
   eventId: string;
   eventName: string;
   dateLabel: string | null;
+  /** The raw `event_date`, for the keepsake templates' own date formats. */
+  eventDate: string | null;
   activated: boolean;
   initial: LookInitial;
   action: (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -136,7 +139,7 @@ export function LookStudio({
   );
 
   const preview = (
-    <LookPreview eventId={eventId} state={previewState} sharingEnabled={values.sharingEnabled} activated={activated} />
+    <LookPreview eventId={eventId} eventDate={eventDate} state={previewState} sharingEnabled={values.sharingEnabled} activated={activated} />
   );
 
   if (mode === "create") {

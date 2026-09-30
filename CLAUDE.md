@@ -154,6 +154,12 @@ change, not a refactor.
   HEVC HEIC. A photo only works when the browser has already converted it to JPEG, and that isn't
   guaranteed, so never claim FiveFrames decodes HEIC. Refuse it early (see `isHeicUpload` in
   `lib/theme/image.ts`) and test against the real fixture `test/fixtures/theme-sample.heic`.
+- **Keepsake templates render twice — Satori export and DOM preview — from one component.** Use
+  the target helpers in `lib/keepsakes/templates/` (`clamp`, `ellipsis`, `ShadowedBox`, `Img`)
+  instead of raw CSS for those concerns. Satori clamps only `display: block` + `lineClamp`, draws
+  nothing for an absolutely positioned box sized in percent or by `right`/`bottom` insets (use
+  pixel sizes), and rejects `undefined` style values. Large blurred shadows dominate render time,
+  so the export uses pre-blurred bitmaps. After any template change, re-check DOM/export parity.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

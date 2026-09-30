@@ -13,6 +13,7 @@
     "test": "vitest run",
     "dev:activate-event": "tsx --conditions=react-server scripts/activate-event-dev.ts",
     "ops:grant-operator": "tsx --conditions=react-server scripts/grant-operator.ts",
+    "ops:retire-share-cards": "tsx scripts/retire-share-cards.ts",
     "e2e:provision-identities": "tsx --conditions=react-server scripts/e2e-provision-identities.ts"
   },
   "dependencies": {

@@ -1,7 +1,15 @@
 "use client";
 
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from "react";
-import { Lock } from "lucide-react";
+import { Check, Lock } from "lucide-react";
+import { KeepsakePreview } from "@/components/ff/keepsakes/keepsake-preview";
+import {
+  buildFullSetKeepsakeInput,
+  buildKeepsakeContext,
+  buildSingleKeepsakeInput,
+  type KeepsakeContext,
+} from "@/lib/keepsakes/context";
+import { FULL_SET_SAMPLES, SAMPLE_MESSAGE, SINGLE_SAMPLES } from "@/lib/keepsakes/samples";
 import { accentCssVars } from "@/lib/theme/accents";
 import type { LookPreviewState } from "@/lib/theme/preview";
 import {
@@ -10,18 +18,17 @@ import {
   PRESELECTED_SINGLE_STYLE,
   SINGLE_STYLES,
   type KeepsakeFamily,
+  type FullSetStyleId,
+  type KeepsakeStyleId,
   type KeepsakeStyleMeta,
+  type SingleStyleId,
 } from "@/lib/keepsakes/styles";
 import { cn } from "@/lib/utils";
 import { FitCanvas } from "./fit-canvas";
 import { GuestPhonePreview } from "./guest-phone-preview";
 import {
-  FULL_SET_CANVAS,
-  PRINT_CANVAS,
-  PrintKeepsakePreview,
   SIGNAGE_FORMATS,
   SignagePreview,
-  SignatureKeepsakePreview,
   type OutputPreviewContent,
   type SignageFormat,
 } from "./output-previews";
@@ -29,6 +36,8 @@ import { SegmentedTabs, tabPanelProps } from "./segmented-tabs";
 
 export type LookPreviewProps = {
   eventId: string;
+  /** The raw `event_date`; the keepsake templates format it themselves. */
+  eventDate: string | null;
   state: LookPreviewState;
   sharingEnabled: boolean;
   activated: boolean;
@@ -58,6 +67,38 @@ function contentOf(state: LookPreviewState): OutputPreviewContent {
     hashtag: state.hashtag,
     imageUrl: state.imageUrl,
   };
+}
+
+/**
+ * The keepsake templates' context from the host's live, unsaved Look state: the same closed
+ * context a guest's keepsake gets, on sample photos, with the host's signed theme image URL.
+ */
+function keepsakeContextOf(state: LookPreviewState, eventDate: string | null): KeepsakeContext {
+  return buildKeepsakeContext(
+    { name: state.name, event_date: eventDate, hashtag: state.hashtag, accent_color: state.accent },
+    state.imageUrl ? { src: state.imageUrl } : null,
+  );
+}
+
+function SinglePreview({
+  context,
+  style,
+  orientation = "portrait",
+}: {
+  context: KeepsakeContext;
+  style: SingleStyleId;
+  orientation?: "portrait" | "landscape";
+}) {
+  return (
+    <KeepsakePreview
+      family="single"
+      input={buildSingleKeepsakeInput(context, style, SINGLE_SAMPLES[orientation], SAMPLE_MESSAGE)}
+    />
+  );
+}
+
+function FullSetPreview({ context, style }: { context: KeepsakeContext; style: FullSetStyleId }) {
+  return <KeepsakePreview family="fullSet" input={buildFullSetKeepsakeInput(context, style, FULL_SET_SAMPLES)} />;
 }
 
 function themeScope(state: LookPreviewState) {
@@ -98,6 +139,7 @@ function ObjectLabel({ children }: { children: ReactNode }) {
 
 function LookStage({
   eventId,
+  eventDate,
   state,
   sharingEnabled,
   activated,
@@ -106,6 +148,7 @@ function LookStage({
   const idBase = useId();
   const [tab, setTab] = useState<StageTab>("overview");
   const content = contentOf(state);
+  const keepsakeContext = keepsakeContextOf(state, eventDate);
 
   return (
     <section
@@ -142,14 +185,10 @@ function LookStage({
               <div className="flex w-[44%] max-w-[300px] min-w-0 flex-col gap-4 xl:w-[31%]">
                 <div className="relative">
                   <div className="hidden w-[78%] rotate-[1.5deg] shadow-[0_18px_36px_rgb(21_20_26/0.16)] xl:ml-auto xl:block">
-                    <FitCanvas {...FULL_SET_CANVAS}>
-                      <SignatureKeepsakePreview content={content} />
-                    </FitCanvas>
+                    <FullSetPreview context={keepsakeContext} style={PRESELECTED_FULL_SET_STYLE} />
                   </div>
                   <div className="w-full -rotate-[1.2deg] shadow-[0_18px_36px_rgb(21_20_26/0.16)] xl:absolute xl:bottom-[-18px] xl:left-0 xl:w-[62%]">
-                    <FitCanvas {...PRINT_CANVAS}>
-                      <PrintKeepsakePreview content={content} />
-                    </FitCanvas>
+                    <SinglePreview context={keepsakeContext} style={PRESELECTED_SINGLE_STYLE} />
                   </div>
                 </div>
                 <ObjectLabel>Keepsakes</ObjectLabel>
@@ -170,7 +209,9 @@ function LookStage({
               <ObjectLabel>Join</ObjectLabel>
             </div>
           )}
-          {tab === "keepsakes" && <KeepsakesPanel content={content} sharingEnabled={sharingEnabled} large />}
+          {tab === "keepsakes" && (
+            <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} large />
+          )}
           {tab === "signage" && <SignagePanel content={content} activated={activated} large />}
         </div>
       </div>
@@ -178,10 +219,11 @@ function LookStage({
   );
 }
 
-function LookMobilePreview({ eventId, state, sharingEnabled, activated }: LookPreviewProps) {
+function LookMobilePreview({ eventId, eventDate, state, sharingEnabled, activated }: LookPreviewProps) {
   const idBase = useId();
   const [tab, setTab] = useState<Exclude<StageTab, "overview">>("guest");
   const content = contentOf(state);
+  const keepsakeContext = keepsakeContextOf(state, eventDate);
 
   return (
     <section aria-labelledby={`${idBase}-heading`} className="flex flex-col gap-4">
@@ -214,7 +256,9 @@ function LookMobilePreview({ eventId, state, sharingEnabled, activated }: LookPr
               <GuestPhonePreview eventId={eventId} state={state} className="w-[236px]" />
             </div>
           )}
-          {tab === "keepsakes" && <KeepsakesPanel content={content} sharingEnabled={sharingEnabled} />}
+          {tab === "keepsakes" && (
+            <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} />
+          )}
           {tab === "signage" && <SignagePanel content={content} activated={activated} />}
         </div>
       </div>
@@ -224,62 +268,86 @@ function LookMobilePreview({ eventId, state, sharingEnabled, activated }: LookPr
 
 // ---------------------------------------------------------------------------------------------
 
-function StyleRow({ style, family }: { style: KeepsakeStyleMeta; family: KeepsakeFamily }) {
+function StyleRow({
+  style,
+  family,
+  selected,
+  onSelect,
+}: {
+  style: KeepsakeStyleMeta;
+  family: KeepsakeFamily;
+  selected: boolean;
+  onSelect?: () => void;
+}) {
   const preselected =
     style.id === (family === "single" ? PRESELECTED_SINGLE_STYLE : PRESELECTED_FULL_SET_STYLE);
-  return (
-    <li
-      className={cn(
-        "flex flex-col gap-1 rounded-xl border px-4 py-3",
-        preselected ? "border-brand bg-brand-tint" : "border-transparent bg-surface",
-      )}
-    >
-      <p className="flex flex-wrap items-baseline gap-x-2 text-label font-bold text-ink">
+  const body = (
+    <>
+      <span className="flex flex-wrap items-baseline gap-x-2 text-label font-bold text-ink">
         {style.label}
         {preselected && <span className="text-caption font-semibold text-brand-ink">guests start here</span>}
-      </p>
-      <p className="text-caption font-medium text-ink-muted">{style.line}</p>
+      </span>
+      <span className="text-caption font-medium text-ink-muted">{style.line}</span>
       {family === "fullSet" && (
-        <p className="flex gap-3 text-micro font-semibold text-ink-muted">
+        <span className="flex gap-3 text-micro font-semibold text-ink-muted">
           <span className={cn(!style.uses.image && "line-through opacity-60")}>
             <span className="sr-only">{style.uses.image ? "Uses the" : "Doesn’t use the"} </span>
             Image
           </span>
           <span>Color</span>
           <span className={cn(!style.uses.hashtag && "line-through opacity-60")}>Hashtag</span>
-        </p>
+        </span>
       )}
+    </>
+  );
+  const frame = cn(
+    "flex w-full flex-col gap-1 rounded-xl border px-4 py-3 text-left",
+    selected ? "border-brand bg-brand-tint" : "border-transparent bg-surface",
+  );
+  if (!onSelect) return <li className={frame}>{body}</li>;
+  return (
+    <li>
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        className={cn(frame, "ff-focus relative min-h-11 pr-10", !selected && "hover:border-line")}
+      >
+        {body}
+        {selected && <Check className="absolute top-3.5 right-3.5 size-4 text-brand-ink" aria-hidden />}
+      </button>
     </li>
   );
 }
 
 /**
- * Keepsakes: the two families, never one list of ten (product.md §10.2). The family's
- * preselected style is shown large; the list names all five that guests choose between. Hosts
- * preview; only guests ever make a keepsake.
+ * Keepsakes: the two families, never one list of ten (product.md §10.2). Each family's styles are
+ * the real keepsake templates on sample photos with the live theme; the host picks one to see it
+ * large. Hosts preview; only guests ever make a keepsake — there is no make or download action.
  */
 function KeepsakesPanel({
-  content,
+  context,
   sharingEnabled,
   large,
 }: {
-  content: OutputPreviewContent;
+  context: KeepsakeContext;
   sharingEnabled: boolean;
   large?: boolean;
 }) {
   const idBase = useId();
   const [family, setFamily] = useState<KeepsakeFamily>("single");
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
+  const [singleStyle, setSingleStyle] = useState<SingleStyleId>(PRESELECTED_SINGLE_STYLE);
+  const [fullSetStyle, setFullSetStyle] = useState<FullSetStyleId>(PRESELECTED_FULL_SET_STYLE);
   const styles = family === "single" ? SINGLE_STYLES : FULL_SET_STYLES;
+  const selected: KeepsakeStyleId = family === "single" ? singleStyle : fullSetStyle;
+  const select = (id: KeepsakeStyleId) =>
+    family === "single" ? setSingleStyle(id as SingleStyleId) : setFullSetStyle(id as FullSetStyleId);
   const preview =
     family === "single" ? (
-      <FitCanvas {...PRINT_CANVAS}>
-        <PrintKeepsakePreview content={content} orientation={orientation} />
-      </FitCanvas>
+      <SinglePreview context={context} style={singleStyle} orientation={orientation} />
     ) : (
-      <FitCanvas {...FULL_SET_CANVAS}>
-        <SignatureKeepsakePreview content={content} />
-      </FitCanvas>
+      <FullSetPreview context={context} style={fullSetStyle} />
     );
 
   return (
@@ -296,7 +364,7 @@ function KeepsakesPanel({
             { id: "fullSet", label: "All five" },
           ]}
         />
-        {family === "single" && large && (
+        {family === "single" && (
           <SegmentedTabs
             idBase={`${idBase}-o`}
             label="Sample photo"
@@ -304,8 +372,8 @@ function KeepsakesPanel({
             value={orientation}
             onChange={setOrientation}
             tabs={[
-              { id: "portrait", label: "Portrait photo" },
-              { id: "landscape", label: "Landscape photo" },
+              { id: "portrait", label: large ? "Portrait photo" : "Portrait" },
+              { id: "landscape", label: large ? "Landscape photo" : "Landscape" },
             ]}
           />
         )}
@@ -327,9 +395,15 @@ function KeepsakesPanel({
           {preview}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-3">
-          <ul className="flex flex-col gap-2">
+          <ul aria-label="Keepsake styles" className="flex flex-col gap-2">
             {(large ? styles : styles.slice(0, 1)).map((style) => (
-              <StyleRow key={style.id} style={style} family={family} />
+              <StyleRow
+                key={style.id}
+                style={style}
+                family={family}
+                selected={style.id === selected}
+                onSelect={large ? () => select(style.id as KeepsakeStyleId) : undefined}
+              />
             ))}
           </ul>
           <p className="text-caption font-medium text-ink-muted">

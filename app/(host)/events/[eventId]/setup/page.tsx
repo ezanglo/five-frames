@@ -126,6 +126,7 @@ export default async function EventSetupPage({
           eventId={eventId}
           eventName={event.name}
           dateLabel={formatEventDate(event.event_date)}
+          eventDate={event.event_date}
           activated={false}
           initial={{
             accent: theme?.accent ?? "violet",

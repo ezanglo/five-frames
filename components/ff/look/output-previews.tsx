@@ -1,17 +1,14 @@
 import type { CSSProperties, ReactNode } from "react";
 import { BrandLockup } from "@/components/ff/brand-mark";
-import { LOGO_TONES, WORDMARK_HEIGHT, WORDMARK_LETTERS_PATH, WORDMARK_TITTLE_PATH, WORDMARK_WIDTH } from "@/lib/brand/logo";
-import { SAMPLE_SCENES } from "@/lib/marketing/sample-scenes";
 import { cn } from "@/lib/utils";
 
 /**
- * Host Look previews of the later outputs (Slice 15 foundation; docs/design-direction.md →
- * "Event Theme & Keepsakes"). These are presentational DOM compositions of the accepted board,
- * drawn at each output's real canvas size and scaled by FitCanvas. They are not the production
- * renderers: Slice 16 replaces the keepsake drawings with the shared keepsake templates
- * (lib/keepsakes/), and Slice 17 replaces the signage drawings with the real signage renderer
- * and its live/placeholder QR. Nothing here can be downloaded, shared or scanned — the QR plate
- * is a non-code dot field — and none of it carries a link or token.
+ * Host Look previews of signage (Slice 15 foundation; docs/design-direction.md → "Event Theme &
+ * Keepsakes"). Presentational DOM compositions of the accepted board, drawn at each format's real
+ * canvas size and scaled by FitCanvas. Not the production renderer: Slice 17 replaces these with
+ * the real signage renderer and its live/placeholder QR. Nothing here can be downloaded, shared or
+ * scanned — the QR plate is a non-code dot field — and none of it carries a link or token.
+ * (Keepsake previews are the real templates: components/ff/keepsakes/keepsake-preview.tsx.)
  *
  * They expect to sit inside an `.ff-event-theme` scope so `brand-*` utilities take the event
  * color. Sample photography only: never a guest's capture.
@@ -24,32 +21,9 @@ export type OutputPreviewContent = {
   imageUrl: string | null;
 };
 
-const SAMPLE = {
-  cake: SAMPLE_SCENES[1].src,
-  table: SAMPLE_SCENES[7].src,
-  toast: SAMPLE_SCENES[6].src,
-  sunset: SAMPLE_SCENES[2].src,
-  balloons: SAMPLE_SCENES[0].src,
-  confetti: SAMPLE_SCENES[4].src,
-};
-
-/** A guest-message sample for the Print keepsake. Never the host's welcome message. */
-const SAMPLE_MESSAGE = "“Best. Cake. Ever.”";
-
 function Img({ src, className, style }: { src: string; className?: string; style?: CSSProperties }) {
   // eslint-disable-next-line @next/next/no-img-element -- bundled sample art or a signed URL
   return <img src={src} alt="" draggable={false} className={cn("block", className)} style={style} />;
-}
-
-/** Wordmark only (the Signature Full Set carries it without the symbol — design-direction). */
-function WordmarkOnly({ height }: { height: number }) {
-  const colors = LOGO_TONES.onLight;
-  return (
-    <svg viewBox={`0 0 ${WORDMARK_WIDTH} ${WORDMARK_HEIGHT}`} style={{ height, width: (height * WORDMARK_WIDTH) / WORDMARK_HEIGHT }} aria-hidden>
-      <path d={WORDMARK_LETTERS_PATH} fill={colors.body} />
-      <path d={WORDMARK_TITTLE_PATH} fill={colors.centre} />
-    </svg>
-  );
 }
 
 function MetaRow({ dateLabel, hashtag, size, dark }: { dateLabel: string | null; hashtag: string | null; size: number; dark?: boolean }) {
@@ -74,70 +48,6 @@ function IdentityField({ imageUrl, className, children }: { imageUrl: string | n
         </>
       )}
       <div className="relative flex size-full flex-col">{children}</div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
-// Keepsakes
-// ---------------------------------------------------------------------------------------------
-
-export const PRINT_CANVAS = { width: 1080, height: 1350 };
-export const FULL_SET_CANVAS = { width: 1200, height: 1800 };
-
-/** Print, the preselected Single-photo style: white paper, the photo contained, a caption lip. */
-export function PrintKeepsakePreview({ content, orientation = "portrait" }: { content: OutputPreviewContent; orientation?: "portrait" | "landscape" }) {
-  return (
-    <div className="flex size-full flex-col bg-surface p-16 font-sans text-ink">
-      <div className="flex min-h-0 flex-1 items-center justify-center">
-        <div className="overflow-hidden rounded-[6px] bg-surface-subtle" style={orientation === "portrait" ? { height: "100%", aspectRatio: "4 / 5" } : { width: "100%", aspectRatio: "3 / 2" }}>
-          <Img src={SAMPLE.cake} className="size-full object-cover object-[50%_40%]" />
-        </div>
-      </div>
-      <div className="flex flex-col gap-3 pt-10">
-        <p className="text-[30px] font-medium text-ink-muted">{SAMPLE_MESSAGE}</p>
-        <p className="font-heading line-clamp-2 text-[56px] leading-[1.05] font-semibold">{content.name}</p>
-        <div className="flex items-center justify-between gap-6">
-          <MetaRow dateLabel={content.dateLabel} hashtag={content.hashtag} size={28} />
-          <BrandLockup className="ml-auto h-[30px]" label="" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Signature slots (design-direction "Signature geometry"), canvas px, in commit order. */
-const SIGNATURE_SLOTS = [
-  { x: 72, y: 72, w: 672, h: 448, src: SAMPLE.table },
-  { x: 768, y: 72, w: 360, h: 760, src: SAMPLE.balloons },
-  { x: 456, y: 856, w: 672, h: 448, src: SAMPLE.sunset },
-  { x: 72, y: 544, w: 360, h: 760, src: SAMPLE.toast },
-  { x: 456, y: 544, w: 288, h: 288, src: SAMPLE.confetti },
-] as const;
-
-/** Signature, the preselected Full Set style: the brandmark's construction made of five photos. */
-export function SignatureKeepsakePreview({ content }: { content: OutputPreviewContent }) {
-  const square = SIGNATURE_SLOTS[4];
-  return (
-    <div className="relative size-full bg-surface font-sans text-ink">
-      <div aria-hidden className="absolute rounded-[6px] bg-brand-base" style={{ left: square.x - 10, top: square.y - 10, width: square.w + 20, height: square.h + 20 }} />
-      {SIGNATURE_SLOTS.map((slot, i) => (
-        <div key={i} className="absolute overflow-hidden rounded-[4px] bg-surface-subtle" style={{ left: slot.x, top: slot.y, width: slot.w, height: slot.h }}>
-          <Img src={slot.src} className="size-full object-cover object-[50%_30%]" />
-        </div>
-      ))}
-      <div className="absolute inset-x-[72px] flex items-center gap-8" style={{ top: 1304, height: 496 }}>
-        {content.imageUrl && (
-          <div className="size-32 shrink-0 overflow-hidden rounded-full">
-            <Img src={content.imageUrl} className="size-full object-cover object-[50%_35%]" />
-          </div>
-        )}
-        <div className="flex min-w-0 flex-1 flex-col gap-4">
-          <p className="font-heading line-clamp-2 text-[72px] leading-[1.05] font-semibold">{content.name}</p>
-          <MetaRow dateLabel={content.dateLabel} hashtag={content.hashtag} size={30} />
-        </div>
-        <WordmarkOnly height={28} />
-      </div>
     </div>
   );
 }

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Download, RefreshCw, Share2 } from "lucide-react";
+import { Download, Share } from "lucide-react";
 import { Button } from "@/components/ff/button";
 import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 import { ShotNumber, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { formatEventTime } from "@/lib/events/format";
-import { useShareCapture } from "./use-share-capture";
+import { FullSetCard, useKeepsakePicker, type GuestKeepsakes } from "./keepsakes";
 
 export type OwnPhoto = {
   id: string;
@@ -24,26 +24,23 @@ export type OwnPhoto = {
  * the dark viewer. A guest always keeps this private, downloadable view of their own captures,
  * independent of gallery visibility and after capture closes (product.md §8.3, §13).
  *
- * Sharing is offered only when the host allows it (product.md §10) — it shares a separate
- * branded share card, never the gallery.
+ * Keepsakes are offered only when the host allows them (product.md §10.3): each row's share
+ * button and the viewer's Keepsake group open the "Make a keepsake" picker for that photo. A
+ * keepsake is a separate image; the original download stays its own action.
  */
 export function OwnPhotoList({
-  token,
-  eventName,
   timezone,
   guestName,
-  sharingEnabled,
+  keepsakes,
   photos,
 }: {
-  token: string;
-  eventName: string;
   timezone: string;
   guestName: string | null;
-  sharingEnabled: boolean;
+  keepsakes: GuestKeepsakes | null;
   photos: OwnPhoto[];
 }) {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const { share, pendingCaptureId, error, status } = useShareCapture(token, eventName);
+  const { openFor, openFullSet, fullSetPhotos, picker } = useKeepsakePicker(keepsakes, photos);
 
   const viewerPhotos: ViewerPhoto[] = photos
     .filter((p) => p.thumbnailUrl)
@@ -63,12 +60,17 @@ export function OwnPhotoList({
 
   return (
     <div className="flex flex-col gap-3">
+      {keepsakes && (
+        <p className="-mt-1 text-caption font-medium text-ink-muted">
+          <span className="lg:hidden">Tap a photo to see it, share it as a keepsake, or save the original.</span>
+          <span className="hidden lg:inline">Open a photo to see it, share it as a keepsake, or save the original.</span>
+        </p>
+      )}
       {/* Phones: a compact list (DS05 photo list row). Desktop: the same rows become photo
           cards so each kept shot is seen as a photograph, not a 56px thumbnail. */}
       <ul className="flex flex-col gap-2 lg:grid lg:grid-cols-3 lg:gap-4 xl:grid-cols-5">
         {photos.map((photo) => {
           const index = viewerPhotos.findIndex((v) => v.id === photo.id);
-          const sharing = pendingCaptureId === photo.id;
           return (
             <li key={photo.id} className="relative flex items-center gap-3 lg:items-start">
               <button
@@ -102,31 +104,23 @@ export function OwnPhotoList({
                   {photo.message ?? "No message"}
                 </span>
               </button>
-              {sharingEnabled && (
+              {keepsakes && photo.displayUrl && (
                 <Button
                   variant="secondary"
-                  size="iconSm"
-                  onClick={() => share(photo.id)}
-                  disabled={sharing}
-                  aria-label={`Share shot ${photo.slotIndex + 1}`}
+                  size="icon"
+                  onClick={() => openFor(photo)}
+                  aria-label={`Make a keepsake of shot ${photo.slotIndex + 1}`}
                   className="lg:absolute lg:top-2 lg:right-2 lg:shadow-card"
                 >
-                  {sharing ? <RefreshCw className="animate-spin" /> : <Share2 />}
+                  <Share />
                 </Button>
               )}
             </li>
           );
         })}
       </ul>
-      {error && (
-        <p className="text-caption font-medium text-danger" role="alert">
-          {error}
-        </p>
-      )}
-      {!error && status && (
-        <p className="text-caption font-medium text-ink-muted" role="status">
-          {status}
-        </p>
+      {keepsakes && fullSetPhotos && (
+        <FullSetCard keepsakes={keepsakes} photos={fullSetPhotos} onOpen={openFullSet} />
       )}
 
       {viewerIndex !== null && (
@@ -134,9 +128,38 @@ export function OwnPhotoList({
           photos={viewerPhotos}
           initialIndex={viewerIndex}
           onClose={() => setViewerIndex(null)}
+          downloadLabel="Download original"
+          keepsakeActions={
+            keepsakes
+              ? (viewed) => <KeepsakeViewerActions onOpen={() => {
+                  const own = photos.find((p) => p.id === viewed.id);
+                  if (own) openFor(own);
+                }} />
+              : undefined
+          }
         />
       )}
+      {picker}
     </div>
+  );
+}
+
+/**
+ * The own-photo viewer's Keepsake group (board §07 state 2): Share (the accent action) and Save
+ * keepsake. Both open the picker, where the guest chooses the style first.
+ */
+export function KeepsakeViewerActions({ onOpen }: { onOpen: () => void }) {
+  return (
+    <>
+      <Button size="md" className="flex-1" onClick={onOpen}>
+        <Share aria-hidden />
+        Share
+      </Button>
+      <Button variant="frosted" size="md" className="flex-1" onClick={onOpen}>
+        <Download aria-hidden />
+        Save keepsake
+      </Button>
+    </>
   );
 }
 

@@ -1,7 +1,7 @@
 /**
  * The FiveFrames logo (identity v1.0, 2026-09-30) — the single source of its geometry. Every
  * surface that shows the brand draws from here: the UI (`components/ff/brand-mark.tsx`), the
- * server-rendered images (share card, Open Graph image) and the printed signage.
+ * server-rendered images (keepsakes, Open Graph image) and the printed signage.
  *
  * The symbol: four frames — two landscape, two portrait — turn around a fifth, square frame and
  * together tile one square. No four corners ever meet. The centre frame carries the colour; the

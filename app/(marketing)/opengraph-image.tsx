@@ -4,7 +4,7 @@ import { ImageResponse } from "next/og";
 import { LOGO_TONES, lockupSvg, lockupWidth, svgDataUri } from "@/lib/brand/logo";
 
 /**
- * Share image for the public marketing pages. Same fonts as the branded share card (bundled
+ * Share image for the public marketing pages. Same fonts as the keepsake renderer (bundled
  * TTFs, lib/media/fonts) and the photo-header treatment: night surface with the violet glow.
  * Colors mirror the semantic tokens in app/globals.css (Satori can't read CSS variables).
  */

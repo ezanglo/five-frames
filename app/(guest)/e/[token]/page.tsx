@@ -15,6 +15,9 @@ import { FiveShotTeaser, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { JoinForm } from "./join-form";
 import { CaptureSlots } from "./capture-slots";
 import { DownloadOwnPhotosButton, OwnPhotoList, type OwnPhoto } from "./own-photos";
+import type { GuestKeepsakes } from "./keepsakes";
+import { getFullSetAvailability, isKeepsakeEventReachable } from "@/lib/dal/keepsakes";
+import { buildKeepsakeContext } from "@/lib/keepsakes/context";
 
 /**
  * The guest event page (guest 01 Join · 02 Your Five · 04 Completion). The lifecycle drives
@@ -48,6 +51,18 @@ export default async function GuestEventPage({
   const theme = await getEventThemeForGuest(token);
   const dateLine = <EventDateLine date={dateLabel} hashtag={theme?.hashtag} />;
   const hasDateLine = Boolean(dateLabel || theme?.hashtag);
+  // Keepsakes on this page (product.md §10.3): only with the host's sharing setting on and the
+  // event still reachable. The keepsake routes re-check all of it, and more, per request.
+  const keepsakesFor = async (guestSessionId: string): Promise<GuestKeepsakes | null> =>
+    event.sharing_enabled && isKeepsakeEventReachable(event)
+      ? {
+          token,
+          eventName: event.name,
+          accent: theme?.accent ?? "violet",
+          context: buildKeepsakeContext(event, theme?.imageUrl ? { src: theme.imageUrl } : null),
+          fullSet: await getFullSetAvailability(event, guestSessionId),
+        }
+      : null;
 
   if (state === "draft" || state === "active") {
     return (
@@ -132,11 +147,9 @@ export default async function GuestEventPage({
             </span>
           </div>
           <OwnPhotoList
-            token={token}
-            eventName={event.name}
             timezone={event.timezone}
             guestName={endedSession.display_name}
-            sharingEnabled={event.sharing_enabled}
+            keepsakes={await keepsakesFor(endedSession.id)}
             photos={kept}
           />
           <HighlightCard
@@ -239,7 +252,7 @@ export default async function GuestEventPage({
       theme={theme}
       timezone={event.timezone}
       guestName={session.display_name}
-      sharingEnabled={event.sharing_enabled}
+      keepsakes={await keepsakesFor(session.id)}
       initialCaptures={captures.map((c) => ({
         id: c.id,
         slotIndex: c.slotIndex,

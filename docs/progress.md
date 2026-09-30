@@ -1,17 +1,199 @@
 # FiveFrames — Progress
 
-Last updated: 2026-09-30 (**Slice 15 — event theme foundation: `complete`** — automated and
-browser verification green, and the user passed all six visual/taste checks. HEIC resolved as
-option (a): raw HEIC/HEIF isn't supported in MVP; see the Slice 15 section. The user approved the Event Theme &
-Keepsakes design and the Full Set amendment the same day; D19/D20 accepted. Slice 14 —
-full-flow real-device and venue-condition validation — is still `awaiting human verification`;
-run its checklist against the redesigned UI. The earlier brand identity, marketing motion and
-contracted-handoff redesign passes remain `awaiting human visual approval` — see their sections.)
+Last updated: 2026-10-01 (**Slice 16 — keepsakes, both families: `awaiting human verification`.**
+Phase A (Single-photo) and Phase B (Full Set) are built. Automated, browser, parity and Vercel
+Preview performance verification passed; the real-device share/save checklist is pending (Slice 16
+section). The `share_path` drop migration is written and deliberately unapplied (deployment
+order). Slice 15 is `complete`. Slice 14 is still `awaiting human verification`; its §7 share-card
+checks are superseded by Slice 16's. The brand identity, marketing motion and contracted-handoff
+redesign passes remain `awaiting human visual approval`; see their sections.)
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 16 — Keepsakes, both families (2026-10-01): `awaiting human verification`
+
+The one keepsake/sharing system (product.md §10.2–§10.3, D19, D20, architecture §7b), in two
+families from one registry, one renderer, one DAL module (`lib/dal/keepsakes.ts`), one picker and
+one sharing toggle. It is rendered on demand and never persisted: no row, no object, no cache.
+
+**Phase A — Single-photo: complete.**
+
+- Five styles: Print (default), Booth, Poster, Journal, Album, on a 1080 × 1350 canvas. The
+  photo is contained (the window takes its own ratio), with board §06 sizes, type steps and
+  clamps, and each style's theme-image role.
+- The route `GET /e/[token]/keepsake/photo/[captureId]/[styleId]` checks, fresh on every
+  request:
+  - guest event access: current token, activated, not expired or archived, media not deleted.
+    It does not check whether capture is open;
+  - the cookie's session exists for this event;
+  - the style belongs to the Single-photo family;
+  - sharing is on;
+  - the capture is the session's own, committed, unhidden and undeleted.
+  - Then it renders and re-confirms (event, sharing, source rows) before any byte leaves.
+  - Refusals are a generic 404; only sharing-off is a 403; render failure is a retryable 503.
+  - Output is `image/jpeg`, `private, no-store`, named `fiveframes-{event}-{style}.jpg`;
+    `?download=1` makes it an attachment.
+- Guest picker "Make a keepsake" (`components/ff/keepsakes/keepsake-picker.tsx`), opened from
+  each own-photo row button and from the own-photo viewer. The viewer now separates **Keepsake**
+  (Share · Save keepsake) from **Original photo** ("Exactly as you took it" · Download).
+  - Print is preselected, with five real DOM-rendered thumbnails.
+  - Only the selected style is fetched; a new selection aborts the old fetch. Share calls
+    `navigator.share` with bytes already held; cancelling is silent.
+  - "Couldn't prepare" shows Try again. With no file sharing (`canShare({ files })`), Save
+    keepsake becomes the primary. Save is a `?download=1` navigation, then the saved line.
+  - 390 phone, 768 600 px sheet, ≥ 1024 stage + 380/400 panel.
+  - Sharing off shows no keepsake UI at all, only "Download original".
+- Host Look uses the real templates on bundled sample photos with the live theme: Overview, and
+  the Keepsakes tab with selectable styles and the Portrait/Landscape toggle. Draft works, and
+  Look never calls a keepsake route.
+- Share card retired in the new code: `getShareCard`, `use-share-capture`,
+  `lib/dal/share-cards.ts` and `lib/media/share-card.tsx` (and their tests) are removed. Nothing
+  reads or writes `captures.share_path`, D18 deletion no longer lists it, and product copy now
+  says "keepsakes".
+
+**Phase B — Full Set: complete.**
+
+- Five styles: Signature (default), Strip, Grid, Spotlight, Prints, on `FULL_SET_CANVAS`
+  1200 × 1800. The slot rectangles are the design's (`FULL_SET_SLOTS`).
+  - Signature follows the brandmark: 3:2 landscape arms, 36:76 portrait arms, a closing square
+    on an accent mat, 24 px gutters.
+  - Prints' declared slots are the unrotated windows.
+- `getFullSetSources(eventId, guestSessionId)` is the only source. It selects the session's
+  committed rows in this event, hidden and deleted included, ordered `(committed_at,
+  slot_index)`. It is eligible only with exactly five rows that are all visible with a display
+  derivative; there is no partial set.
+  - `GET /e/[token]/keepsake/set/[styleId]` takes no capture ids and no session id, and uses the
+    same checks and re-confirm as Phase A.
+  - The page's availability flag comes from the same function (`getFullSetAvailability`).
+- Crops use the pure `coverCrop` (CSS `object-position` semantics, focus `50% 30%`). The server
+  pre-crops each display derivative to its slot; the browser uses `object-fit: cover`. There is
+  no content analysis.
+- Guest UI:
+  - the "Your five, together" card (on-tint "See them together") sits under the photo list on
+    completion and on the closed own view;
+  - the **One photo · Your five** switch appears only while the set is available. Each family
+    keeps its own default (Print / Signature);
+  - opening from the card lands on Your five;
+  - if the set becomes unavailable while open: from a photo it falls back to One photo with
+    "Your five together isn't available right now."; from the card it closes and the card is
+    gone;
+  - there is no locked, teaser or progress state.
+- Host Look: the ≥ 1280 Overview shows the Signature + Print pair. The Keepsakes tab's **All
+  five** has selectable real previews on five mixed samples (P, P, L, P, S) and Image / Color /
+  Hashtag chips (Grid: no image).
+
+**Renderer as built:** one JSX template per style renders two ways: the Satori export
+(`ImageResponse` → `sharp` JPEG q88, no metadata) and the React DOM preview.
+- Every image is pre-cropped to the exact box it fills.
+- Target-specific serializations cover the few differences: clamping, ellipsis, fonts (the same
+  TTFs through `next/font/local`), and large shadows (CSS in the preview, pre-blurred bitmap on
+  export).
+- Jakarta 600 was added to `lib/media/fonts/` from the same Google Fonts source the other weights
+  came from (the existing 500 is byte-identical to it). `next.config.ts` traces the fonts into
+  the routes.
+- Each render logs one `keepsake.render` line with no identifiers.
+
+**Defects found and fixed during implementation (with regression coverage):**
+- Satori draws nothing for an absolutely positioned box sized in percent. This left Spotlight's
+  no-image band white (so its name vanished) and dropped the Strip scrim and Prints wash. Fixed
+  with pixel sizes; `render.test.ts` checks the band paints; recorded as a CLAUDE.md gotcha.
+- Print's meta row overflowed on a long hashtag. It now wraps inside its column.
+- New picker and viewer buttons were raised to ≥ 44 px.
+
+**DOM/export parity (Chromium vs exported JPEG, identical inputs):**
+- Single-photo: 15 cases (portrait / landscape / square, theme on and off, message on and off,
+  46-character name, 27-character hashtag, marigold / violet / rose). Mean Δ 0.6–3.5 of 255.
+- Full Set: 30 cases (all-portrait, all-landscape, 3P+2L, 2P+3L, square-ish, awkward subject ×
+  the five styles; themed, default and teal). Mean Δ 0.6–3.3.
+- Line breaks, clamps, crops, radial glows and positions match. The residue is anti-aliasing and
+  ±1–2 px rotation rasterization (Album, Prints).
+- The awkward-subject set shows the accepted limitation: a subject in the bottom quarter of a
+  portrait is cut off in wide slots.
+
+**Performance (accepted evidence; not re-run):**
+- Single-photo (local server process, dev Postgres + Storage over the internet, 2400 px theme):
+  50 warm + 1 cold. Warm p50 842 ms, p95 1,458 ms; cold 1,528 ms; 116–149 KB.
+- **Full Set gate: passed for the renderer architecture.**
+  - Vercel Preview in `sin1` (co-located with Supabase), after tuning. Inputs: five ~1600 px
+    display derivatives of noisy phone-size photos (199–364 KB), a 2400 × 1600 theme image,
+    rose accent, 46-character name.
+  - Sample: 41 sequential requests (40 warm), rotating all five styles.
+  - Server-side render p50 1,829 ms, **p95 2,388 ms** (≤ 2.5 s), max 2,828 ms; first request
+    after deploy 2,855 ms (n = 1).
+  - **Peak RSS 563 MB** (≤ half of the default 2 GB function memory; the project sets none).
+  - **JPEG 137–309 KB** (≤ ~800 KB).
+  - Observational only: client end-to-end from Manila p50 2.27 s, p95 3.15 s. That is a
+    different metric; it includes TLS, edge and transfer.
+  - Tuning within D20: pre-blurred shadow bitmaps took Prints from ~7 s to ~2.3 s server-side.
+    Rasterizing Satori's SVG with librsvg was tried and rejected (only 10–25 % faster, with a new
+    dependency). D19/D20's **render on demand, store nothing** stands. No persisted Full Set
+    outputs were adopted or proposed.
+  - Four Preview deployments exist for this measurement; none is Production.
+- **Deployment-region caveat (separate from the renderer):** functions run in the project's
+  default US East region (`iad1`) while Supabase is in Singapore, so every query and storage read
+  crosses the Pacific. The first untuned request there took 11.5 s. Not changed in this slice (see
+  Blockers).
+
+**Automated verification (final):** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ ·
+`pnpm test` 363/363 ✔ (37 files). New tests:
+- `lib/keepsakes/{styles,crop,geometry,context,filename,render}.test.*`: family registry and
+  guards, `coverCrop` vs the CSS rule, slot bounds and overlap, Signature geometry with a
+  corner-meeting control, exact input keys, no message in a Full Set, templates emit no private
+  data, JPEG with no EXIF, Spotlight band regression;
+- `lib/share/web-share.test.ts` (rewritten);
+- `lib/dal/keepsakes.integration.test.ts` (11 cases) and
+  `lib/dal/keepsakes.fullset.integration.test.ts` (10 cases), against real dev Postgres + Storage:
+  - every refusal: other guest, missing or foreign session, foreign event, bad ids, wrong-family
+    or unknown style, hidden, deleted, pending, fewer than five, sharing off, expired, archived,
+    media deleted, rotated token;
+  - after capture closes and pre-reveal both work, with no gallery data in the bytes;
+  - a mid-render hide or sharing-off withholds bytes;
+  - hide → unhide gives the same five in the same order, checked by pixel. Equal `committed_at`
+    falls back to `slot_index`; commit order beats slot order;
+  - delete is permanent and restores no frame;
+  - originals, display and thumbnail are byte-identical; no row, object or session is written;
+  - a theme change shows on the next render.
+- Browser (Playwright / Chromium, local dev + dev Supabase, synthetic data, since deleted):
+  - viewer groups, picker states (preparing, ready, style switch with abort, arrow keys,
+    couldn't-prepare + Try again, save-only mode, a real `?download=1` download with the right
+    filename, saved line);
+  - sharing off; 390 / 768 / 1024 / 1280 / 1440 with no horizontal overflow;
+  - Full Set card, the Your five picker, the family switch and defaults, a hidden photo removing
+    both, unavailable-while-open from a photo and from the card;
+  - host Look for both families, including Draft.
+- Emulation is not device proof.
+
+**`share_path` — deployment-order dependency (migration intentionally unapplied):**
+- The dev cleanup ran: `pnpm ops:retire-share-cards --apply` deleted the only 2 `…/share` objects
+  (derived cards on the synthetic E2E event). A rerun finds 0.
+- The drop migration `supabase/migrations/20260930020000_retire_share_cards.sql` is written but
+  **not applied**. Vercel Production still runs the old code against this same database, and that
+  code reads `share_path`, including in the D18 cron. Order:
+  1. deploy code that no longer reads or writes `share_path` everywhere this database is served;
+  2. rerun `pnpm ops:retire-share-cards --apply`;
+  3. only then `supabase db push` the drop.
+- Nothing in Production was mutated.
+
+**Human verification needed (real devices, not emulation; supersedes Slice 14 §7 and the Slice 10
+checklist).** Use an activated event with sharing on and a guest with five kept photos. Test from
+the own-photo viewer (Keepsake → Share) and from "See them together".
+
+1. **iPhone Safari**
+   - Single-photo Share opens the native sheet with `fiveframes-…-print.jpg`.
+   - Full Set Share works the same way.
+   - Cancel the sheet: no message, Share still works.
+   - Retry Share.
+   - Save keepsake saves the JPEG.
+2. **Android Chrome:** the same Share / cancel / retry / Save checks.
+3. **Facebook in-app browser:** Save works (or Share where offered); no dead end.
+4. **Messenger in-app browser:** the same as Facebook.
+5. **Instagram in-app browser:** the same as Facebook.
+6. **Visual:** compare one saved Single-photo and one saved Full Set with their picker previews.
+
+Reply PASS / FAIL / BLOCKED per item. Record the results here, and fix any FAIL inside Slice 16.
 
 ## Slice 15 — Event theme foundation (2026-09-30): `complete`
 
@@ -117,12 +299,11 @@ path currently fails during derivative processing. Normal tested iPhone Photos s
 JPEG. Add an early, calm unsupported-format rejection for genuinely raw HEIC in a future
 maintenance objective unless later evidence justifies native conversion.
 
-**Interim states Slices 16–17 replace:** the Look keepsake/signage objects are presentational
-drawings (Slice 16 swaps in the real templates; Slice 17 the signage renderer and live QR); the
-downloadable signage and the share card are still the unthemed Slice 8/10 outputs; the existing
-QR quiet-zone/bracket defect is untouched (Slice 17). "Guest keepsakes" copy precedes the
-keepsake feature (the toggle still governs today's share card). The small-image warning shows
-right after upload only (the flag isn't stored).
+**Interim states Slice 17 replaces:** the Look signage objects are presentational drawings (Slice
+17 swaps in the signage renderer and live QR). The downloadable signage is still the unthemed
+Slice 8 output, and the QR quiet-zone/bracket defect is untouched (Slice 17). Keepsake previews
+became the real templates in Slice 16. The small-image warning shows right after upload only (the
+flag isn't stored).
 
 **Human verification — passed (reported by the user 2026-09-30, "all looks good"):** all six
 taste checks — Create → Look desktop studio and Overview; Create → Look on a phone (color
@@ -350,8 +531,9 @@ are also no longer in `.env.local`.
 
 **Slices 1–13: complete. Slice 14 (full-flow real-device and venue-condition validation,
 product.md, roadmap criteria 29/30) is `awaiting human verification` — status set 2026-09-23.
-Slice 15 (event theme foundation) is `complete`; Slices 16
-(keepsakes) and 17 (themed signage) are not started. The Event Theme & Keepsakes design (incl.
+Slice 15 (event theme foundation) is `complete`; Slice 16
+(keepsakes, both families) is `awaiting human verification`; Slice 17 (themed signage) is not
+started. The Event Theme & Keepsakes design (incl.
 the Full Set amendment) is approved.**
 
 Slice 14 is defined by the roadmap itself as human-run, not automated ("Human-run on real
@@ -1598,7 +1780,11 @@ to it) are recorded under "Regression protection" above, all fixed at the root c
 new automated tests, and confirmed fixed against real subsequent PayMongo deliveries — including a
 second real checkout after the root-cause fix specifically to re-verify it.
 
-## Human verification needed for Slice 10 (Web Share behavior)
+## Human verification needed for Slice 10 (Web Share behavior) — superseded
+
+**Superseded by Slice 16:** the share card no longer exists. Run the Slice 16 checklist instead;
+this section is kept only as history.
+
 
 Everything server-authoritative about the sharing flow is already proven by automated tests
 (see "Verification status" above). What remains is real Web Share API / share-sheet behavior,
@@ -1670,9 +1856,8 @@ supported, download fallback works where it isn't. Record exact limitations per 
 than guessing — e.g. if Instagram's in-app browser blocks the native camera picker, say so
 precisely rather than describing a workaround that wasn't actually exercised.
 
-**7. Web Share (folds in the previously separate Slice 10 checklist).** *Slice 16 replaces the
-share card with keepsakes and re-runs these device checks against them. Running §7 now only
-validates code that is due to be replaced.* Capture a photo as a
+**7. Web Share — superseded; skip.** *The share card is retired (Slice 16). Run the Slice 16
+keepsake checklist instead. The text below is kept only as history.* Capture a photo as a
 guest on a sharing-enabled event, tap the share icon:
 - iPhone Safari: native share sheet opens with the branded card (event name, date/hashtag,
   message, "FIVE FRAMES").
@@ -1741,8 +1926,9 @@ device available) will be recorded honestly as a known limitation rather than cl
 verification`.** Everything automatable is done and passing (see above). The checklist above is
 the exit condition; there is no further automatable work in this slice.
 
-**Slice 15 — event theme foundation: `complete`** (HEIC resolved as option (a)). **Next: Slice 16** (keepsakes, Phase A
-Single-photo then Phase B Full Set) or **Slice 17** (themed signage) — both depend only on 15.
+**Slice 15 — event theme foundation: `complete`** (HEIC resolved as option (a)). **Slice 16 —
+keepsakes, both families: `awaiting human verification`** (checklist in its section). **Next:
+Slice 17** (themed signage) once Slice 16's device checks are reported.
 MVP launch requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
 mutation until Slices 14–17 are PASS or honestly-recorded BLOCKED with no unresolved
 launch-blocking defect.
@@ -1756,9 +1942,11 @@ launch-blocking defect.
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
 | Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews are now product — Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
 | Raw HEIC supplied directly to guest capture fails at derivative processing (no frame consumed; retry error) instead of an early, calm unsupported-format refusal. The theme image already refuses it up front (Slice 15) | Maintenance follow-up | Guest capture |
-| Look keepsake/signage previews are presentational until Slices 16/17; downloadable signage and the share card are still unthemed | Known interim state | Slices 16–17 |
-| Slice 16's legacy `…/share` object cleanup and `share_path` drop run against the dev Supabase project, which also backs Vercel Production today (see below) | Known interim state | Slice 16 |
-| Operator Console, share card, 404/error pages and app icons moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
+| Slice 16 real-device share/save checklist (iPhone Safari, Android Chrome, FB/Messenger/IG in-app save, preview-vs-export visual) not yet run | Manual verification pending | Slice 16 |
+| `share_path` drop migration `20260930020000` is written but unapplied. Deploy code that no longer uses `share_path` wherever the database is served, rerun `pnpm ops:retire-share-cards --apply`, then apply it (Slice 16 section) | Deployment-order dependency | Next deploy / release |
+| Before real production traffic, reconcile Vercel function placement with the Singapore Supabase region, and verify representative latency after the region is intentionally configured. Functions currently run in US East (`iad1`) | Deployment configuration follow-up | Release / bounded maintenance |
+| Look signage previews are presentational until Slice 17; downloadable signage is still unthemed | Known interim state | Slice 17 |
+| Operator Console, 404/error pages and app icons (the share card is retired) moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
 | Supabase Auth email templates (confirmation, password reset) still Supabase defaults — dashboard configuration, not repo code | Follow-up design task | Host signup and password-reset emails |
 | `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |
 | Supabase Auth redirect allowlist must include `/auth/confirm` for password reset in each environment | Configuration | Password reset |

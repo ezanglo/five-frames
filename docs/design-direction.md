@@ -3,8 +3,8 @@
 **Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
 pass, "Desktop and browser" below). **Event Theme & Keepsakes and its Full Set amendment:
 approved by the user 2026-09-30** as the implementation target for Slices 15–17 (see that
-section). Slice 15 (theme foundation) is built; keepsakes (Slice 16) and themed signage (Slice
-17) are not. The contracted FiveFrames
+section). Slices 15 (theme foundation) and 16 (keepsakes, both families) are built; themed signage
+(Slice 17) is not. The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24
@@ -56,10 +56,10 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Logo geometry: symbol, pixel-snapped favicon drawing, outlined wordmark, lockup, tones — one source for UI, images and signage | `lib/brand/logo.ts` |
 | Logo components: `BrandMark` (symbol), `BrandLockup`; `Wordmark` = lockup + Host/Operator tag | `components/ff/brand-mark.tsx`, `components/ff/wordmark.tsx` |
 | App icons (the symbol: adaptive SVG tab icon, violet-tile `.ico`, full-bleed violet Apple icon) | `app/icon.svg`, `app/favicon.ico`, `app/apple-icon.png` |
-| Branded share card (Satori; tokens mirrored by hex, fonts as bundled TTFs). Replaced by the keepsake registry in Slice 16 | `lib/media/share-card.tsx`, `lib/media/fonts/` |
+| Bundled brand TTFs for server-rendered images (keepsakes, Open Graph); the DOM keepsake previews load the same files | `lib/media/fonts/`, `components/ff/keepsakes/fonts.ts` |
 | Curated accent registry + roles (`deriveAccentRoles`, `accentCssVars`), hashtag rules, theme-image limits (Slice 15) | `lib/theme/` |
 | Look studio: controls, swatches, hashtag field, theme-image control, preview stage, and the Slice 15 presentational keepsake/signage objects | `components/ff/look/` |
-| Keepsake style identities (both families, one preselected per family); Slice 16 adds templates, Full Set slot rects and `coverCrop`; themed signage is Slice 17 | `lib/keepsakes/styles.ts`, `lib/media/signage.ts` |
+| Keepsakes: registry (`styles.ts`), geometry and slot rects (`geometry.ts`), `coverCrop`, closed inputs (`context.ts`), the ten templates for both render targets (`templates/`), the export pipeline (`render.tsx`); guest picker and DOM preview in `components/ff/keepsakes/`. Themed signage is Slice 17 | `lib/keepsakes/`, `components/ff/keepsakes/`, `lib/media/signage.ts` |
 | Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
@@ -177,8 +177,7 @@ print are in `docs/design-handoff/FiveFrames_Identity_v1.0/`. In code, the geome
   surfaces (`onLight`), white + highlight violet on ink, night surfaces and photos (`onDark`),
   solid white on violet (`onViolet`). No other colourways, no gradients, no outlines.
 - **Where it appears:** every header via `Wordmark`, the marketing mockups, the Open Graph image,
-  the border of every keepsake (the share card's foot until Slice 16; the Signature Full Set
-  carries the wordmark alone, because its photos already draw the symbol), the top of all four signage
+  the border of every keepsake (the Signature Full Set carries the wordmark alone, because its photos already draw the symbol), the top of all four signage
   formats, and the app icons. It is never themed: the event accent never replaces its violet
   centre.
 - **Open items:** the wordmark is a modified public typeface; a type designer should redraw it
@@ -657,9 +656,8 @@ one:
 - **404 / error** (`app/not-found.tsx`, `app/error.tsx`, `app/global-error.tsx`): the guest shell,
   because either can reach any audience. A host opening an event they don't own sees the same
   404 as a missing one (invariant 9).
-- **Branded share card** (`lib/media/share-card.tsx`): the current build's single card. **Replaced
-  in Slice 16** by the five keepsake styles ("Event Theme & Keepsakes"). Its layout is not kept as
-  a style; Print takes its role as the calm default.
+- **Branded share card**: retired in Slice 16. The keepsake styles replaced it ("Event Theme &
+  Keepsakes"), and Print takes its role as the calm default.
 - **Signage SVGs** (`lib/media/signage.ts`) use the tokens and fonts, but the current layout (one
   composition at four sizes, brackets inside the plate padding) is superseded by the themed
   signage design. The landing page (`app/page.tsx`) uses the tokens and fonts.

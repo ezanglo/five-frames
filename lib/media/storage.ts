@@ -130,6 +130,17 @@ export async function generateDerivatives(
 }
 
 /**
+ * Reads one object's bytes for a server-side derived output (keepsakes read display
+ * derivatives). Never used on an original, and never writes. Null when the object is missing.
+ */
+export async function downloadCaptureObject(path: string): Promise<Buffer | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase.storage.from(BUCKET).download(path);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
+}
+
+/**
  * Permanently removes objects from the private bucket (retention/deletion, product.md
  * §15.2). Removing an already-absent path is not an error from Supabase Storage's own
  * `remove()` — it simply isn't included in the returned list — which is what makes a

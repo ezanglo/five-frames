@@ -1,48 +1,46 @@
 /**
- * The pure decision logic behind the guest sharing flow's "use the Web Share API where
- * available, fall back to download otherwise" rule (product.md §10). Kept free of any direct
- * `navigator`/`document` reference so it can run in a plain Node test environment (no jsdom in
- * this project) with an injected capability object standing in for the real browser — the
- * thing this repo's tooling cannot exercise is real Safari/Android Web Share behavior itself,
- * which is why that stays on the human-verification checklist instead.
+ * The keepsake share decision (product.md §10.3, architecture §7b "Prepare before the Share tap").
+ * Free of direct `navigator` references so it runs in a plain Node test (no jsdom here) with an
+ * injected capability standing in for the browser. Real share-sheet behavior stays on the human
+ * device checklist.
+ *
+ * - `navigator.share` existing is not enough: the browser must say it can share this *file*
+ *   (`canShare({ files })`). Otherwise the picker offers Save as the primary action.
+ * - `shareFile` must be called synchronously from the tap with bytes already in hand, so the
+ *   share sheet opens inside the user gesture.
+ * - Cancelling the sheet is not an error.
  */
 
 export type ShareCapability = {
   canShareFiles: (file: File) => boolean;
   share: (file: File, title: string) => Promise<void>;
-  downloadBlob: (blob: Blob, filename: string) => void;
 };
 
-export type ShareResult = "shared" | "downloaded" | "cancelled";
+export type ShareResult = "shared" | "cancelled" | "failed";
 
-/**
- * Never throws: a share failure (including the user cancelling the native share sheet) always
- * falls through to the download fallback rather than leaving the guest with nothing, and never
- * touches the underlying capture — this function only ever reads the already-generated blob.
- */
-export async function shareOrDownload(
-  blob: Blob,
-  filename: string,
+/** A 1-byte JPEG-typed probe: can this browser share an image file at all? */
+export function canShareImageFiles(capability: ShareCapability): boolean {
+  try {
+    return capability.canShareFiles(new File([new Uint8Array([0xff])], "probe.jpg", { type: "image/jpeg" }));
+  } catch {
+    return false;
+  }
+}
+
+/** Never throws. `cancelled` is the guest closing the sheet — say nothing. */
+export async function shareFile(
+  file: File,
   title: string,
   capability: ShareCapability,
 ): Promise<ShareResult> {
-  const file = new File([blob], filename, { type: blob.type || "image/png" });
-
-  if (capability.canShareFiles(file)) {
-    try {
-      await capability.share(file, title);
-      return "shared";
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        return "cancelled";
-      }
-      // Any other native-share failure falls back to download rather than surfacing an error
-      // for something the guest's own capture was never at risk from.
-    }
+  if (!capability.canShareFiles(file)) return "failed";
+  try {
+    await capability.share(file, title);
+    return "shared";
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") return "cancelled";
+    return "failed";
   }
-
-  capability.downloadBlob(blob, filename);
-  return "downloaded";
 }
 
 /** The real browser-backed capability, used everywhere outside tests. */
@@ -50,20 +48,9 @@ export function browserShareCapability(): ShareCapability {
   return {
     canShareFiles: (file) =>
       typeof navigator !== "undefined" &&
+      typeof navigator.share === "function" &&
       typeof navigator.canShare === "function" &&
       navigator.canShare({ files: [file] }),
-    share: async (file, title) => {
-      await navigator.share({ files: [file], title });
-    },
-    downloadBlob: (blob, filename) => {
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    },
+    share: (file, title) => navigator.share({ files: [file], title }),
   };
 }

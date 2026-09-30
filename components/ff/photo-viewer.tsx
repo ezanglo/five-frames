@@ -33,13 +33,19 @@ export function PhotoViewer({
   photos,
   initialIndex,
   onClose,
-  extraAction,
+  keepsakeActions,
+  downloadLabel = "Download photo",
 }: {
   photos: ViewerPhoto[];
   initialIndex: number;
   onClose: () => void;
-  /** Optional secondary action for the current photo (e.g. Share). */
-  extraAction?: (photo: ViewerPhoto) => ReactNode;
+  /**
+   * The guest's own viewer with keepsakes on: the actions for the "Keepsake" group. The viewer
+   * then separates it from the "Original photo" group, so the two outputs never blur together
+   * (design-direction → "Guest keepsake flow").
+   */
+  keepsakeActions?: (photo: ViewerPhoto) => ReactNode;
+  downloadLabel?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const backButtonRef = useRef<HTMLButtonElement>(null);
@@ -86,7 +92,7 @@ export function PhotoViewer({
   const photo = photos[Math.min(current, photos.length - 1)];
 
   const info = photo && (photo.name || photo.meta || photo.badge);
-  const actions = photo && (photo.downloadUrl || extraAction);
+  const actions = photo && photo.downloadUrl;
 
   return (
     <div
@@ -205,16 +211,34 @@ export function PhotoViewer({
             <span className="hidden lg:inline">Use ← → to browse · Esc to close</span>
           </p>
         )}
-        {actions && (
-          <div className="flex gap-3 lg:flex-col">
-            {photo && extraAction?.(photo)}
-            {photo?.downloadUrl && (
-              <ButtonAnchor href={photo.downloadUrl} className="flex-1 lg:flex-none">
-                <Download aria-hidden />
-                Download photo
-              </ButtonAnchor>
+        {photo && keepsakeActions ? (
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <p className="text-micro font-bold tracking-[0.08em] text-ink-on-dark uppercase">Keepsake</p>
+              <div className="flex gap-3">{keepsakeActions(photo)}</div>
+            </div>
+            {photo.downloadUrl && (
+              <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
+                <div className="flex flex-col">
+                  <p className="text-micro font-bold tracking-[0.08em] text-ink-on-dark uppercase">Original photo</p>
+                  <p className="text-caption font-medium text-ink-on-dark">Exactly as you took it</p>
+                </div>
+                <ButtonAnchor href={photo.downloadUrl} variant="frosted" size="sm" className="h-11">
+                  <Download aria-hidden />
+                  Download
+                </ButtonAnchor>
+              </div>
             )}
           </div>
+        ) : (
+          actions && (
+            <div className="flex gap-3 lg:flex-col">
+              <ButtonAnchor href={photo.downloadUrl!} className="flex-1 lg:flex-none">
+                <Download aria-hidden />
+                {downloadLabel}
+              </ButtonAnchor>
+            </div>
+          )
         )}
       </div>
     </div>

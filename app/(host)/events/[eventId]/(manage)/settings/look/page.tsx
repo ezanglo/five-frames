@@ -34,6 +34,7 @@ export default async function LookSettingsPage({
       eventId={eventId}
       eventName={event.name}
       dateLabel={formatEventDate(event.event_date)}
+      eventDate={event.event_date}
       activated={Boolean(event.activated_at)}
       initial={{
         accent: theme?.accent ?? "violet",
