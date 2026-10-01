@@ -9,14 +9,16 @@ import {
   Eye,
   EyeOff,
   Focus,
+  ImageIcon,
+  Layers,
   Link2,
   Lock,
+  Palette,
   Power,
   QrCode,
   Share2,
   Smile,
   ShieldCheck,
-  Smartphone,
   Sparkles,
   UserCheck,
   Users,
@@ -26,6 +28,7 @@ import { ButtonLink } from "@/components/ff/button";
 import { StatusPill } from "@/components/ff/pill";
 import { CtaBand, FaqList, PriceCard } from "@/components/ff/marketing/blocks";
 import { GuestJourney } from "@/components/ff/marketing/guest-journey";
+import { KeepsakeShowcase } from "@/components/ff/marketing/keepsake-showcase";
 import { FiveFramesHeroVisual } from "@/components/ff/marketing/hero-prints";
 import { Reveal } from "@/components/ff/marketing/reveal";
 import {
@@ -85,11 +88,12 @@ export default async function HomePage() {
       <Hero />
       <JourneySection demoQr={demoQr} />
       <WhyFiveSection />
+      <KeepsakesSection />
       <HostSection />
       <StepsSection />
       <OccasionsSection />
       <DemoSection demoQr={demoQr} />
-      {TESTIMONIALS.length > 0 ? <TestimonialsSection /> : <PromisesSection />}
+      {TESTIMONIALS.length > 0 && <TestimonialsSection />}
       <TrustSection />
       <PricingSection />
       <FaqSection />
@@ -186,7 +190,7 @@ function JourneySection({ demoQr }: { demoQr: string }) {
             },
             {
               title: "Become part of the collection",
-              body: "Everything kept goes into the host’s private collection. When you reveal the gallery and share its link, everyone can relive the day together.",
+              body: "Everything kept goes into the host’s private collection. Guests can always see their own. Everyone else’s photos wait until you reveal the gallery and share its link.",
               visual: <CollectionScreen />,
             },
           ]}
@@ -257,9 +261,66 @@ function WhyFiveSection() {
   );
 }
 
+const KEEPSAKE_POINTS = [
+  {
+    icon: <Palette />,
+    title: "Your look, carried through",
+    body: "Add one image, pick an accent color and, if you like, a hashtag. Guest screens, signage and keepsakes all wear it. Skip it, and the FiveFrames look is ready as it is.",
+  },
+  {
+    icon: <ImageIcon />,
+    title: "One photo, or all five",
+    body: "Guests choose from five keepsake styles for any photo they kept. Someone who keeps all five can also put them together in one, with five styles made for that.",
+  },
+  {
+    icon: <Layers />,
+    title: "The original stays the original",
+    body: "A keepsake is a separate image. The photo itself is never cropped, filtered or changed, and it still downloads exactly as it was taken.",
+  },
+  {
+    icon: <EyeOff />,
+    title: "Only their own photos",
+    body: "A keepsake never shows the guest’s name, anyone else’s photos, or a way into your event or gallery.",
+  },
+];
+
+/**
+ * Event Theme & Keepsakes (product.md §10): what guests take home, and the one look the host
+ * sets for it. Calm on purpose — the all-five keepsake is mentioned as something a guest *can*
+ * make, never as a goal (product.md §10.2.2).
+ */
+function KeepsakesSection() {
+  return (
+    <Section id="keepsakes" labelledBy="keepsakes-title">
+      {/* Mobile: heading → keepsakes → points, so the picture explains before the list does.
+          ≥1024: text column left, keepsakes centered on the right across both rows. */}
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-16">
+        <SectionHeader
+          id="keepsakes-title"
+          eyebrow="Keepsakes"
+          title="Theirs to keep, in your event’s look."
+          lead="Guests can turn the photos they kept into a styled keepsake to share or save. You set the look once; FiveFrames takes care of the design."
+        />
+        <Reveal className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
+          <KeepsakeShowcase className="ff-rise-reveal" />
+        </Reveal>
+        <ul className="grid gap-8 sm:grid-cols-2 lg:gap-x-10">
+          {KEEPSAKE_POINTS.map((point) => (
+            <li key={point.title}>
+              <FeatureCard plain icon={point.icon} title={point.title}>
+                {point.body}
+              </FeatureCard>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Section>
+  );
+}
+
 function HostSection() {
   return (
-    <Section id="for-hosts" labelledBy="hosts-title">
+    <Section id="for-hosts" tone="subtle" labelledBy="hosts-title">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <SectionHeader
           id="hosts-title"
@@ -282,8 +343,8 @@ function HostSection() {
       </Reveal>
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:gap-6">
         <FeatureCard icon={<QrCode />} title="Ready-made signage">
-          A printable QR, a table card, a poster and a phone-screen version, ready the moment your
-          event is paid.
+          A printable QR, a table card, a poster and a phone-screen version in your event’s
+          colors, ready the moment your event is paid.
         </FeatureCard>
         <FeatureCard icon={<Power />} title="You open capture">
           Guests can’t shoot until you switch capture on. Close it whenever you like — it also
@@ -309,8 +370,8 @@ function HostSection() {
           Download the untouched originals one by one or all at once, whenever you like.
         </FeatureCard>
         <FeatureCard icon={<Share2 />} title="Sharing is your call">
-          Guests can share a FiveFrames card of their own photos. Turn it off if you’d rather —
-          it switches off our sharing tools, not their phones.
+          Guests can make keepsakes of their own photos to share or save. Turn it off if you’d
+          rather — it switches off our sharing tools, not their phones.
         </FeatureCard>
         <FeatureCard icon={<CalendarClock />} title={`Hosted for ${HOSTED_ACCESS_LABEL}`}>
           Your collection stays in your dashboard for {HOSTED_ACCESS_LABEL} after activation,
@@ -324,7 +385,7 @@ function HostSection() {
 const STEPS = [
   {
     title: "Create your event",
-    body: "Name, date, a welcome message for guests, and your gallery and sharing settings. Set it all up before paying.",
+    body: "Name, date, a welcome message for guests, and your gallery and sharing settings. Add your own look if you like. Set it all up before paying.",
   },
   {
     title: "Activate and share the QR",
@@ -342,11 +403,11 @@ const STEPS = [
 
 function StepsSection() {
   return (
-    <Section id="how-it-works" tone="subtle" labelledBy="steps-title">
+    <Section id="how-it-works" labelledBy="steps-title">
       <SectionHeader
         id="steps-title"
         eyebrow="How it works"
-        title="From setup to keepsake in four steps."
+        title="From setup to reveal in four steps."
       />
       <ol className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-4 lg:gap-6">
         {STEPS.map((step, index) => (
@@ -385,7 +446,7 @@ const OCCASIONS = [
 
 function OccasionsSection() {
   return (
-    <Section id="occasions" labelledBy="occasions-title">
+    <Section id="occasions" tone="subtle" labelledBy="occasions-title">
       <SectionHeader
         id="occasions-title"
         eyebrow="For any occasion"
@@ -421,7 +482,7 @@ function OccasionsSection() {
 
 function DemoSection({ demoQr }: { demoQr: string }) {
   return (
-    <Section id="demo" tone="subtle" labelledBy="demo-title">
+    <Section id="demo" labelledBy="demo-title">
       <div className="grid gap-8 overflow-hidden rounded-3xl bg-brand-tint p-6 sm:p-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center lg:gap-16 lg:rounded-[36px] lg:p-16">
         <div className="flex flex-col gap-5">
           <Eyebrow>Try before you buy</Eyebrow>
@@ -431,7 +492,7 @@ function DemoSection({ demoQr }: { demoQr: string }) {
           <p className="max-w-[560px] text-body font-medium text-ink-on-tint sm:text-[17px]">
             The demo is the guest experience, right in your browser. Take five shots with your own
             camera or our sample images, add a message, keep them, and notice how it changes what
-            you choose.
+            you choose. Then try the keepsake styles on a sample look.
           </p>
           <ul className="flex flex-col gap-2.5">
             {[
@@ -463,53 +524,6 @@ function DemoSection({ demoQr }: { demoQr: string }) {
   );
 }
 
-const PROMISES = [
-  {
-    icon: <Lock />,
-    title: "Five means five",
-    body: "Every guest session gets exactly five frames. Hosts can’t raise it, guests can’t buy more, and it’s enforced on our servers, not in the browser.",
-  },
-  {
-    icon: <ShieldCheck />,
-    title: "A failed upload never costs a frame",
-    body: "A frame is used only once the photo has safely arrived, and a retry never creates a duplicate.",
-  },
-  {
-    icon: <Download />,
-    title: "Your originals, untouched",
-    body: "Previews and keepsakes are separate files. You can download every original until your photos are deleted.",
-  },
-  {
-    icon: <Check />,
-    title: "Nothing to chase",
-    body: "No streaks, badges or reminders to use up frames. Unused frames are a perfectly good outcome.",
-  },
-];
-
-/**
- * Stands in for social proof until real, permitted testimonials exist (TESTIMONIALS in
- * lib/marketing/content.ts). It says so plainly rather than inventing reviews or numbers.
- */
-function PromisesSection() {
-  return (
-    <Section id="our-promises" labelledBy="promises-title">
-      <SectionHeader
-        id="promises-title"
-        eyebrow="Before you trust us with your day"
-        title="No reviews yet. Just what we’ve built in."
-        lead="FiveFrames is new, so you won’t find ratings or quotes here that we don’t have. Here’s what every event gets, by design."
-      />
-      <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-4 lg:gap-6">
-        {PROMISES.map((promise) => (
-          <FeatureCard key={promise.title} icon={promise.icon} title={promise.title} className="bg-surface-subtle border-transparent">
-            {promise.body}
-          </FeatureCard>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
 /** Renders only once TESTIMONIALS holds real, permitted quotes. */
 function TestimonialsSection() {
   return (
@@ -533,16 +547,21 @@ function TestimonialsSection() {
   );
 }
 
+/**
+ * What every event gets by design: privacy plus the frame guarantees. While there are no real,
+ * permitted testimonials (TESTIMONIALS in lib/marketing/content.ts) the lead says so plainly
+ * rather than inventing reviews or numbers.
+ */
 const TRUST = [
   {
     icon: <EyeOff />,
     title: "Hidden until you reveal it",
-    body: "Before you reveal the gallery, nobody can see it — not even someone holding its link.",
+    body: "Before you reveal the gallery, nobody can see it — not even someone holding its link. After that: anyone with the link, or only you.",
   },
   {
-    icon: <Link2 />,
-    title: "You choose who sees it",
-    body: "Anyone with the gallery link, or only you. It’s separate from the guest link, and either one can be replaced or turned off.",
+    icon: <UserCheck />,
+    title: "Guests keep their own view",
+    body: "Each guest can see and download the photos they kept, for as long as their session and your event last.",
   },
   {
     icon: <ShieldCheck />,
@@ -550,14 +569,14 @@ const TRUST = [
     body: "Each photo is served through a short-lived link, issued only after an access check.",
   },
   {
-    icon: <Smartphone />,
-    title: "No app, no guest accounts",
-    body: "Guests give a first name and nothing else. No email, no phone number, no install.",
+    icon: <Lock />,
+    title: "Five means five",
+    body: "Every guest session gets exactly five frames. Hosts can’t raise it, guests can’t buy more, and it’s enforced on our servers, not in the browser.",
   },
   {
-    icon: <UserCheck />,
-    title: "Guests keep their own view",
-    body: "Each guest can see and download the photos they kept, for as long as their session and your event last.",
+    icon: <Check />,
+    title: "A failed upload never costs a frame",
+    body: "A frame is used only once the photo has safely arrived, and a retry never creates a duplicate.",
   },
   {
     icon: <WandSparkles />,
@@ -574,9 +593,13 @@ function TrustSection() {
         <SectionHeader
           id="trust-title"
           tone="dark"
-          eyebrow="Privacy"
-          title="Private by default."
-          lead="Photos from your event belong to your event. Here’s exactly how that works — no bigger promises than that."
+          eyebrow="Built in"
+          title="Private by default. Fair by design."
+          lead={
+            TESTIMONIALS.length > 0
+              ? "Here’s what every event gets — no bigger promises than that."
+              : "FiveFrames is new, so there are no reviews here yet. Here’s what every event gets — no bigger promises than that."
+          }
         />
         <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:gap-6">
           {TRUST.map((item) => (

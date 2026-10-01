@@ -1,16 +1,17 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Check, ChevronLeft } from "lucide-react";
-import { FrameMotif } from "./frame-motif";
+import { ChevronLeft } from "lucide-react";
+import { MarketingRail, RailChecks } from "@/components/ff/marketing/marketing-rail";
+import { PRICE_LABEL } from "@/lib/marketing/content";
 import { Wordmark } from "./wordmark";
 
 /**
  * Host auth layout (host 04a–e, D1–D1e). Desktop (≥1024): the auth split — a 640px brand panel
- * (dark gradient, Fraunces tagline) and the form centered in the rest, 420 wide. Mobile: a dark
- * photo header carrying the title, and the form in a white bottom sheet.
+ * and the form centered in the rest, 420 wide. Mobile: a dark photo header carrying the title,
+ * and the form in a white bottom sheet.
  *
  * The handoff's brand panel uses a balloon photograph; FiveFrames ships no stock photography,
- * so the panel keeps the same crop, gradient and hierarchy with an abstract five-frame motif.
+ * so the panel is the shared marketing rail with the homepage's five printed frames.
  */
 export function AuthShell({
   title,
@@ -76,33 +77,24 @@ export function AuthShell({
   );
 }
 
+/** The desktop brand panel: the shared marketing rail, so auth reads as part of the public site. */
 function BrandPanel() {
   return (
-    <aside className="ff-photo-header relative hidden min-h-dvh flex-col overflow-hidden px-12 py-12 text-ink-inverse lg:sticky lg:top-0 lg:flex lg:h-dvh">
-      <FrameMotif />
-      <Wordmark host tone="light" href="/" className="relative" />
-      <div className="relative mt-auto flex flex-col gap-6">
-        <p className="font-heading text-[48px] leading-[1.05] font-semibold tracking-[-0.01em]">
-          Every guest.
-          <br />
-          Five frames.
-          <br />
-          One shared story.
-        </p>
-        <p className="max-w-[440px] text-[17px] leading-relaxed font-medium text-ink-inverse/85">
-          Share one QR code and your guests capture the party from their own phones. You reveal
-          the gallery when the moment’s right.
-        </p>
-        <ul className="flex flex-wrap gap-x-6 gap-y-2 text-label font-semibold">
-          {["No app for guests", "No guest accounts", "Pay once per event"].map((item) => (
-            <li key={item} className="flex items-center gap-2">
-              <Check className="size-4 text-brand-highlight" aria-hidden />
-              {item}
-            </li>
-          ))}
-        </ul>
-      </div>
-    </aside>
+    <MarketingRail
+      brand={<Wordmark host tone="light" href="/" />}
+      eyebrow="For hosts"
+      title={
+        <>
+          <span className="block">Every guest.</span>
+          <span className="block">Five frames.</span>
+          <span className="block">One shared story.</span>
+        </>
+      }
+      lead="Share one QR code and your guests capture the day from their own phones. You reveal the gallery when the moment’s right."
+      className="hidden lg:sticky lg:top-0 lg:flex"
+    >
+      <RailChecks items={["No app for guests", "No guest accounts", `${PRICE_LABEL} per event, paid once`]} />
+    </MarketingRail>
   );
 }
 

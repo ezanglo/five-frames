@@ -12,9 +12,10 @@ const FRAMES = [
 
 /**
  * Five tilted glass frames floating over a dark panel (DS05 photo-object language) — the desktop
- * stand-in for the handoff's cover photograph, which FiveFrames doesn't have. Used by the auth
- * brand panel and the guest shell's desktop story panel. Pass `photos` (the viewer's own kept
- * shots, or demo previews) and the frames fill in order — still purely decorative, so the
+ * stand-in for the handoff's cover photograph, which FiveFrames doesn't have, in the guest shell's
+ * desktop story panel for an event with no theme image. (Marketing-facing panels — auth and the
+ * demo — use the printed-photo `MarketingRail` instead.) Pass `photos` (the guest's own kept
+ * shots) and the frames fill in order — still purely decorative, so the
  * images carry no alt text and the whole motif is hidden from assistive tech.
  *
  * The frames live in a box under the panel's top bar whose height is `extent` of the panel, so

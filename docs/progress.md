@@ -610,6 +610,29 @@ the old app icon everywhere the brand appears. Design only; no product behavior 
 - **Human sign-off:** pending, as release-validation.md VIS-01. The printed table card is
   covered by the Slice 17 print evidence.
 
+## Marketing consistency pass (2026-10-01): `awaiting human visual approval`
+
+Presentation and copy only (`docs/design-direction.md` → "Marketing rail"). No capture, upload,
+session, payment, authorization, moderation, download or Operator change; `/demo` is still
+client-only and prerenders static.
+
+- **Shared rail:** new `MarketingRail` (`components/ff/marketing/marketing-rail.tsx`) replaces
+  the auth brand panel and the demo's desktop story panel (`GuestShell` gained `rail`, lost the
+  demo-only `panel`). Same gradient, eyebrow, Fraunces and five prints as the homepage hero. Mobile
+  and tablet unchanged.
+- **Homepage:** new Keepsakes section (theme + both keepsake families, drawn by the real templates
+  with the demo's sample look); the separate "Promises" section folded into "Built in" (privacy +
+  frame guarantees); stale "FiveFrames card" share copy replaced with keepsakes on `/`, `/pricing`
+  and the FAQ; look/keepsakes added to the price card, steps, demo blurb, FAQ (`event-look`,
+  `what-are-keepsakes`) and `/how-it-works`.
+- **Defect class fixed:** FAQ answers render their id as the element id, so `why-five` collided
+  with the homepage section of the same id. Renamed, and `lib/marketing/content.test.ts` now
+  fails if a previewed FAQ id matches any homepage element id.
+- **Verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test` 521/521 ✔.
+  Playwright/Chromium on the dev server: `/`, `/demo` (empty and with three kept shots), `/login`,
+  `/signup` at 390, 820, 1024, 1280, 1440 and 1920 wide; no horizontal overflow, one visible h1
+  per page. Emulated Chromium only. Human sign-off is VIS-02 step 5.
+
 ## Marketing motion polish (2026-09-30): `awaiting human visual approval`
 
 Restrained motion system for the public marketing site (`docs/design-direction.md` → "Marketing

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Camera, ImagePlus, Pointer, RotateCcw, Sparkles } from "lucide-react";
 import { PhotoPickerInput } from "@/components/ff/photo-picker-input";
@@ -21,7 +21,8 @@ import {
   withSlotFilled,
   type DemoFrames,
 } from "@/lib/demo/state";
-import { EVENT_PRICE_PHP } from "@/lib/payments/pricing";
+import { MarketingRail, RailSteps } from "@/components/ff/marketing/marketing-rail";
+import { PRICE_LABEL } from "@/lib/marketing/content";
 import { DemoKeepsakes } from "./demo-keepsakes";
 
 type Composing = {
@@ -120,6 +121,13 @@ export function DemoExperience() {
     setViewerIndex(null);
   }
 
+  const keptPreviews = frames.flatMap((slot) => (slot.kind === "filled" ? [slot.previewUrl] : []));
+  const demoBadge = (
+    <StatusPill tone="frosted" icon="none">
+      Demo · nothing is saved
+    </StatusPill>
+  );
+
   const viewerPhotos: ViewerPhoto[] = frames.flatMap((slot, index) =>
     slot.kind === "filled"
       ? [
@@ -139,16 +147,11 @@ export function DemoExperience() {
     <>
       <GuestShell
         topLeft={<Wordmark tone="light" href="/" />}
-        topRight={
-          <StatusPill tone="frosted" icon="none">
-            Demo · nothing is saved
-          </StatusPill>
-        }
+        topRight={demoBadge}
         title="Everyone gets five shots."
         subtitle="Try it here — your photos stay on your device and are never uploaded."
         width="wide"
-        motifPhotos={frames.flatMap((slot) => (slot.kind === "filled" ? [slot.previewUrl] : []))}
-        panel={<DemoContext />}
+        rail={<DemoRail badge={demoBadge} kept={keptPreviews} />}
       >
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between gap-3">
@@ -264,11 +267,17 @@ export function DemoExperience() {
           title="Ready for a real event?"
           body={
             <>
-              Creating an event needs a host account and payment — ₱{EVENT_PRICE_PHP} per event,
-              pay once, no subscription.{" "}
+              Creating an event needs a host account and payment — {PRICE_LABEL} per event, paid
+              once, no subscription.{" "}
               <Link href="/signup" className="font-semibold text-brand underline-offset-4 hover:underline">
                 Create your event
               </Link>
+              <span className="lg:hidden">
+                {" · "}
+                <Link href="/how-it-works" className="font-semibold text-brand underline-offset-4 hover:underline">
+                  How it works
+                </Link>
+              </span>
             </>
           }
         />
@@ -322,35 +331,42 @@ export function DemoExperience() {
 }
 
 /**
- * Desktop-only context beside the interactive demo (≥1024): what the visitor is looking at and
- * how it maps to a real event. Frosted/secondary links only — the violet primary stays with the
- * demo's own shot action.
+ * The demo's ≥1024 left column: the shared marketing rail (the homepage's language, adapted to a
+ * side panel). It carries the page h1 at that width and maps the demo to a real event. The prints
+ * fill with the visitor's kept shots in order, still decorative. Frosted links only — the violet
+ * primary stays with the demo's own shot action.
  */
-function DemoContext() {
+function DemoRail({ badge, kept }: { badge: ReactNode; kept: string[] }) {
   return (
-    <div className="flex flex-col gap-6">
-      <ol className="flex flex-col gap-3 text-label font-medium text-ink-inverse/85">
-        {[
-          "At a real event, guests scan your QR code — no app, no account.",
-          "Each guest keeps up to five photos. Retakes are free; keeping is final.",
-          "You reveal the gallery when you’re ready, and download every original.",
-        ].map((step, i) => (
-          <li key={step} className="flex items-start gap-3">
-            <span className="tabular flex size-6 shrink-0 items-center justify-center rounded-full border border-white/30 text-micro font-bold text-ink-inverse">
-              {i + 1}
-            </span>
-            {step}
-          </li>
-        ))}
-      </ol>
+    <MarketingRail
+      as="header"
+      titleAs="h1"
+      brand={<Wordmark tone="light" href="/" />}
+      badge={badge}
+      eyebrow="Try the guest experience"
+      title="Everyone gets five shots."
+      lead="Nothing here is uploaded or saved — your photos stay on this device."
+      photos={kept}
+      className="hidden lg:sticky lg:top-0 lg:flex"
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-caption font-semibold text-ink-on-dark">At a real event</p>
+        <RailSteps
+          steps={[
+            "Guests scan your QR code — no app, no account.",
+            "Retakes are free. Keeping a photo is final.",
+            "You reveal the gallery and download every original.",
+          ]}
+        />
+      </div>
       <div className="flex flex-wrap gap-3">
-        <ButtonLink href="/how-it-works" variant="frosted" size="sm">
+        <ButtonLink href="/how-it-works" variant="frosted" size="md">
           How it works
         </ButtonLink>
-        <ButtonLink href="/pricing" variant="frosted" size="sm">
+        <ButtonLink href="/pricing" variant="frosted" size="md">
           Pricing
         </ButtonLink>
       </div>
-    </div>
+    </MarketingRail>
   );
 }

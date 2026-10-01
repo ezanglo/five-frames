@@ -19,8 +19,10 @@ import { Wordmark } from "./wordmark";
  * - `split` (default; every status/action screen): 481–767 keeps the 430px column centered on
  *   the blurred glow, 768–1023 widens it to 600px, and ≥1024 becomes a two-region page — the
  *   header grows into a sticky, full-height event story panel (5/12, Fraunces 48, the five-frame
- *   motif filled with `motifPhotos`, optional desktop-only `panel` content) and the sheet
- *   becomes a white action region with the content vertically centered in a readable column.
+ *   motif filled with `motifPhotos`) and the sheet becomes a white action region with the
+ *   content vertically centered in a readable column. A non-event page (`/demo`) passes `rail`
+ *   instead: its own ≥1024 left column (the shared marketing rail), with the header kept for
+ *   smaller screens only.
  * - `wide` (the revealed gallery): from 768 the header becomes a full-width band and the sheet a
  *   1200px content column, so a photo grid can use the whole browser.
  *
@@ -39,7 +41,7 @@ export function GuestShell({
   subtitle,
   meta,
   children,
-  panel,
+  rail,
   motifPhotos,
   variant = "split",
   width = "default",
@@ -54,8 +56,11 @@ export function GuestShell({
   subtitle?: ReactNode;
   meta?: ReactNode;
   children: ReactNode;
-  /** Desktop-only (≥1024) supporting content under the title in the story panel. */
-  panel?: ReactNode;
+  /**
+   * Replaces the story panel at ≥1024 (the header still serves < 1024). It must carry the
+   * page's h1 itself, because the header — and its h1 — is not rendered at that width.
+   */
+  rail?: ReactNode;
   /** Photos that fill the story panel's five-frame motif (≥1024), e.g. the guest's own shots. */
   motifPhotos?: string[];
   variant?: "split" | "wide";
@@ -115,13 +120,18 @@ export function GuestShell({
         className="ff-photo-header pointer-events-none fixed inset-0 hidden opacity-70 blur-3xl min-[481px]:block lg:hidden"
       />
       <div className="relative mx-auto flex min-h-dvh w-full max-w-[430px] flex-col min-[481px]:shadow-[0_0_80px_rgb(0_0_0/0.45)] md:max-w-[600px] lg:contents">
-        <header className="ff-photo-header ff-safe-top relative flex min-h-[271px] flex-col px-5 pb-10 text-ink-inverse md:min-h-[300px] md:px-8 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:px-12 lg:py-10 xl:px-16 xl:py-12">
-          {cover ?? (
-            <FrameMotif photos={motifPhotos} extent={panel ? 0.42 : 0.55} className="hidden lg:block" />
+        {rail}
+        <header
+          className={cn(
+            "ff-photo-header ff-safe-top relative flex min-h-[271px] flex-col px-5 pb-10 text-ink-inverse md:min-h-[300px] md:px-8",
+            rail
+              ? "lg:hidden"
+              : "lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto lg:px-12 lg:py-10 xl:px-16 xl:py-12",
           )}
+        >
+          {cover ?? (!rail && <FrameMotif photos={motifPhotos} className="hidden lg:block" />)}
           {topBar}
           <TitleBlock pill={pill} eyebrow={eyebrow} title={title} subtitle={subtitle} meta={meta} />
-          {panel && <div className="relative mt-8 hidden lg:block">{panel}</div>}
         </header>
         <main className="ff-safe-bottom relative -mt-6 flex flex-1 flex-col rounded-t-sheet bg-surface px-5 pt-6 md:px-8 md:pt-8 lg:mt-0 lg:min-h-dvh lg:justify-center lg:rounded-none lg:px-12 lg:py-16 xl:px-16">
           <div

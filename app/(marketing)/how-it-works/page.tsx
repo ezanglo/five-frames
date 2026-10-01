@@ -65,7 +65,7 @@ const LIFECYCLE: { status: string; icon: PillIcon; host: string; guests: string 
 const HOST_STEPS: { title: string; body: ReactNode }[] = [
   {
     title: "Create and configure",
-    body: "Give your event a name, date and timezone, write a welcome message for guests, and choose when the gallery opens, who can see it, and whether guests can share. Everything can be set up before you pay.",
+    body: "Give your event a name, date and timezone, write a welcome message for guests, and choose when the gallery opens, who can see it, and whether guests can share. If you like, give it a look: one image, an accent color and a hashtag. Everything can be set up before you pay.",
   },
   {
     title: "Pay once to activate",
@@ -124,7 +124,7 @@ const GUEST_STEPS: { title: string; body: string }[] = [
   },
   {
     title: "Come back to their own photos",
-    body: "On the same phone, guests can revisit and download what they kept.",
+    body: "On the same phone, guests can revisit and download what they kept, and make keepsakes of them if you allow sharing.",
   },
   {
     title: "See the gallery, when it’s shared",

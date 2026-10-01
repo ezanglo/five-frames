@@ -41,8 +41,9 @@ export function FaqList({ items, className }: { items: FaqItem[]; className?: st
 const INCLUSIONS = [
   `${FRAMES} frames for every guest — the same for every event`,
   "Your event link, printable QR, table card, poster and phone-screen signage",
-  "You open and close capture; counts refresh on their own",
-  "Hide, unhide, delete and favorite any photo",
+  "Your own look on guest screens, signage and keepsakes, if you want one",
+  "Keepsakes guests can make from their own photos",
+  "You open and close capture; hide, unhide, delete and favorite any photo",
   "Reveal the gallery when you choose, to anyone with the link or only you",
   "Download every original, one at a time or all at once",
   `${HOSTED_ACCESS_LABEL[0].toUpperCase()}${HOSTED_ACCESS_LABEL.slice(1)} of hosted access`,

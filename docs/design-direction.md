@@ -62,6 +62,7 @@ Don't duplicate the handoff here — open it. This file records only what an imp
 | Keepsakes: registry (`styles.ts`), geometry and slot rects (`geometry.ts`), `coverCrop`, closed inputs (`context.ts`), the ten templates for both render targets (`templates/`), the export pipeline (`render.tsx`); guest picker and DOM preview in `components/ff/keepsakes/` | `lib/keepsakes/`, `components/ff/keepsakes/` |
 | Signage: format registry, geometry (every rule below), outlined text, the renderer | `lib/media/signage-formats.ts`, `signage-layout.ts`, `signage-fonts.ts`, `signage.ts` |
 | Marketing motion: print primitive, hero prints, reveal, parallax hook, motion prefs, print/ease tokens | `components/ff/marketing/{photo-print,hero-prints,reveal}.tsx`, `hooks/use-print-parallax.ts`, `lib/motion.ts`, `app/globals.css` |
+| Marketing rail (auth + demo desktop left column) and the homepage keepsake showcase | `components/ff/marketing/{marketing-rail,keepsake-showcase}.tsx` |
 
 Components consume semantic utilities (`bg-brand`, `text-ink-muted`, `bg-surface-subtle`,
 `border-line`, `ff-dashed`, `rounded-sheet`, `shadow-glow`, `text-label`…), never raw palette
@@ -93,8 +94,8 @@ Console, uses `components/ff`.
   event/lifecycle; nothing decorative.
 - **Photo headers use the handoff's no-cover treatment** (night + glow) when an event has no
   theme image. The glow takes the event accent. With a theme image, the image fills the header
-  (see "Event Theme & Keepsakes" → guest screens). The auth brand panel keeps the photo panel's
-  crop/gradient/hierarchy with an abstract five-frame motif instead of stock photography.
+  (see "Event Theme & Keepsakes" → guest screens). The auth brand panel is the shared marketing
+  rail (below), with the homepage's five prints instead of stock photography.
 
 ## Desktop and browser (accepted 2026-09-29)
 
@@ -117,16 +118,17 @@ Product behavior is unchanged; only composition differs.
     has no thumb zone, so `SheetActions` stays with the content and keeps a button-sized width.
   - `wide` (revealed gallery): from 768 a full-width header band and a 1200px content column;
     grid 3 → 4 (tablet) → 5 (desktop) columns so tiles stay inspectable (~230px).
-  - The story panel's five-frame motif (`components/ff/frame-motif.tsx`, shared with the auth
-    brand panel) fills with the guest's own kept shots — or demo previews — decoratively.
+  - The story panel's five-frame motif (`components/ff/frame-motif.tsx`) fills with the guest's
+    own kept shots, decoratively. Real guest screens only; marketing-facing panels use the rail.
   - Your Five: five slots in one row ≥ 1280, 4:5 slots on tablet. Completion: kept shots become
     photo cards (grid) instead of 56px list rows.
   - Preview + Message ≥ 1024: full-height photo region with the sheet docked right ("Keep this
     one?"). Photo viewer ≥ 1024: photo stage + 380px side panel (counter, attribution where
     allowed, message, keyboard hint, actions).
-- **`/demo`** uses the split shell: product context (how it maps to a real event, links to How
-  it works/Pricing — frosted, never a second violet primary) in the story panel, the interactive
-  demo in the action region. Still entirely client-side (D14).
+- **`/demo`** uses the split shell with `rail`: at ≥ 1024 the marketing rail replaces the story
+  panel (carrying the h1, how the demo maps to a real event, How it works/Pricing — frosted, never
+  a second violet primary); below 1024 the ordinary guest header and sheet are unchanged, so the
+  shots are the first thing under the title. Still entirely client-side (D14).
 - **Marketing, auth, host and Operator** already use full desktop templates (1200 content, auth
   split, host D-series, operator host-desktop template); keep them that way.
 
@@ -160,6 +162,24 @@ illustrated sample scenes (`lib/marketing/sample-scenes.ts`), never stock imager
   Tablet and mobile get a simple row of five prints with a CSS entrance and nothing continuous.
 - **Decorative only.** Motion layers are `aria-hidden`, never focusable, never carry information
   that isn't in the copy, and never overlap CTAs.
+
+## Marketing rail (2026-10-01)
+
+The left column beside a task on marketing-facing pages: auth (`AuthShell`) and `/demo`
+(`GuestShell` `rail`). It is the homepage hero adapted to a side panel, so `/` → `/demo` →
+`/signup` reads as one site. The landing page is the visual source of truth for it.
+
+- **Same language as the hero:** `ff-photo-header-desktop` night + violet glow, the brand lockup
+  and a frosted pill on top, a light uppercase `Eyebrow`, Fraunces `display-desktop` title, a
+  17px lead at 85% white, then short context (checks or a three-item numbered list with the
+  homepage's white-on-night chips) and frosted md buttons.
+- **The five prints:** the hero's composition (`HERO_PRINTS`) as a static `PrintStack`, scaled
+  to the space left with container units. One-time settle-in only, no parallax; hidden below
+  700px of height. On `/demo` the visitor's kept shots replace prints 1–5 in order.
+- **Desktop only.** Below 1024 each page keeps its own compact header and the task comes first;
+  never a tall marketing block before the form or the shots.
+- **Not for real event screens.** Guest join/capture/gallery keep `FrameMotif` and the event
+  theme; the rail never takes an event's theme.
 
 ## Brand identity (2026-09-30)
 

@@ -26,13 +26,14 @@ const INCLUDED = [
       `Exactly ${FRAMES} frames each, at no cost to them`,
       "No app, no account — just a first name",
       "A private view of the photos they kept, to revisit and download",
-      "A shareable FiveFrames card of their own photos, if you allow sharing",
+      "Keepsakes of their own photos to share or save, if you allow sharing",
     ],
   },
   {
     title: "For you",
     lines: [
       "Your event link and QR code, plus table card, poster and phone-screen signage",
+      "An optional look: one image, an accent color and a hashtag",
       "Capture you open and close yourself",
       "Guests-joined and photos-taken counts that refresh on their own",
       "Hide, unhide, delete and favorite",

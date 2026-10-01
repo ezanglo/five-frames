@@ -50,7 +50,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "create-event",
         question: "How do I create an event?",
         answer: [
-          "Create a host account, then set up your event: its name, date and timezone, a welcome message for guests, and your gallery and sharing settings. You can set everything up before you pay.",
+          "Create a host account, then set up your event: its name, date and timezone, a welcome message for guests, and your gallery and sharing settings. If you like, give it a look too. You can set everything up before you pay.",
           "Pay once to activate it, and your event link and QR code are ready to share.",
         ],
       },
@@ -58,8 +58,16 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "try-first",
         question: "Can I try it before I pay?",
         answer: [
-          `Yes. The demo lets you take ${FRAMES} shots and keep them, just as a guest would, right in your browser.`,
+          `Yes. The demo lets you take ${FRAMES} shots and keep them, just as a guest would, right in your browser, and try the keepsake styles on a sample look.`,
           "The demo isn’t an event. Nothing you do there is uploaded or saved, and it never gives you a link or QR code to share.",
+        ],
+      },
+      {
+        id: "event-look",
+        question: "Can it match my event?",
+        answer: [
+          "Yes, simply. Add one image, choose an accent color from a curated set, and set a hashtag if you have one. Guest screens, signage and keepsakes all use it.",
+          "There’s no design editor: FiveFrames lays everything out for you. It’s all optional, and an event with no look set still looks finished.",
         ],
       },
       {
@@ -96,7 +104,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         answer: ["No account, no email, no code. Guests type a first name and they’re in."],
       },
       {
-        id: "why-five",
+        id: "why-only-five",
         question: "Why only five photos?",
         answer: [
           "Because five is the point. A small number asks guests to choose the moments that matter to them, and then lets them put the phone away and enjoy the event.",
@@ -122,7 +130,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "taking-photos",
         question: "How do guests take their photos?",
         answer: [
-          "With their phone’s own camera, straight from the event page. Before keeping a photo they see a preview, can add an optional short message, and can retake it as often as they like.",
+          "With their phone’s camera or from their photo library, straight from the event page. Before keeping a photo they see a preview, can add an optional short message, and can retake it as often as they like.",
         ],
       },
       {
@@ -210,8 +218,16 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "sharing",
         question: "Can guests share their photos?",
         answer: [
-          "If sharing is on, guests can share a FiveFrames card of their own photos, even before the gallery opens, without revealing anyone else’s.",
+          "If sharing is on, guests can make keepsakes of their own photos to share or save, even before the gallery opens, without revealing anyone else’s.",
           "You can turn sharing off. That switches off FiveFrames’ own sharing tools. It can’t stop guests from sharing photos that are already on their phones.",
+        ],
+      },
+      {
+        id: "what-are-keepsakes",
+        question: "What are keepsakes?",
+        answer: [
+          "Styled images guests can make from their own photos, dressed in your event’s look. There are five styles for a single photo, and a guest who keeps all five can also put them together in one, in five styles made for that.",
+          "A keepsake is a separate image: the original photo is never changed. It never shows the guest’s name, anyone else’s photos, or a link into your event, and it carries a small FiveFrames mark.",
         ],
       },
       {
@@ -303,12 +319,12 @@ export function faqItemsById(ids: readonly string[]): FaqItem[] {
 /** The high-intent questions previewed on the homepage. */
 export const HOME_FAQ_IDS = [
   "app",
-  "why-five",
+  "why-only-five",
   "unused",
   "gallery-opens",
+  "what-are-keepsakes",
   "download",
   "weak-internet",
-  "which-events",
   "how-pay",
 ] as const;
 

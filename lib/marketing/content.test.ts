@@ -59,6 +59,15 @@ describe("marketing facts come from the product", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("never reuses a homepage element id for a previewed FAQ answer", () => {
+    // FAQ answers render with their id as the element id, so a homepage section with the same
+    // id would make two targets for one anchor (and break in-page links to either).
+    const home = readFileSync(path.join(ROOT, "app/(marketing)/page.tsx"), "utf8");
+    const pageIds = [...home.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+    expect(pageIds.length).toBeGreaterThan(0);
+    for (const id of HOME_FAQ_IDS) expect(pageIds).not.toContain(id);
+  });
+
   it("ships no testimonial without a recorded permission", () => {
     for (const testimonial of TESTIMONIALS) {
       expect(testimonial.quote.trim()).not.toBe("");
