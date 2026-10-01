@@ -21,7 +21,7 @@ Nothing below is marked PASS until it has actually been run against the release-
 deployment. Release work that isn't a test (configuration, migrations, business decisions) is
 tracked separately in [progress.md → Release follow-ups](./progress.md#release-follow-ups-not-test-cases).
 
-**Status: IN PROGRESS — targeted rerun on RC `8f37fba` found one new defect; repair required.** 52 cases: 11 PASS, 1 FAIL, 12 BLOCKED, 25 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 3 DEFERRED (INAPP-01…03, accepted launch risk). First automated `/e2e-validate` pass against RC `a2a32b1`, 2026-10-01. Its five FAILs were repaired, and the targeted rerun against RC `8f37fba` (same day) cleared four of them. NET-02 stays FAIL: the resumable-upload repair holds, but a connection cut can land on the reserve or commit request and leave the guest stuck (see [Targeted rerun on RC `8f37fba`](#targeted-rerun-on-rc-8f37fba)). **Repaired after RC `8f37fba`; targeted rerun required against the next deployed release candidate** (see [Repairs after RC `8f37fba`](#repairs-after-rc-8f37fba)).
+**Status: IN PROGRESS — automated part complete, no open FAIL; awaiting the human/real-device pass.** 52 cases: 11 PASS, 0 FAIL, 11 BLOCKED, 27 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 3 DEFERRED (INAPP-01…03, accepted launch risk). First automated `/e2e-validate` pass against RC `a2a32b1`, 2026-10-01. Its five FAILs were repaired, and the targeted rerun against RC `8f37fba` (same day) cleared four of them. NET-02 then failed again for a new reason: a connection cut on the reserve or commit request left the guest stuck. That was repaired, and the targeted rerun against RC `6d8aca8` (same day) verified the repair (see [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8)). NET-02 goes back to NOT RUN, because only a real Android phone can pass it. SMOKE-01's automated run passed. It must still run last, after the human pass.
 
 ### Run record
 
@@ -30,12 +30,12 @@ gallery URL in this file.
 
 | Field | Value |
 |---|---|
-| Release-candidate commit (full SHA) | `8f37fba7ed64b29c3c1a39260293f085c339e933` (targeted rerun). First pass ran on `a2a32b13946f7902288739bfb6a943d6eb46fa0e` |
+| Release-candidate commit (full SHA) | `6d8aca84a8a9aa5a8ea0909518b7b92b949683a1` (current; second targeted rerun). Earlier: `8f37fba7ed64b29c3c1a39260293f085c339e933` (first targeted rerun), `a2a32b13946f7902288739bfb6a943d6eb46fa0e` (first pass) |
 | Vercel environment used (Production or Preview) | Production (Option A) |
 | Deployment origin (no tokens) | `https://five-frames.vercel.app` |
 | Supabase project | `five-frames-dev` (expected) |
 | PayMongo mode | Test (expected) |
-| Date(s) of the pass | 2026-10-01 (automated part on `a2a32b1`; targeted automated rerun on `8f37fba`) |
+| Date(s) of the pass | 2026-10-01 (automated part on `a2a32b1`; targeted automated reruns on `8f37fba` and `6d8aca8`) |
 | Tester(s) | `/e2e-validate` (Playwright Chromium/WebKit, E2E host A + operator O); human part pending |
 
 ### Repairs after RC `a2a32b1`
@@ -148,6 +148,73 @@ deploy it, then rerun only:
 | NET-04 (automated proxy, reserve request aborted) | "Never stuck" |
 | HOST-08 (light recheck: closed-capture "N of 5 kept" with one hidden capture) | Count wording |
 | SMOKE-01 | Always last |
+
+### Targeted rerun on RC `6d8aca8`
+
+`/e2e-validate`, 2026-10-01, against `five-frames.vercel.app`. This covered only the rerun list
+above.
+
+- **Gate:** `vercel inspect` and Vercel API metadata show the alias served
+  `dpl_FJVHeWHFVhLrX2bUufcTUF4rZ86i` (production, Ready) with `githubCommitSha` `6d8aca84…`, which
+  equals local HEAD. The working tree was clean.
+- **Baseline at that HEAD:** typecheck ✔, lint ✔, 520/520 tests (52 files, including the
+  integration suites against dev Postgres and Storage).
+- **Data:** synthetic only, all on R1 "RV2 Main". There were 10 new guest sessions named "RV3 …".
+  Two R1 settings were changed for the run. Capture was closed and then reopened for HOST-08 and
+  SMOKE-01. Reveal timing was changed to "Immediately" so that SMOKE-01's gallery step works with
+  capture open; GAL-03's custom reveal plays this role in the human pass.
+- **No changes:** no code, deploy, provider configuration or migration change was made.
+
+| Rerun | Result | Evidence |
+|---|---|---|
+| ENV-01 (gate) | PASS | Deployed commit = local HEAD `6d8aca8` |
+| NET-02 | Repair verified. Case stays NOT RUN (real Android) | BROWSER-CHROMIUM Pixel 7 + BROWSER-WEBKIT iPhone 15 emulation, 10.5 MB JPEG over TUS |
+| NET-01 (automated proxy, commit request aborted) | Repair verified. Case stays NOT RUN (real iPhone) | BROWSER-WEBKIT iPhone 15 emulation |
+| NET-04 (automated proxy, reserve request aborted) | Repair verified. Case stays NOT RUN (real device) | BROWSER-CHROMIUM Pixel 7 emulation, plus lost-response and stalled-request variants |
+| HOST-08 (light recheck) | PASS | BROWSER-WEBKIT guest + BROWSER-CHROMIUM host. Closed view reads "2 of 5 kept" with one capture hidden |
+| SMOKE-01 | Automated run passed. Case stays NOT RUN | BROWSER-CHROMIUM host/operator/gallery + BROWSER-WEBKIT guest. It must run last, after the human pass |
+
+**Interruption matrix.** Each row is a fresh guest session that kept one photo, with Retry tapped
+only once the connection was back. Every row ended the same way:
+- the calm message "Couldn’t reach FiveFrames. Check your connection and tap Retry — your shot is safe." with Retry, or "Photo didn’t upload…" when the cut hit the upload;
+- one Retry, then **exactly one** commit;
+- the live count and the count after reload both read "4 of 5 shots left · 1 taken", with no "Finish shot" offered;
+- no uncaught page error.
+
+| Scenario | Engine | Requests seen | Message shown (after the failed request; sampled about every 1 s) |
+|---|---|---|---|
+| Cut on the **commit** request of a TUS upload: commit aborted, 10 s offline. This is the exact RC `8f37fba` defect | Chromium | reserve → `/sign` 201 → 2 `PATCH` 204 → commit failed → Retry → commit | 0.1 s (was "Saving…" for over 120 s) |
+| 10 s offline right after the first TUS `PATCH` | Chromium | in-flight `PATCH` failed → "Photo didn’t upload…" → Retry → reserve (same key) → `HEAD` 200 → one `PATCH` (resumed) → commit | on screen at the first check, at reconnect |
+| 10 s offline right after the first TUS `PATCH` | WebKit | upload finished, commit failed → Retry → commit only (no re-upload) | on screen at the first check, at reconnect |
+| Commit request aborted, standard `PUT` path (NET-01 proxy) | WebKit | reserve → `PUT` 200 → commit failed → Retry → commit, no second upload | 0.7 s |
+| Reserve request aborted (NET-04 proxy) | Chromium | reserve failed → Retry → reserve → `PUT` → commit | 1.0 s |
+| Commit reached the server, its response dropped | Chromium | commit HTTP 200, response lost → Retry → commit answered for the same row | 0.2 s |
+| Reserve reached the server, its response dropped | WebKit | reserve HTTP 200, response lost → Retry → reserve with the same key → one `PUT` → commit | 0.4 s |
+| Commit request held for 75 s, then released | Chromium desktop | "Saving…" until the 60 s timeout, then the message. Retry waited behind the held request, then both resolved to one capture | 60.1 s |
+
+Host Photos confirmed this server-side. The total went from 10 to 18 photos. Each `rv3 <scenario>`
+message appears exactly once (twice for the TUS cut: two sessions), and each RV3 guest has exactly
+one card. The dashboard went from 8 to 16 guests.
+
+- **HOST-08 light recheck:** guest "RV3 Kept" (WebKit) kept two photos, and host A hid the
+  second.
+  - With capture open: "3 of 5 shots left · 2 taken", with slot 2 "Used", only shot 1's image
+    shown, and "Take shot 3" offered.
+  - After host A closed capture: "Capture has ended. Here’s what you kept." and **"2 of 5 kept"**.
+    Only the visible photo is shown and no frame is offered. On RC `8f37fba` the same state read
+    "1 of 5 kept".
+- **SMOKE-01 (automated):**
+  1. Host A reopened capture.
+  2. A brand-new WebKit guest, "RV3 Smoke", joined from the capture link and kept one portrait:
+     "4 of 5 · 1 taken", stable after reload.
+  3. Every surface moved by exactly one:
+     - dashboard: guests 17 → 18, photos 20 → 21;
+     - host Photos: 20 → 21, and the "rv3 smoke" card is present;
+     - gallery link (no session): "18 photos" → "19 photos", with exactly one new capture object;
+     - Console after operator O reloaded: committed photos 18 → 19, guest sessions 17 → 18.
+  4. No HTTP ≥ 400 response and no page error on any of the four surfaces.
+
+**Defects:** none found in this scope.
 
 ---
 
@@ -329,6 +396,7 @@ It is never a PASS and does not hold up completion of this pass.
 - **Result:** PASS
 - **Evidence / notes:** 2026-10-01, `vercel inspect` + Vercel API metadata. `five-frames.vercel.app` → `dpl_DFmJTFuV1ieKu64F3tPKqu3QjJT4`, target production, Ready, `githubCommitSha` `a2a32b1…` = run-record SHA.
   - **Targeted rerun, RC `8f37fba`:** `five-frames.vercel.app` → `dpl_GbQ1erMNRZUDFUQw4sFuYCNj9DS2`, target production, Ready, `githubCommitSha` `8f37fba7ed64…` = frozen HEAD = run-record SHA.
+  - **Targeted rerun, RC `6d8aca8`:** `five-frames.vercel.app` → `dpl_FJVHeWHFVhLrX2bUufcTUF4rZ86i`, target production, Ready, `githubCommitSha` `6d8aca84a8a9…` = local HEAD (clean tree) = run-record SHA.
 
 #### ENV-02 · Supabase backend identity and schema state
 - **Where:** Vercel env settings (names and project ref only), `supabase migration list` against
@@ -526,6 +594,7 @@ Run on a desktop browser unless stated. Host A, event E1.
   - Counts followed each change: Photos "9 photos · … · 1 hidden" → "0 hidden" → "1 hidden" → "8 photos"; the dashboard went 9 → 8.
   - The iPhone guest then kept two more. That reached "All 5 shots in", with 4 photos visible and no frame offered, so the deleted slot still counts.
   - Wording observation (not a failure) is in the rerun section above. Repaired after RC `8f37fba`; light recheck required against the next deployed release candidate (see [Repairs after RC `8f37fba`](#repairs-after-rc-8f37fba)).
+  - **Light recheck, RC `6d8aca8` (BROWSER-WEBKIT iPhone-emulated guest, BROWSER-CHROMIUM host; R1): passed.** Guest "RV3 Kept" kept 2 and the host hid the second. With capture open the guest saw "3 of 5 · 2 taken", slot 2 "Used". After capture closed, the guest saw "Capture has ended. Here’s what you kept." and **"2 of 5 kept"**, with only the visible photo and no frame offered. See [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8).
 - **Original evidence (RC `a2a32b1`):** BROWSER-CHROMIUM + WEBKIT, E1m. Favorite toggles; hide removes the photo from its guest's view and unhide restores it; delete (dialog "It won't give the guest their shot back") removes it for good; dashboard/Photos counts follow. **FAIL: the guest's displayed remaining frames increase after hide or delete.** iPhone guest with 4 commits showed "1 of 5 shots left"; after one delete it showed "2 of 5 shots left · 3 taken". Android guest with 3 commits, 1 hidden, showed "3 of 5 shots left · 2 taken"; the hidden slot renders as an empty frame. `taken` counts only visible slots (`capture-slots.tsx`). Server-side refusal was observed (`frames_exhausted`), but whether the server would accept a commit beyond 5 was not verified (pass stopped).
   - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** Cause: the guest view drops hidden/deleted captures (correctly, §8.3), and the screen then counted those slots as free. The server now also sends the slot numbers of moderated captures (no ids or URLs). Your Five counts them as taken and shows them as "Used". Covered by `lib/capture/guest-slots.test.ts` and `captures.integration.test.ts` (hide, unhide and delete never change the count; UI and server agree; a sixth capture is refused). Local headed-Chromium check passed: hide, then delete plus unhide, both stayed "2 of 5 shots left · 3 taken".
 
@@ -1010,6 +1079,7 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
 - **Result:** NOT RUN
 - **Evidence / notes:** Proxy (WebKit, aborted Storage PUT): calm "Photo didn't upload. Check your connection and tap Retry — your shot is safe.", no frame consumed; Retry committed exactly once (2 PUTs, remaining 2 → 1, stable after reload).
   - RC `8f37fba` rerun finding: that proxy aborted only the Storage PUT. Aborting the **commit** request on this same standard path leaves the sheet on "Saving…" with no retryable message (see NET-02 and the rerun section). Rerun this proxy after the repair. Repaired after RC `8f37fba`; targeted rerun required against the next deployed release candidate (see [Repairs after RC `8f37fba`](#repairs-after-rc-8f37fba)).
+  - **Proxy rerun, RC `6d8aca8` (BROWSER-WEBKIT iPhone 15 emulation, R1): repair verified.** The commit request was aborted after the `PUT` landed. The calm "Couldn’t reach FiveFrames. Check your connection and tap Retry — your shot is safe." showed with Retry within 0.7 s. Retry sent one commit and no second upload. The guest showed "4 of 5 · 1 taken", stable after reload, and exactly one card in host Photos. The real-iPhone Airplane Mode run remains. See [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8).
 
 #### NET-02 · Interrupted large upload (resumable path)
 - **Where:** real Android phone, Chrome, E1
@@ -1020,7 +1090,14 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
 - **PASS when:** the upload continues or restarts and completes without a duplicate or a lost
   frame. Exactly one new capture exists.
   - With no photo of 6 MB or more available, record **BLOCKED** (no large file).
-- **Result:** FAIL (RC `8f37fba`, new cause). The TUS endpoint repair holds, but a cut that lands on the reserve or commit request leaves the guest stuck. See [Targeted rerun on RC `8f37fba`](#targeted-rerun-on-rc-8f37fba).
+- **Result:** NOT RUN (real Android). Automated proxy repair verified on RC `6d8aca8`. History: FAIL on RC `a2a32b1` (TUS endpoint), FAIL on RC `8f37fba` (reserve/commit cut left the guest stuck).
+- **Rerun evidence, RC `6d8aca8` (BROWSER-CHROMIUM Pixel 7 + BROWSER-WEBKIT iPhone 15 emulation, R1, 10.5 MB JPEG over TUS): repair verified.**
+  - **The RC `8f37fba` defect:** the commit request of a TUS upload was aborted and the browser went offline for 10 s. The calm "Couldn’t reach FiveFrames…" with Retry showed within 0.1 s (it had been "Saving…" for over 120 s). After reconnecting, one Retry sent one commit and no re-upload.
+  - **10 s offline after the first `PATCH`, Chromium:** "Photo didn’t upload…" → Retry → reserve with the same key → `HEAD` 200 → one resumed `PATCH` → one commit.
+  - **The same cut in WebKit:** the upload finished, the cut landed on the commit, and Retry re-committed only.
+  - **Every run:** exactly one capture ("4 of 5 · 1 taken", stable after reload, one card in host Photos), with no uncaught page error.
+  - The lost-response and stalled-request variants are in [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8).
+  - Still needs the real-Android interrupted run.
 - **Rerun evidence, RC `8f37fba` (BROWSER-CHROMIUM Pixel 7 + BROWSER-WEBKIT iPhone 15 emulation, R1, 10.5 MB JPEG):**
   - **Repair verified:**
     - `POST …/upload/resumable/sign` → 201, then 6 MB `PATCH`es → 204.
@@ -1061,6 +1138,12 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
   - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** (error visibility only). Attempt state now goes through `lib/capture/attempt.ts`. An attempt that ends without a commit (all five used, capture ended, attempt lapsed) clears the photo and keeps its message until the guest chooses a photo, discards or taps Keep/Retry. Covered by `lib/capture/attempt.test.ts`. Local headed-Chromium check passed: "Capture has ended." was still shown 4 s after Keep. The orphaned-reservation case itself is unchanged: a free-looking frame still refuses until the TTL lapses, now with a visible message.
   - **Rerun, RC `8f37fba` (BROWSER-CHROMIUM, R1) — error persistence repair verified.** A guest had a photo in preview, the host closed capture, then the guest tapped Keep. "Capture has ended." was on screen at +1, +4, +10 and +20 s, and the preview was cleared. After a reload: "Capture has ended. Here's what you kept."
   - **New finding against this case's "never stuck":** a reserve or commit request that fails at the network leaves the sheet stuck on "Keeping…" or "Saving…" (see NET-02 and the rerun section). NET-04 stays NOT RUN (real device) and must be rerun after that repair. Repaired after RC `8f37fba`; targeted rerun required against the next deployed release candidate (see [Repairs after RC `8f37fba`](#repairs-after-rc-8f37fba)).
+  - **Proxy rerun, RC `6d8aca8` (BROWSER-CHROMIUM Pixel 7 emulation + WebKit/desktop variants, R1): "never stuck" repair verified.**
+    - Reserve request aborted: "Couldn’t reach FiveFrames…" with Retry within 1 s. Retry → reserve → `PUT` → one commit.
+    - Reserve response lost after the server handled it (WebKit): Retry reused the same key and got one reservation, one `PUT` and one commit.
+    - Commit held for 75 s: "Saving…" until the 60 s timeout, then the message and Retry. Retry waited behind the held request, and both resolved to one capture.
+    - Each run settled at "4 of 5 · 1 taken" after reload, with one card in host Photos.
+    - Backgrounding and reload on a real phone remain.
 
 ### J. Visual sign-off
 
@@ -1142,8 +1225,17 @@ Not a second matrix. It only proves the final environment still joins up after e
   - the guest's photo appears in host Photos and in the gallery;
   - the dashboard and the Console both show one more guest session and one more photo;
   - no step errors.
-- **Result:** BLOCKED
-- **Evidence / notes:** Not run (pass stopped; the Console step was refused).
+- **Result:** NOT RUN. The automated run passed on RC `6d8aca8`. SMOKE-01 is always last, so it runs again after the human/real-device pass, with a real phone.
+- **Evidence / notes:**
+  - **RC `a2a32b1`:** not run (pass stopped; the Console step was refused).
+  - **Automated run, RC `6d8aca8` (BROWSER-CHROMIUM host A + operator O + a sessionless gallery tab, BROWSER-WEBKIT iPhone 15 emulated guest; R1 with reveal set to "Immediately").**
+    - Host A reopened capture.
+    - New guest "RV3 Smoke" joined from the capture link and kept one photo: "4 of 5 · 1 taken", stable after reload.
+    - Host Photos went 20 → 21, and the photo is shown.
+    - Dashboard: guests 17 → 18, photos 20 → 21.
+    - Gallery link: 18 → 19 photos, with one new capture.
+    - Console after operator O reloaded: committed photos 18 → 19, guest sessions 17 → 18.
+    - No HTTP error or page error at any step.
 
 ---
 
