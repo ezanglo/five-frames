@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildGuestSlots, takenFrameCount, type GuestSlotCapture } from "./guest-slots";
+import { buildGuestSlots, keptFrameCount, takenFrameCount, type GuestSlotCapture } from "./guest-slots";
 
 function kept(slotIndex: number): GuestSlotCapture {
   return {
@@ -46,5 +46,22 @@ describe("guest slots after host moderation", () => {
     const slots = buildGuestSlots([kept(0), { ...kept(1), status: "pending" }], []);
     expect(takenFrameCount(slots)).toBe(1);
     expect(slots[1]?.status).toBe("pending");
+  });
+});
+
+/** A kept photo as the closed view lists it (no status). */
+function visible(slotIndex: number) {
+  const { id, message, capturedAt, thumbnailUrl, displayUrl, downloadUrl } = kept(slotIndex);
+  return { id, slotIndex, message, capturedAt, thumbnailUrl, displayUrl, downloadUrl };
+}
+
+describe("the kept count after capture closes", () => {
+  it("matches the open view's count: a hidden or deleted photo was still kept", () => {
+    // Two kept, the host hid one: the closed view lists one photo but the guest kept two.
+    expect(keptFrameCount([visible(0)], [1])).toBe(2);
+    expect(keptFrameCount([visible(0)], [1])).toBe(takenFrameCount(buildGuestSlots([kept(0)], [1])));
+
+    // Four visible plus one deleted read "5 of 5", the same as the all-five-used view.
+    expect(keptFrameCount([0, 1, 2, 4].map(visible), [3])).toBe(5);
   });
 });

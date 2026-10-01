@@ -14,6 +14,8 @@ import {
   reserveCapture,
 } from "@/lib/dal/captures";
 import { buildGuestSlots, takenFrameCount } from "@/lib/capture/guest-slots";
+import { keepPhoto, type KeepDeps } from "@/lib/capture/keep";
+import type { UploadedReservation } from "@/lib/capture/attempt";
 
 /**
  * Runs against the real linked dev Postgres and dev Storage bucket (architecture §11) —
@@ -189,6 +191,88 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(rows).toHaveLength(1);
 
     const basePath = reserved.capture.storage_path.replace(/\/original$/, "");
+    await supabase.storage
+      .from("captures")
+      .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
+  });
+
+  it("lost reserve and commit responses: Retry converges on exactly one capture (NET-02)", async () => {
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+    let key: string | null = null;
+    const lose = { reserve: false, commit: false };
+
+    // The page's Keep, wired to the real DAL. A "lost" response means the server finished the
+    // request and the browser never heard back.
+    const deps: KeepDeps = {
+      pendingKey: () => key,
+      rememberNewKey: () => (key = crypto.randomUUID()),
+      reserve: async (reserveKey) => {
+        const outcome = await reserveCapture(event.id, session.id, reserveKey);
+        if (lose.reserve) throw new TypeError("Failed to fetch");
+        if (outcome.kind === "reserved") {
+          return {
+            kind: "reserved",
+            captureId: outcome.capture.id,
+            slotIndex: outcome.capture.slot_index,
+            uploadUrl: outcome.uploadUrl,
+            uploadToken: outcome.uploadToken,
+            resumableEndpoint: outcome.resumableEndpoint,
+            bucket: "captures",
+            objectName: outcome.capture.storage_path,
+          };
+        }
+        if (outcome.kind === "already_committed") {
+          return { kind: outcome.kind, captureId: outcome.capture.id, slotIndex: outcome.capture.slot_index };
+        }
+        return { kind: outcome.kind };
+      },
+      upload: async (reserved) => {
+        const { error } = await supabase.storage
+          .from("captures")
+          .upload(reserved.objectName, TINY_PNG, { contentType: "image/png", upsert: true });
+        if (error) throw error;
+      },
+      commit: async (captureId) => {
+        const outcome = await commitCapture(event.id, session.id, captureId, null);
+        if (lose.commit) throw new TypeError("Failed to fetch");
+        return outcome.kind === "committed"
+          ? { kind: "committed", capture: outcome.capture, thumbnailUrl: null, displayUrl: null, downloadUrl: null }
+          : outcome;
+      },
+      onStep: () => {},
+    };
+
+    lose.reserve = true;
+    const reserveLost = await keepPhoto(deps, null);
+    expect(reserveLost).toMatchObject({ kind: "retryable", uploaded: null });
+
+    lose.reserve = false;
+    lose.commit = true;
+    const commitLost = await keepPhoto(deps, null);
+    expect(commitLost.kind).toBe("retryable");
+    const uploaded: UploadedReservation | null =
+      commitLost.kind === "retryable" ? commitLost.uploaded : null;
+    expect(uploaded).not.toBeNull();
+
+    lose.commit = false;
+    const retried = await keepPhoto(deps, uploaded);
+    expect(retried).toMatchObject({ kind: "committed", captureId: uploaded?.captureId });
+
+    const { data: rows, error } = await supabase
+      .from("captures")
+      .select()
+      .eq("guest_session_id", session.id);
+    if (error) throw error;
+    expect(rows).toHaveLength(1);
+    expect(rows?.[0].status).toBe("committed");
+    expect(rows?.[0].reserve_key).toBe(key);
+
+    // One frame used: the guest's next attempt gets the next slot, not a sixth reservation.
+    const next = await reserveCapture(event.id, session.id, crypto.randomUUID());
+    expect(next).toMatchObject({ kind: "reserved", capture: { slot_index: 1 } });
+
+    const basePath = (rows?.[0].storage_path as string).replace(/\/original$/, "");
     await supabase.storage
       .from("captures")
       .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);

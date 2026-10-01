@@ -21,6 +21,7 @@ import { DownloadOwnPhotosButton, OwnPhotoList, type OwnPhoto } from "./own-phot
 import type { GuestKeepsakes } from "./keepsakes";
 import { getFullSetAvailability, isKeepsakeEventReachable } from "@/lib/dal/keepsakes";
 import { buildKeepsakeContext } from "@/lib/keepsakes/context";
+import { keptFrameCount } from "@/lib/capture/guest-slots";
 
 /**
  * The guest event page (guest 01 Join · 02 Your Five · 04 Completion). The lifecycle drives
@@ -110,9 +111,12 @@ export default async function GuestEventPage({
     const endedSession = endedGuestSessionId
       ? await getGuestSession(event.id, endedGuestSessionId)
       : null;
-    const ownCaptures = endedSession
-      ? await listCapturesForGuestSessionWithUrls(event.id, endedSession.id)
-      : [];
+    const [ownCaptures, endedModeratedSlotIndexes] = endedSession
+      ? await Promise.all([
+          listCapturesForGuestSessionWithUrls(event.id, endedSession.id),
+          listModeratedSlotIndexesForGuestSession(event.id, endedSession.id),
+        ])
+      : [[], []];
     const kept: OwnPhoto[] = ownCaptures
       .filter((c) => c.status === "committed")
       .map((c) => ({
@@ -146,7 +150,7 @@ export default async function GuestEventPage({
           <div className="flex items-baseline justify-between">
             <h2 className="text-heading font-bold text-ink">Your moments</h2>
             <span className="tabular text-caption font-semibold text-brand-ink">
-              {kept.length} of {SHOTS_PER_GUEST} kept
+              {keptFrameCount(kept, endedModeratedSlotIndexes)} of {SHOTS_PER_GUEST} kept
             </span>
           </div>
           <OwnPhotoList

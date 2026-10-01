@@ -66,3 +66,20 @@ export function buildGuestSlots(
 export function takenFrameCount(slots: GuestSlot[]): number {
   return slots.filter((s) => s?.status === "committed" || s?.status === "moderated").length;
 }
+
+/**
+ * The "N of 5 kept" a guest sees once capture has closed, from their visible kept photos and
+ * their moderated slots. The same count as `takenFrameCount` while capture is open: a hidden or
+ * deleted photo was still kept.
+ */
+export function keptFrameCount(
+  visible: Omit<GuestSlotCapture, "status">[],
+  moderatedSlotIndexes: number[],
+): number {
+  return takenFrameCount(
+    buildGuestSlots(
+      visible.map((photo) => ({ ...photo, status: "committed" as const })),
+      moderatedSlotIndexes,
+    ),
+  );
+}

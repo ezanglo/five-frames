@@ -798,8 +798,10 @@ card was retired in Slice 16.
 - All pending pre-release checks are in that file: 52 cases, including the former H1–H9 and the
   pending design sign-offs. The automated part ran against RC `a2a32b1`: 8 PASS, 5 FAIL,
   13 BLOCKED, 23 NOT RUN, 3 DEFERRED (INAPP-01…03, accepted launch risk, not a pre-release gate).
-- The five FAILs are repaired locally. They are rerun, with the cases the repairs touch, on the
-  next deployed release candidate (release-validation.md → "Repairs after RC `a2a32b1`").
+- Those five FAILs were repaired, and a targeted rerun against RC `8f37fba` cleared four of
+  them. It found one new defect, NET-02: a reserve or commit request cut at the network left the
+  capture sheet stuck. That defect and a related count-wording observation are repaired locally
+  and not yet deployed (release-validation.md → "Repairs after RC `8f37fba`").
 
 ### Slice 14 history (2026-09-23 → 2026-10-01)
 
@@ -1803,6 +1805,22 @@ on its own and in the rerun; the sweep acts on every event in the shared dev dat
 headed Chromium against dev Supabase, synthetic data only (removed afterwards), checked every
 changed surface. None of this is device proof.
 
+## Release-validation repair after RC `8f37fba`
+
+Found by the targeted `/e2e-validate` rerun against RC `8f37fba` (2026-10-01). Taxonomy **B**.
+Repaired in one `/maintain-project` pass and **not yet deployed**. Evidence and rerun list:
+release-validation.md → "Repairs after RC `8f37fba`".
+
+| Case | Root cause | Repair | Regression coverage |
+|---|---|---|---|
+| NET-02 (also NET-01/NET-04 "never stuck") | `confirmAttempt` awaited the reserve and commit server actions with no failure path. A transport rejection left the phase on "Keeping…"/"Saving…" | Keep sequence in `lib/capture/keep.ts`: transport failure or a 60 s timeout → Retry. Retry reuses the persisted reserve key, or re-commits the same uploaded reservation (`uploaded` in `lib/capture/attempt.ts`) | `keep.test.ts`; `captures.integration.test.ts` lost-response case (real dev backend) |
+| Closed-capture "N of 5 kept" | Counted from the visible list, like HOST-08 | `keptFrameCount` in `lib/capture/guest-slots.ts` | `guest-slots.test.ts` |
+
+Verification: typecheck ✔, lint ✔, build ✔, full suite 520/520, including the real-dev capture
+and resumable integration tests. One of four full runs had a single failure that wasn't
+captured by name and didn't recur in the next three. The shared-dev-database lifecycle sweep
+test is the known intermittent one. No migration, provider or deployment change.
+
 ## Regression protection added for human-found defects
 
 One defect was caught by the integration tests themselves during implementation, before reaching
@@ -2112,8 +2130,9 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 1. Checkpoint the repaired code as a new release-candidate commit and record its SHA in
    release-validation.md's run record.
 2. Deploy that commit to `five-frames.vercel.app`.
-3. Run `/e2e-validate` only for the failed/affected cases listed under "Repairs after RC
-   `a2a32b1`".
+3. Run `/e2e-validate` only for the cases listed under "Repairs after RC `8f37fba`" in
+   release-validation.md (NET-02, the NET-01/NET-04 proxies, the HOST-08 light recheck, then
+   SMOKE-01).
 4. After those pass, run the remaining iPhone, Android, real-network, visual and final-smoke
    validation.
 

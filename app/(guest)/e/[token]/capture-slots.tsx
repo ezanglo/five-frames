@@ -22,12 +22,8 @@ import { EmptySlotFace, ShotNumber, ShotProgress, SHOTS_PER_GUEST } from "@/comp
 import { firstName, formatEventTime } from "@/lib/events/format";
 import { DownloadOwnPhotosButton, KeepsakeViewerActions, OwnPhotoList, type OwnPhoto } from "./own-photos";
 import { useKeepsakePicker, type GuestKeepsakes } from "./keepsakes";
-import {
-  ATTEMPT_COPY,
-  attemptReducer,
-  initialAttemptState,
-  type EndedReason,
-} from "@/lib/capture/attempt";
+import { attemptReducer, initialAttemptState, type EndedReason } from "@/lib/capture/attempt";
+import { keepPhoto } from "@/lib/capture/keep";
 import {
   buildGuestSlots,
   takenFrameCount,
@@ -195,6 +191,8 @@ export function CaptureSlots({
         clearPending();
         dispatch({ type: "settled" });
       }
+    }).catch(() => {
+      // Offline on load: keep the key. The next Keep reuses it, so nothing is reserved twice.
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -242,88 +240,60 @@ export function CaptureSlots({
 
   async function confirmAttempt() {
     if (!selectedFile) return;
-    dispatch({ type: "step", phase: "reserving" });
-
-    let key = pendingKeyRef.current;
-    if (!key) {
-      key = crypto.randomUUID();
-      pendingKeyRef.current = key;
-      try {
-        localStorage.setItem(storageKey, JSON.stringify({ reserveKey: key }));
-      } catch {
-        // Attempt still works without persistence; it just won't survive a reload.
-      }
-    }
-
-    const reserved = await reserveSlot(token, key);
-
-    if (
-      reserved.kind === "frames_exhausted" ||
-      reserved.kind === "capture_not_open" ||
-      reserved.kind === "expired"
-    ) {
-      endAttempt(reserved.kind);
-      return;
-    }
-    if (reserved.kind === "not_joined") {
-      dispatch({ type: "retryable", error: ATTEMPT_COPY.notJoined });
-      return;
-    }
-
-    let captureId: string;
-    let slotIndex: number;
-
-    if (reserved.kind === "reserved") {
-      captureId = reserved.captureId;
-      slotIndex = reserved.slotIndex;
-      dispatch({ type: "step", phase: "uploading" });
-      try {
-        await uploadFile(selectedFile, reserved);
-      } catch {
-        dispatch({ type: "retryable", error: ATTEMPT_COPY.uploadFailed });
-        return;
-      }
-    } else {
-      captureId = reserved.captureId;
-      slotIndex = reserved.slotIndex;
-    }
-
-    dispatch({ type: "step", phase: "committing" });
+    const file = selectedFile;
     const keptMessage = message.trim() || null;
-    const committed = await commitSlot(token, captureId, message);
 
-    if (committed.kind === "committed") {
-      setSlots((prev) => {
-        const next = [...prev];
-        next[slotIndex] = {
-          id: captureId,
-          status: "committed",
-          message: committed.capture.message ?? keptMessage,
-          capturedAt: committed.capture.committed_at,
-          thumbnailUrl: committed.thumbnailUrl,
-          displayUrl: committed.displayUrl,
-          downloadUrl: committed.downloadUrl,
-        };
-        return next;
-      });
-      clearPending();
-      releasePreview();
-      dispatch({ type: "committed" });
-      // With all five kept, ask the server whether "Your five, together" is available: the
-      // flag comes only from getFullSetAvailability, never from counting slots here.
-      const keptNow = slots.filter((slot, i) => i !== slotIndex && slot?.status === "committed").length + 1;
-      if (keepsakes && keptNow === SHOTS_PER_GUEST) router.refresh();
+    const outcome = await keepPhoto(
+      {
+        pendingKey: () => pendingKeyRef.current,
+        rememberNewKey: () => {
+          const key = crypto.randomUUID();
+          pendingKeyRef.current = key;
+          try {
+            localStorage.setItem(storageKey, JSON.stringify({ reserveKey: key }));
+          } catch {
+            // Attempt still works without persistence; it just won't survive a reload.
+          }
+          return key;
+        },
+        reserve: (key) => reserveSlot(token, key),
+        upload: (reserved) => uploadFile(file, reserved),
+        commit: (captureId) => commitSlot(token, captureId, message),
+        onStep: (phase) => dispatch({ type: "step", phase }),
+      },
+      attempt.uploaded,
+    );
+
+    if (outcome.kind === "ended") {
+      endAttempt(outcome.reason);
       return;
     }
-    if (committed.kind === "not_uploaded") {
-      dispatch({ type: "retryable", error: ATTEMPT_COPY.notUploaded });
+    if (outcome.kind === "retryable") {
+      dispatch({ type: "retryable", error: outcome.error, uploaded: outcome.uploaded });
       return;
     }
-    if (committed.kind === "expired" || committed.kind === "capture_not_open") {
-      endAttempt(committed.kind);
-      return;
-    }
-    dispatch({ type: "retryable", error: ATTEMPT_COPY.unknown });
+
+    const { captureId, slotIndex, reply: committed } = outcome;
+    setSlots((prev) => {
+      const next = [...prev];
+      next[slotIndex] = {
+        id: captureId,
+        status: "committed",
+        message: committed.capture.message ?? keptMessage,
+        capturedAt: committed.capture.committed_at,
+        thumbnailUrl: committed.thumbnailUrl,
+        displayUrl: committed.displayUrl,
+        downloadUrl: committed.downloadUrl,
+      };
+      return next;
+    });
+    clearPending();
+    releasePreview();
+    dispatch({ type: "committed" });
+    // With all five kept, ask the server whether "Your five, together" is available: the
+    // flag comes only from getFullSetAvailability, never from counting slots here.
+    const keptNow = slots.filter((slot, i) => i !== slotIndex && slot?.status === "committed").length + 1;
+    if (keepsakes && keptNow === SHOTS_PER_GUEST) router.refresh();
   }
 
   const nextEmptyIndex = slots.findIndex((s) => s === null);

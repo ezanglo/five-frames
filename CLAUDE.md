@@ -175,6 +175,10 @@ change, not a refactor.
   JWT and rejects an `x-signature` token with `Invalid Compact JWS` (NET-02). Keep the browser's
   TUS options in `lib/media/tus.ts`; `captures.resumable.integration.test.ts` runs them against
   real Storage.
+- **The guest Keep sequence lives in `lib/capture/keep.ts`.** A server action rejects when its
+  request fails in transit, so every reserve/commit call there must end in an outcome (Retry),
+  never an uncaught throw. Retry reuses the persisted reserve key or re-commits the same uploaded
+  reservation. Never mint a new key for a Retry (NET-02).
 - **Guest/demo photo inputs never set `capture`.** It makes Android open only the camera, with no
   library. Use `components/ff/photo-picker-input.tsx`.
 - **Multi-file original downloads go through `lib/media/save-files.ts`.** One cross-origin link
