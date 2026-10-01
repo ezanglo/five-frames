@@ -3,6 +3,15 @@
 Vertical slices, each delivering observable capability. Acceptance criteria numbers refer to
 [docs/product.md §20](./product.md) as renumbered for the five-photo, no-video MVP.
 
+> **Status (2026-10-01): implementation complete. Release validation pending.**
+>
+> - Every feature slice is complete: Slices 1–13 and 15–18.
+> - No feature slice remains.
+> - Slice 14 was a validation slice with no implementation work. Its remaining scope has moved to
+>   [release-validation.md](./release-validation.md), and none of it is marked passed.
+> - All remaining pre-release testing now lives in that one file, for a single pass against one
+>   final deployment. This roadmap records delivery history and status; it is not a test runner.
+
 > **Reconciled 2026-09-22 (first pass)** against the product-spec update covering the pre-purchase
 > demo, launch pricing, event capacity, signage, and guest trust cues. Slices 1–5 are unchanged and
 > complete. Slices 6–10 were renumbered to 6–12 to make room for two new slices (capacity
@@ -32,6 +41,8 @@ not **how**.
 ---
 
 ## Slice 1 — Host account and draft event
+
+**Status: complete.**
 
 **Objective:** A host can sign up, sign in, and create and configure a draft event.
 
@@ -103,6 +114,8 @@ consistent state — committed or available, never both.
 ---
 
 ## Slice 4 — Host dashboard and moderation
+
+**Status: complete.**
 
 **Objective:** A host sees their event's captures and can moderate them.
 
@@ -196,6 +209,9 @@ counts only — no query path in this slice can resolve an individual capture's 
 
 ## Slice 8 — Provider payment, shared activation, and event signage
 
+**Status: complete.** Real PayMongo Test-mode checkouts were verified on 2026-09-22 (progress.md).
+Signage was later rebuilt and themed in Slice 17.
+
 **Objective:** Self-service payment activates the event, issues the link and printable QR, and
 the host can obtain the event's signage set.
 
@@ -269,9 +285,9 @@ somehow has both in flight) activates exactly once. A manual refund produces an 
 **Verification:** Pre-reveal share exposes neither the gallery nor any other guest's capture.
 Original media unmodified.
 
-**Status: complete.** See [progress.md](./progress.md) for verification results. Automated
-coverage only for Web Share behavior itself (real Safari/Android/in-app-browser share-sheet
-behavior is on the pending human-verification checklist in progress.md).
+**Status: complete.** See [progress.md](./progress.md) for verification results. Its own
+share-sheet checklist was never run. Slice 16's real-device keepsake Share/Save evidence
+superseded it.
 
 **Superseded by Slice 16:** keepsakes replace the single share card (product.md §10.2, D19). The
 authorization predicate and sharing toggle carry over; the cached `share_path` output does not.
@@ -343,8 +359,19 @@ distributed as or mistaken for a working event or gallery link.
 
 ## Slice 14 — Full-flow device and venue-network validation
 
-**Objective:** The complete guest and host flow is proven end to end on real hardware under
-realistic conditions.
+**Status (2026-10-01): validation scope migrated to
+[release-validation.md](./release-validation.md).** This was a validation slice, not
+implementation work, and no implementation work remains in it. Its checks are **pending, not
+passed**. They will run in the single consolidated release-validation pass. Two parts are already
+covered by newer real-device evidence:
+
+- physical QR and signage (Slice 17);
+- Web Share (Slice 16 keepsakes).
+
+The two code defects its 2026-09-23 `/e2e-validate` run found were fixed then (progress.md).
+
+**Objective (original):** The complete guest and host flow is proven end to end on real hardware
+under realistic conditions.
 
 - Current iPhone Safari, Android Chrome, and Facebook/Messenger/Instagram in-app browsers.
 - Weak Wi-Fi, congested mobile data, interrupted uploads, backgrounded browsers.
@@ -352,10 +379,6 @@ realistic conditions.
 
 **Criteria:** 37, 38 (corrected 2026-10-01: this said "29, 30", the numbering from before the
 theme and keepsake criteria were inserted; 29 and 30 are now keepsake criteria)
-**Verification:** Human-run on real devices. Not automated.
-**Note:** this is a regression and end-to-end pass, not the first look at device behavior —
-slice 2 already validated the capture flow on the same browsers. Its job is to catch what
-integration broke, not to discover platform surprises.
 
 ---
 

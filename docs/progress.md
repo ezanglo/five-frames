@@ -1,15 +1,15 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-01 (**Slice 18 — MVP optional polish: `complete`.**
-Live host-dashboard updates now run over the app's own server-mediated SSE route, with polling
-kept as the fallback (decision D21, superseding D9's polling-only posture; no browser Supabase
-client). Custom reveal time was verified with no code change. The public demo shows both keepsake
-families with the shared templates (D14 intact). Automated, browser, one-Preview and the human
-live-update/offline-recovery checks passed. Slices 15–18 are `complete`.
-Slice 14 is still `awaiting human verification`, narrowed to checks H1–H9, which are blocked until
-a deployment runs the current build with payment and cron configured. The `share_path` drop
-migration is still written and deliberately unapplied (deployment order). The brand identity,
-marketing motion and contracted-handoff redesign passes remain `awaiting human visual approval`.)
+Last updated: 2026-10-01 (**Implementation complete. Consolidated release validation pending.**)
+
+- Every feature slice is complete: Slices 1–13 and 15–18. No feature slice remains.
+- Slice 14 was validation-only. Its remaining scope, the H1–H9 checks and the pending design
+  sign-offs now live in one canonical checklist, [release-validation.md](./release-validation.md).
+  It is designed for a single pass against one final deployment, and none of it has run yet.
+- Existing human evidence (Slices 15–18) is recorded there and is not repeated.
+- Non-testing release work (environment reconciliation, region alignment, the `share_path`
+  deployment order, raw-HEIC early rejection, legal copy, the expiry-warning channel) is listed
+  under [Release follow-ups](#release-follow-ups-not-test-cases).
 
 This file is current project state for a fresh implementation session, not a session log.
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
@@ -584,8 +584,9 @@ flag isn't stored).
 taste checks — Create → Look desktop studio and Overview; Create → Look on a phone (color
 feedback, "See it everywhere", Continue); Settings → Look's two save models; all seven colors on
 guest join and Your Five (incl. marigold); a themed guest header's balance and legibility; and
-the default event (violet, no image, no hashtag) still looking finished. Real-device checks
-(camera/picker, share sheets, in-app browsers) stay with Slices 14 and 16.
+the default event (violet, no image, no hashtag) still looking finished. Share sheets and in-app
+saves passed in Slice 16. Camera/picker and in-app capture checks are in
+[release-validation.md](./release-validation.md).
 
 ## Brand identity rollout (2026-09-30): `awaiting human visual approval`
 
@@ -604,9 +605,8 @@ the old app icon everywhere the brand appears. Design only; no product behavior 
   `lib/brand/logo.test.ts`: exactly five frames, no overlaps, 2 landscape/2 portrait/1 square,
   whole-pixel favicon; `signage.test.ts`: every format carries the outlined lockup). Signage,
   share card and OG image were rendered to PNG and inspected. No browser pass was run.
-- **Human sign-off needed:** the lockup's size and alignment in each header (with and without
-  the Host/Operator tag), the tab icon in light and dark browser themes, the iOS home-screen
-  icon, and one printed table card.
+- **Human sign-off:** pending, as release-validation.md VIS-01. The printed table card is
+  covered by the Slice 17 print evidence.
 
 ## Marketing motion polish (2026-09-30): `awaiting human visual approval`
 
@@ -638,11 +638,7 @@ motion"). Marketing only; no product behavior, copy/IA, app screen or demo chang
   animation, full opacity at 150 ms, no parallax), JavaScript disabled renders the finished
   composition, route away/back and resizing below 1024 re-attach or detach cleanly. Emulated
   Chromium only. Not evidence for real Safari/iOS, Firefox, or trackpad feel.
-- **Human sign-off needed:** (1) taste: does the five-print hero read as FiveFrames and feel calm
-  and weighted rather than floaty, on a real laptop with a trackpad/mouse; (2) Safari and Firefox
-  desktop rendering of the prints (shadows, tilt crispness); (3) a real phone: the hero row's
-  entrance and the "Why five" drop-in feel light, and nothing janks while scrolling; (4) with
-  the OS "Reduce motion" setting on, the homepage is fully still.
+- **Human sign-off:** pending, as release-validation.md VIS-02.
 
 ## Desktop/browser responsive pass (2026-09-29): `awaiting human visual approval`
 
@@ -670,8 +666,8 @@ download, lifecycle or demo-isolation change.
   430, 768, 1024, 1280, 1440 and 1600 wide for public pages and every guest/gallery/demo state
   above — data-backed guest states rendered through a temporary, uncommitted fixture route
   with sample images, not live events. No horizontal overflow at any size; only Completion at
-  1024×768 scrolls (~110px). Browser emulation is not real-device evidence (Slice 14 still
-  covers that).
+  1024×768 scrolls (~110px). Browser emulation is not real-device evidence. The real-device and
+  host/Operator desktop checks are release-validation.md VIS-03.
 - **Open visual notes:** the story panel is decorative night + violet glow (no cover images
   exist); share buttons on desktop Completion cards sit on the photo (secondary style).
 
@@ -752,8 +748,7 @@ product should change:
 - Verification: typecheck ✔ · lint ✔ · build ✔ · `pnpm test` 167/168 on the first run, then
   the timed-out test's file (`captures.integration.test.ts`, one test past the 5 s default)
   passed 16/16 on rerun — no capture code changed in this pass. Share card checked by rendering
-  landscape/portrait/square/long-text samples. No browser automation in this pass — see
-  checklist item 7.
+  landscape/portrait/square/long-text samples. No browser automation in this pass.
 
 **Automated verification (2026-09-29):** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
 (new routes `/auth/confirm`, `/events/new`, `/events/[id]/setup`, `/events/[id]/photos`,
@@ -769,7 +764,7 @@ discarded retake that correctly consumed nothing), whitespace-name error state, 
 Photos, Settings dirty/discard, custom reveal time round-trip in the event timezone, capture close
 from the mobile toggle → after-event reveal, locked and revealed public gallery, long event name.
 This is emulated Chromium — not evidence for real iPhone Safari, Android Chrome, in-app browsers,
-native pickers, or venue networks (still Slice 14 human scope). Not pixel-perfect: compositions,
+native pickers, or venue networks (now in release-validation.md). Not pixel-perfect: compositions,
 hierarchy, tokens and type match; source photography is replaced by the no-cover gradient and
 synthetic test images.
 
@@ -784,48 +779,39 @@ leading `N`), so `NEXT_PUBLIC_SUPABASE_URL` is undefined locally; this pass pass
 process env override without editing the file. The `E2E_*` variables this file previously listed
 are also no longer in `.env.local`.
 
-**Human visual-approval checklist** (real phone + desktop browser):
-
-1. Guest on a real phone: join, take/choose a photo, Retake, Keep, reach Completion, download
-   your photos (each file saves, the page doesn't navigate away). Check the sheet/keyboard
-   behavior on Preview and that the header runs under the status bar without overlap.
-2. Guest link before capture opens and after it closes (with and without having joined).
-3. Host desktop and phone: events list, create wizard, dashboard capture toggle, Photos
-   (hide/unhide/favorite/delete confirm/download all), Settings save/discard/leave-page warning.
-4. Password reset end to end (needs the Supabase redirect allowlist to include
-   `<origin>/auth/confirm` for each environment — configuration, not code).
-5. Public gallery locked/revealed, viewer swipe/arrows/Escape.
-6. Taste: does the result read as the contracted handoff? Report any screen that doesn't.
-7. Follow-up surfaces: `/operator` list (search, empty result) and an event detail at phone and
-   desktop widths — confirm-payment and record-refund dialogs (Cancel leaves the form untouched;
-   a missing required field is flagged before the dialog opens); a mistyped URL and another
-   host's event id (both show "We can't find that page"); a newly generated share card from a
-   guest's own photo; the new browser-tab icon and iOS home-screen icon.
+**Human visual approval:** pending. The former 7-item checklist moved to
+[release-validation.md](./release-validation.md): taste is VIS-03, and its functional items are in
+the workflow sections (see that file's audit table). Item 7's share card is obsolete; the share
+card was retired in Slice 16.
 
 ## Current phase
 
-**Slices 1–13: complete. Slice 14 (full-flow real-device and venue-condition validation,
-product.md criteria 37/38; the roadmap reference was corrected from the old 29/30 numbering on
-2026-10-01) is `awaiting human verification` — status set 2026-09-23. Slice 18 (MVP optional
-polish) is `complete`.
-Slices 15 (event theme foundation), 16 (keepsakes, both families) and 17 (themed signage and
-pre-activation previews) are `complete`. The Event Theme & Keepsakes design (incl. the Full Set amendment) is
-approved.**
+**Implementation complete. Consolidated release validation pending.**
 
-Slice 14 is defined by the roadmap itself as human-run, not automated ("Human-run on real
-devices. Not automated. ... this is a regression and end-to-end pass, not the first look at
-device behavior — slice 2 already validated the capture flow on the same browsers") for the
-device/in-app-browser/network scope. A separate, explicitly invoked `/e2e-validate` pass (and,
-for this repair, a bounded, explicitly authorized Playwright verification against the real dev
-deployment — see the "Slice 14" entry under "Regression protection added for human-found defects"
-below) is a different, narrower kind of check: proving these two specific code defects are fixed
-against a real browser and the real dev database, not a substitute for the human-device checklist
-below. Accordingly, this slice's implementation work was: (1) run every automatable check, (2)
-inspect deployed environment configuration for health and presence without ever reading or
-printing a secret value, (3) assemble the full validation matrix and checklist the roadmap's 14
-sections require, so a human can execute it directly against the real deployment without needing
-to reconstruct scope from conversation history, (4) repair the two defects `/e2e-validate` found
-and reverify them, and (5) stop and hand off, per this slice's own manual-verification boundary.
+- Slices 1–13 and 15–18 are `complete`. The Event Theme & Keepsakes design, including the Full
+  Set amendment, is approved.
+- **Slice 14** (full-flow real-device and venue-condition validation, criteria 37/38) was a
+  validation slice with no implementation work. On 2026-10-01 its remaining scope moved to
+  [release-validation.md](./release-validation.md). It is **not** marked passed.
+- All pending pre-release checks are in that file: 52 cases, none run yet. That includes the
+  former H1–H9 and the pending design sign-offs.
+- The pass runs once, top to bottom, against one final Vercel deployment of a frozen release
+  candidate. No separate per-slice validation passes are planned.
+
+### Slice 14 history (2026-09-23 → 2026-10-01)
+
+On 2026-09-23 Slice 14 did the following:
+
+1. ran every automatable check;
+2. inspected deployed configuration by name only;
+3. assembled a 13-section human checklist;
+4. repaired two defects that a focused `/e2e-validate` run found (see "Regression protection"
+   below).
+
+On 2026-10-01 it was reconciled against Slices 15–17. That narrowed it to H1–H9, and its §3
+(physical QR) and §7 (Web Share) were satisfied by Slice 17 and Slice 16 evidence. The checklist
+and H1–H9 are superseded by release-validation.md, whose audit table maps each old item to its new
+case ID. The records below are history.
 
 **Slice 14 — automated verification (2026-09-23, reverified after the defect repair):**
 
@@ -846,7 +832,7 @@ and reverify them, and (5) stop and hand off, per this slice's own manual-verifi
   defects" below for root cause, fix, and regression coverage for each. Everything else this
   slice's scope covers (camera behavior, real in-app-browser share sheets, physical QR scans,
   real PayMongo test-mode payment UX, venue network conditions) remains observable only on real
-  hardware — the human checklist below is unaffected by this repair.
+  hardware. Those checks are now in release-validation.md.
 
 **Slice 14 — deployed environment check (2026-09-23, via `vercel` CLI metadata only — no secret
 value was read or printed):**
@@ -860,7 +846,7 @@ value was read or printed):**
   **PASS.**
 - **`CRON_SECRET` is now present in Production** (added ~23 minutes before this check) — **the
   Slice 12 deployment prerequisite that was previously open is now satisfied structurally.** This
-  is new since the last progress.md update; see §13 of the checklist below for the one remaining
+  is new since the last progress.md update; the remaining
   step (an actual authenticated invocation) that only a human running `curl` with the real secret
   value can perform — this environment must not read or transmit that value itself.
 - **PayMongo Test mode / webhook delivery health:** **not verifiable from this environment.**
@@ -868,11 +854,11 @@ value was read or printed):**
   are `pk_test_`/`sk_test_` vs. `pk_live_`/`sk_live_` is a fact this session should not decode or
   assert from a partial value — the PayMongo dashboard is the authoritative source per this
   project's own research-integrity rule (prefer first-party sources for provider-capability
-  claims), and reading it requires the human's own PayMongo login. See §1 of the checklist below.
+  claims), and reading it requires the human's own PayMongo login. Now release-validation.md ENV-03.
 - **Preview environment is missing `CRON_SECRET`, `PAYMONGO_SECRET_KEY`,
   `NEXT_PUBLIC_PAYMONGO_PUBLIC_KEY`, `PAYMONGO_WEBHOOK_SECRET`** (only Supabase/guest-session vars
   are set there). Not a blocker — every real-device pass recorded in this file so far (Slices 2,
-  3, 8) tested against the Production URL, not a Preview deployment, and the checklist below
+  3, 8) tested against the Production URL, not a Preview deployment, and the 2026-09-23 checklist
   continues that pattern. Recorded here only so a future session doesn't assume Preview is
   payment-capable.
 - No production/live financial configuration was mutated, viewed in decoded form, or referenced
@@ -1009,6 +995,7 @@ decision D18, roadmap criterion 12) landed 2026-09-23.
   target, authenticated via `CRON_SECRET` (`Authorization: Bearer`, which Vercel sends
   automatically once that env var is set in the Vercel project — the one manual configuration
   step this slice couldn't do itself; see below). No new job platform, no queue.
+  (The authenticated invocation check is now release-validation.md CRON-01 … CRON-03.)
 - **Operator Console:** the event detail page now shows a "Permanent deletion" row (completed
   with timestamp / pending / not yet eligible) alongside the existing `hosted_until`/`grace_until`
   rows from earlier slices.
@@ -1349,8 +1336,8 @@ see prior verification records in git history if needed.
   lifecycle cron mechanism and permanent-deletion ordering (implemented, Slice 12), plus the
   recorded launch prerequisite that no outbound email/SMS channel exists yet for the required
   advance-expiry warning.
-- **Roadmap** ([roadmap.md](./roadmap.md)) — Slices 1–13 complete; Slice 14 (full-flow device and
-  venue-network validation, human-run) is next.
+- **Roadmap** ([roadmap.md](./roadmap.md)): implementation complete (Slices 1–13 and 15–18).
+  Slice 14's validation scope moved to [release-validation.md](./release-validation.md).
 - **Vercel project** `five-frames` (org `ezanglos-projects`), linked via `.vercel/` (gitignored).
   Created ad hoc during this slice to get a real-HTTPS URL for device testing — the guest session
   cookie is `Secure`, which plain-HTTP LAN testing can't satisfy. Env vars (`NEXT_PUBLIC_
@@ -1680,6 +1667,10 @@ see prior verification records in git history if needed.
 
 ## Verification status
 
+Historical record from Slices 1–12. Every "human sanity check" or pending human item suggested in
+this section has moved to [release-validation.md](./release-validation.md), or that file
+supersedes it. Current automated totals are in the Slice 18 section (474/474).
+
 - `pnpm typecheck` — passing.
 - `pnpm lint` — passing, no errors or warnings.
 - `pnpm build` — passing; `/e/[token]`, `/events/[eventId]`, `/g/[token]`, `/operator`,
@@ -1709,14 +1700,14 @@ see prior verification records in git history if needed.
   to open a host's event with a few committed captures, click one tile's download icon and confirm
   the original file (not a resized derivative) saves, then click "Download all originals" and
   confirm one file per committed capture saves, including any hidden one.
-- **Slice 10 — awaiting human verification for real Web Share behavior only.** Everything
+- **Slice 10 — real Web Share behavior was never human-verified; superseded by Slice 16.** Everything
   server-authoritative (the sharing toggle gate, cross-guest isolation, moderation gating,
   pre-reveal isolation, original-media integrity, idempotent generation) is proven by
   `lib/dal/share-cards.integration.test.ts` against the real dev database, and the
   share-vs-download decision logic itself by `lib/share/web-share.test.ts`. What remains
   unverifiable in this environment (no browser automation) is whether `navigator.share`/
   `navigator.canShare` actually behave as expected, and whether the download fallback actually
-  produces a usable image, on real Safari/Android/in-app browsers — see the checklist below.
+  produces a usable image, on real Safari/Android/in-app browsers (superseded by Slice 16 real-device evidence).
 - **Slice 2 real-device validation — passed, reported 2026-09-21.** All 6 checklist items (iPhone
   Safari, Android Chrome, FB/Messenger/IG in-app browsers, interrupted upload, reload mid-attempt,
   HEIC) — see the historical record below. Still valid for the unchanged reserve/commit mechanism.
@@ -1952,8 +1943,8 @@ Both fixes verified with a clean `pnpm typecheck`, `pnpm lint`, `pnpm build`, an
 (162/162 passing; one lifecycle-integration timeout on the first run was the same pre-existing
 real-dev-database-under-load flakiness already recorded above, confirmed non-regressive by an
 immediate 162/162 rerun). Slice 14's own human-device-bound scope (camera, real in-app browsers,
-physical QR, venue network) is unaffected by this repair and remains `awaiting human
-verification` — see the checklist below.
+physical QR, venue network) was unaffected by this repair. Physical QR has since passed in
+Slice 17; the rest is pending in release-validation.md.
 
 ## Manual verification results (Slice 2 exit condition) — all passed, 2026-09-21
 
@@ -1998,21 +1989,6 @@ HTTP).
 
 All four items passed; no failures to fix, so this slice's defect-to-regression policy does not
 apply.
-
-## Recommended (optional) manual check for Slice 5
-
-Not a blocking exit condition — the roadmap's verification for this slice (gallery link before
-reveal grants nothing, only-me visibility denies the link holder, rotated tokens stop working
-immediately) is fully covered by the automated tests above, and this slice has no device-specific
-acceptance criteria. If convenient, click through once in a browser as a sanity check:
-
-1. On `/events/[eventId]` for an activated event, confirm the capture link and gallery link rows
-   appear, "Copy link" copies a working absolute URL, and "Rotate"/"Revoke" update the shown link
-   (or clear it) without a full page reload.
-2. Set reveal to "Immediately," open the gallery link in a private/incognito window, and confirm
-   captures appear. Switch visibility to "Only me" and confirm the same link now denies access.
-3. Set reveal back to "After the event" with capture still open, and confirm the gallery link
-   denies access until capture is closed.
 
 ## Slice 8 exit-condition verification — result, 2026-09-22
 
@@ -2085,240 +2061,63 @@ capture at least one photo as a guest, and check:
 Reply with pass/fail for each item and any screenshot/error. Record the outcome in this file
 under this heading once reported, and mark Slice 10 fully verified only once all items pass.
 
-## Slice 14 — human verification checklist
+## Slice 14 — validation scope migrated (2026-10-01)
 
-### Reconciliation against Slices 15–17 (`/e2e-validate`, 2026-10-01)
+[release-validation.md](./release-validation.md) replaced this section as the active checklist. The
+full former text is in git history. Its audit table maps every item of the 2026-09-23 checklist (13
+sections) and every one of H1–H9 to a case ID.
 
-This was a reconciliation only. It made no code change, no deployment and no Production mutation.
-Baseline at HEAD `553042e`: typecheck ✔ · lint ✔ · `pnpm test` 436/436 ✔ (38 files).
+The 2026-10-01 reconciliation (`/e2e-validate`) made no code change and no deployment. Its
+baseline was HEAD `553042e`: typecheck ✔, lint ✔, 436/436 tests. It found:
 
-Slice 14 proves product.md criteria **37 and 38** (platform). The roadmap said "Criteria: 29,
-30", the numbering from before criteria were inserted; it was corrected to 37 and 38 on
-2026-10-01 (Slice 18 docs reconciliation).
+- **§3 (physical QR and signage):** satisfied by the Slice 17 physical print-and-scan evidence.
+- **§7 (Web Share):** satisfied by the Slice 16 real-device keepsake Share/Save evidence.
+- **Every other surface** had changed since 2026-09-23, so a pass on an older build would not
+  count.
+- **Target environment: BLOCKED.**
+  - Production (`five-frames-rhj885a31`, built 2026-09-30) ran Slice 15-era code.
+  - The newest Preview lacked the Slice 17 routes.
+  - The Preview environment had no `PAYMONGO_*` and no `CRON_SECRET`.
+  - release-validation.md's setup checklist resolves this.
 
-**Target environment: BLOCKED.** No deployment runs the current build with payment and cron
-configured (from `vercel ls` / `vercel inspect` / `vercel env ls`, names only, no values read):
-- **Production** (`five-frames.vercel.app` → `five-frames-rhj885a31`, built 2026-09-30 16:26
-  +08): Slice 15-era code. It has no keepsake routes and no signage preview route.
-- **Newest Preview** (`five-frames-rdt37gy2n`): has keepsake routes but no Slice 17 signage
-  preview route.
-- **Preview env:** only Supabase and guest-session variables. It has no `PAYMONGO_*` and no
-  `CRON_SECRET`.
-- **Every Slice 14 surface has changed since the 2026-09-23 checklist**, so a pass on the current
-  Production build would not count. This covers checkout, the Operator Console, lifecycle, the
-  gallery, `capture-slots.tsx` (rewritten) and bulk download.
+Apart from §3 and §7, nothing in Slice 14 is passed.
 
-The remaining checks need a deployment of HEAD with PayMongo **test** keys, a webhook registered
-to that deployment and `CRON_SECRET`. Choosing that environment is the user's call:
-- **Option A:** deploy HEAD to the dev-backed Production. This is also step 1 of the `share_path`
-  order. The drop migration stays unapplied.
-- **Option B:** configure a Preview for payment and cron.
+## Next step
 
-| §  | Slice 14 item | Evidence from Slices 15–17 | Result |
-|---|---|---|---|
-| 1 | PayMongo Test mode, webhook delivery log, no live keys | None | HUMAN-ONLY (dashboard), after the environment is ready |
-| 2 | Host journey, from create to downloads | Create → Look, and Settings → Look (Slice 15: Chromium and human visual check). Activated signage appears and downloads (Slice 17: Chromium and physical). Not covered: checkout, webhook activation, capture open/close/reopen, reveal controls, moderation | BLOCKED (environment) → then human (H2) |
-| 3 | Physical QR and signage, all formats; unactivated event has no working link | Slice 17 human print-and-scan (PHYSICAL, REAL-DEVICE, user-reported 2026-10-01): all four formats on a real iPhone and a real Android phone, busy theme, several accents, Draft placeholder scans to nothing. Draft download returns 404 (integration and HTTP) | **PASS**. Superseded by Slice 17 |
-| 4 | Guest flow on iPhone Safari | Real iPhone QR scan opens capture (Slice 17). Real iPhone share sheet with cancel and retry (Slice 16). Not covered on the current build: camera and library, commit, reload, interrupted-upload retry, original download | HUMAN-ONLY, narrowed (H3) |
-| 5 | Guest flow on Android Chrome | Same coverage as §4, on Android (Slices 16 and 17) | HUMAN-ONLY, narrowed (H4) |
-| 6 | Facebook, Messenger and Instagram in-app browsers | Keepsake **save** passed in all three (Slice 16, REAL-DEVICE). Join, picker, commit and original download in those browsers are not recorded | HUMAN-ONLY, narrowed (H5) |
-| 7 | Web Share | Slice 16: share sheets on iPhone and Android, cancel and retry, in-app save. Also Chromium checks of sharing off and save-only fallback | **PASS**. Superseded by Slice 16 |
-| 8 | Gallery on a phone | Slice 15 Chromium: granted gallery is themed; locked and "only me" views load no theme. Not covered: real-phone viewer, swipe and close | HUMAN-ONLY (H6) |
-| 9 | Operator and manual payment | Slice 15 integration only: the Operator gets no theme path | BLOCKED (environment) → then human (H7). No real device needed, so a later `/e2e-validate` run could automate it |
-| 10 | Individual and bulk original downloads | Slice 16 integration: originals stay byte-identical after keepsakes. The download flow itself is not covered | BLOCKED (environment) → then human (H2) |
-| 11 | Weak or interrupted network | None | HUMAN-ONLY (folded into H3 and H4) |
-| 12 | Capacity "event is full" behavior | None in the browser. The concurrency guarantee is covered by `events.integration.test.ts` | Open (H8). Automatable |
-| 13 | Authenticated cron call | None | BLOCKED (environment) → then human (H9). Needs the secret value |
+1. Freeze the release candidate.
+2. Configure one final Vercel validation deployment, following release-validation.md → "Test
+   environment setup checklist". Choosing Production or a Preview is the user's call.
+3. Execute release-validation.md once, from top to bottom.
 
-**Minimal remaining human checks** (run on the new target; report PASS / FAIL / BLOCKED for each):
+Do not begin `/release-review` or any production mutation until that pass is done. Done means every
+case is PASS, or BLOCKED with the user's explicit acceptance, and no launch-blocking FAIL remains.
+The release follow-ups below are handled separately. They are not test cases.
 
-- **H1 (§1):** In the PayMongo dashboard, confirm Test mode is on. After H2's checkout, confirm the
-  webhook log shows a successful delivery to the target deployment.
-- **H2 (§2, §10; desktop is fine):**
-  1. Create an event and pay by PayMongo test checkout.
-  2. Expect webhook activation, then links and signage. There must be no stale "unpaid" banner and
-     no working link before payment.
-  3. Capture stays closed until you open it. Then close it and reopen it.
-  4. Change the reveal and visibility settings.
-  5. Hide, unhide, delete and favorite captures.
-  6. Download one original from a tile. It must be the original file.
-  7. Use "Download all originals". Hidden captures are included and deleted ones are not. Note any
-     multi-download prompt.
-- **H3 (§4, §11; real iPhone Safari):**
-  1. Join from the QR code. Take a portrait photo with the camera and choose a landscape photo
-     from the library, with a message on one.
-  2. Confirm; the photo appears in your own view. Download its original.
-  3. Reload during the session.
-  4. Turn on airplane mode during an upload, then retry. Expect exactly one capture and no lost
-     frame.
-- **H4 (§5, §11; real Android Chrome):** join; use the camera and the library once each; one
-  interrupted upload and retry, with the same expectation as H3; download an original.
-- **H5 (§6; in each of Facebook, Messenger and Instagram):** open the link from a message, join,
-  reach the camera or library and commit a photo. Record exactly where it stops if it does. Then
-  download an original. Keepsake save is already done.
-- **H6 (§8; real phone):**
-  1. Unrevealed gallery link: locked.
-  2. "Only me" as a non-host: denied.
-  3. Invalid or revoked link: denied.
-  4. Revealed gallery with mixed orientations: the viewer opens, swipes and closes.
-- **H7 (§9):**
-  1. The Operator Console lists more than one host's events. An ordinary host gets 404 at
-     `/operator`.
-  2. Manual confirm on a test Draft activates the event.
-  3. An operator cannot confirm or refund an event they own.
-  4. A manual refund returns the event to unpaid and clears its links.
-- **H8 (§12):** with a low `guest_session_cap` on a test event in the dev database, a new guest past
-  the cap sees "event is full". An already-joined guest keeps capturing.
-- **H9 (§13):** `curl` with the secret returns 200 and a sweep summary. Without it, the request
-  returns 401. An unaffected test event's lifecycle columns do not change.
+## Release follow-ups (not test cases)
 
-H2, H7 and H8 do not need real devices, so a later automated `/e2e-validate` run could reduce
-them. H1, H3–H6 and H9 remain human. Detailed wording for each item stays below
-for reference. §3 and §7 need no further action.
+These are configuration, migration, business and implementation tasks for release. The validation
+pass doesn't resolve them, and they must not be disguised as tests.
 
-**1. Deployed environment** — the parts only a human can check:
-- PayMongo dashboard shows **Test mode** active for this integration. Not spot-checkable from
-  here — the CLI only shows truncated key values, decoding which would defeat the point of not
-  exposing them.
-- PayMongo webhook delivery log shows recent successful deliveries to
-  `/api/webhooks/paymongo` (or trigger one via a fresh test-mode checkout in §2 and check after).
-- No live/production PayMongo credentials are in use anywhere in this environment.
+| Item | Type | Notes |
+|---|---|---|
+| **Production environment reconciliation.** Vercel Production serves the **dev** Supabase project, an interim state since Slice 2. A real launch needs a production Supabase project, separated Vercel environment scopes, live PayMongo keys and a live-mode webhook, `CRON_SECRET`, and the Supabase Auth redirect allowlist for the production origin. None of these is provisioned | Deployment configuration (needs explicit approval) | Before real payments or guest data |
+| **Vercel function region vs Supabase region.** Functions run in US East (`iad1`); Supabase is in `ap-southeast-1`. Reconcile placement, then re-check representative latency (architecture §12) | Deployment configuration | Before real traffic |
+| **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
+| **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
+| **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
+| **Advance-expiry warning channel.** The warning is in-product only; no outbound email or SMS exists (D18 launch prerequisite) | Product decision | Pre-launch |
+| **First production operator grant(s)**, and who holds the production service-role credential. The mechanism exists (`pnpm ops:grant-operator`) (product.md §19) | Operational business decision | Pre-launch |
+| **Supabase Auth email templates** (confirmation, password reset) are still Supabase defaults | Design/configuration task | Host emails |
+| **Physical print ordering / keepsake fulfillment** | Post-MVP (product.md §10.5, §18) | Not a release item. Listed so it isn't mistaken for one |
 
-**2. Host journey** — create/sign in → draft event → configure → unpaid state → PayMongo
-Test-mode checkout → payment → webhook → activation → links/signage appear → capture stays
-closed → host opens capture → close/reopen → gallery/reveal controls → moderation → downloads.
-Expected: state-appropriate copy at every step (never a stale "unpaid" banner after activation,
-never a working guest link before payment).
-
-**3. Physical QR and signage** — print or display each signage format (`qr`, `table-card`,
-`poster`, `digital` at `/events/[eventId]/signage/[format]`) for an **activated** event; scan
-with a real phone camera. Expected: every format scans to the correct event's capture link;
-signage is themed per product.md §11.3 (the detailed print-and-scan checklist is Slice 17's); an
-unpaid/unactivated event's signage route 404s (already covered structurally — the route refuses
-unless `activated_at` and a real `event_token` exist — but worth a real scan-attempt check that
-no old/cached link works).
-
-**4. Guest journey — iPhone Safari.** QR/link → join → five-frame board → camera/picker →
-preview → optional message → confirm → upload → own capture appears → own download → share (if
-enabled). Include a portrait photo, a landscape photo, a reload mid-session, and one interrupted/
-weak-network upload with retry. Expected: a failed/abandoned upload never permanently consumes a
-frame (invariant 2) and a retry never produces two captures from one submission (invariant 3).
-
-**5. Guest journey — Android Chrome.** Same flow as §4, abbreviated: join friction, camera/
-library behavior, one interrupted-upload retry, own-capture access, download, share.
-
-**6. In-app browsers — Facebook, Messenger, Instagram.** Event link opens, join works, photo
-picker/capture reaches the app, upload/commit works or fails gracefully, Web Share works where
-supported, download fallback works where it isn't. Record exact limitations per browser rather
-than guessing — e.g. if Instagram's in-app browser blocks the native camera picker, say so
-precisely rather than describing a workaround that wasn't actually exercised.
-
-**7. Web Share — superseded; skip.** *The share card is retired (Slice 16). Run the Slice 16
-keepsake checklist instead. The text below is kept only as history.* Capture a photo as a
-guest on a sharing-enabled event, tap the share icon:
-- iPhone Safari: native share sheet opens with the branded card (event name, date/hashtag,
-  message, "FIVE FRAMES").
-- Android Chrome: same, native Android share sheet.
-- Cancel the share sheet partway: no error, frame/photo unaffected, sharing again works.
-- A desktop browser with no Web Share support: the branded PNG downloads directly, no error.
-- Turn off "Allow guest sharing" on the host event page, reload the guest page: no share icon
-  appears on any frame.
-- (Already proven server-side, not re-needed here: hidden/deleted captures and pre-reveal
-  sharing cannot leak the gallery — `lib/dal/share-cards.integration.test.ts`.)
-
-**8. Gallery** — on a real/mobile viewport: unrevealed state, `only_me` visibility denial,
-invalid/revoked link, a small revealed collection, a larger one, mixed orientations, the
-immersive viewer, swipe, close behavior. Also serves as the pending visual-verification check for
-the gallery redesign noted in the blockers table below — note any visual issue found, not only
-functional ones.
-
-**9. Operator/manual-payment path** — sign in as a granted operator: `/operator` lists events
-across more than one host; an ordinary host account gets a 404 on `/operator`. On a draft
-dev/test event: confirm a manual payment through the Console (uses the same `activateEvent` path
-as provider payments — confirm the event activates and gains links); confirm an operator cannot
-confirm/refund for an event they themselves own (should refuse); record a manual refund on an
-activated test event and confirm it returns to unpaid with links cleared. Do not use real money
-or a real cash transaction — use safe dev/test data only, as the slice instructions require. Also
-serves as the pending visual-verification check for the Operator Console redesign in the
-blockers table.
-
-**10. Downloads** — on a host event with ~5–10 committed captures (include at least one hidden
-one): click an individual tile's download icon (confirm the *original*, not a resized
-derivative, saves); click "Download all originals" (confirm one file per eligible capture saves,
-including the hidden one, excluding any deleted one). Note any browser popup/multi-download
-permission prompt encountered — if the browser blocks enough of the sequential downloads to make
-this unreliable, that is a Slice 14 defect to report, not a footnote.
-
-**11. Network conditions** — using browser devtools throttling or real weak connectivity: slow
-upload, interrupted upload + retry, page reload during/after an upload. Expected: no duplicate
-commits, no permanently lost frame from an abandoned upload (this mirrors §4/§5's interrupted-
-upload check but is worth exercising independently under throttled rather than fully-dropped
-conditions).
-
-**12. Capacity/concurrency sanity** — on a safe test event, set `guest_session_cap` low (e.g. via
-a direct dev-database update, not a UI control — there is none) and join guests up to and past
-it. Expected: a new guest past the cap sees a calm "this event is full" state; an already-joined
-guest keeps working; there is no client-side way to bypass the cap (the hard concurrency
-guarantee itself is already proven by `lib/dal/events.integration.test.ts`'s concurrent-join-storm
-test — this step is only checking the human-facing behavior around that guarantee).
-
-**13. Lifecycle cron deployment prerequisite** — `CRON_SECRET` is now confirmed present in
-Vercel Production (see "deployed environment check" above), so this step is now unblocked. Run
-one authenticated test invocation:
-`curl -i -H "Authorization: Bearer $CRON_SECRET" https://five-frames.vercel.app/api/cron/lifecycle`
-(using the real secret value from Vercel — never paste that value into chat or a document) and
-confirm a `200` with a JSON sweep summary; then confirm the same request **without** the header
-returns `401`. Confirm no ineligible event's rows changed by comparing an unaffected test event's
-`media_deleted_at`/`hosted_until`/`grace_until` before and after. Do not wait for the daily
-schedule and do not target any event with real/valuable data.
-
-Reply with PASS/FAIL/BLOCKED and any observation for each numbered item (sub-items may be
-grouped). Any FAIL will be diagnosed, fixed, and regression-covered inside this same slice before
-it is marked complete; any BLOCKED (an environment genuinely not exercisable, e.g. no Android
-device available) will be recorded honestly as a known limitation rather than claimed as passed.
-
-## Next slice
-
-**Slice 18 — MVP optional polish: `complete`** (human live-update and offline-recovery checks
-passed 2026-10-01). Automated refund execution stays unbuilt by decision.
-
-**Slice 14 — full-flow real-device and venue-condition validation: `awaiting human
-verification`.** It was reconciled against Slices 15–17 on 2026-10-01. §3 (physical QR) and §7
-(Web Share) are satisfied. What remains is H1–H9 in the reconciliation above. It first needs a
-deployment of the current build with PayMongo test keys, a webhook and `CRON_SECRET`, and the
-user decides which environment to use.
-
-**Slice 15 — event theme foundation: `complete`** (HEIC resolved as option (a)). **Slice 16 —
-keepsakes, both families: `complete`.** **Slice 17 — themed signage and pre-activation previews:
-`complete`.** Slice 17 was the last Event Theme & Keepsakes slice. There is no further roadmap
-feature slice; what remains is Slice 14's human verification and the release follow-ups in the
-blockers table.
-MVP launch requires Slices 15–17 (product.md §18). Do not begin `/release-review` or any production
-mutation until Slices 14–17 are PASS or honestly-recorded BLOCKED with no unresolved
-launch-blocking defect.
-
-## Blockers and open items
+## Other open items
 
 | Item | Type | Affects |
 |---|---|---|
-| Slice 14 human checks H1–H9 not yet run. §3 and §7 are satisfied by Slices 16 and 17 (reconciliation, 2026-10-01). This is the remaining gating item for MVP completion | Manual verification pending | Guest, host and operator flows on real devices; see checklist above |
-| No deployment runs the current build (HEAD `8f42b80`) with PayMongo test keys, a webhook and `CRON_SECRET`. Production is a Slice 15-era build. Previews lack the payment and cron variables. The user chooses: deploy HEAD to the dev-backed Production, or configure a Preview | Environment prerequisite (user decision) | Slice 14 H1–H9 |
 | Slice 18 Vercel Preview `five-frames-9bqkwa9fx` (dev database) still exists; delete or keep at your discretion | Housekeeping | None |
-| Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
-| Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |
-| Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews are now product — Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
-| Raw HEIC supplied directly to guest capture fails at derivative processing (no frame consumed; retry error) instead of an early, calm unsupported-format refusal. The theme image already refuses it up front (Slice 15) | Maintenance follow-up | Guest capture |
-| `share_path` drop migration `20260930020000` is written but unapplied. Deploy code that no longer uses `share_path` wherever the database is served, rerun `pnpm ops:retire-share-cards --apply`, then apply it (Slice 16 section) | Deployment-order dependency | Next deploy / release |
-| Before real production traffic, reconcile Vercel function placement with the Singapore Supabase region, and verify representative latency after the region is intentionally configured. Functions currently run in US East (`iad1`) | Deployment configuration follow-up | Release / bounded maintenance |
-| Operator Console, 404/error pages and app icons (the share card is retired) moved onto the design system (follow-up pass, 2026-09-29) — awaiting human visual approval with the rest (redesign checklist item 7; Slice 14 §9 still covers the operator payment flow itself) | Design pass pending approval | `/operator`, `/operator/events/[eventId]`, share cards, 404/error, icons |
-| Supabase Auth email templates (confirmation, password reset) still Supabase defaults — dashboard configuration, not repo code | Follow-up design task | Host signup and password-reset emails |
+| Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews became product in Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
 | `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |
-| Supabase Auth redirect allowlist must include `/auth/confirm` for password reset in each environment | Configuration | Password reset |
-| Vercel Production env currently points at the dev Supabase project (see note above) | Known interim state | Must be reconciled before real production payment work |
 | Automated (provider-side) refund execution is not built (MVP-optional, out of Slice 18 scope). Refunds are executed outside the app and recorded by an operator in the Console (D17) | Accepted limitation | Refunds |
-| Which specific individual(s) actually get the first operator grant, and when — the mechanism (`pnpm ops:grant-operator <email>`) exists as of Slice 7; only who to run it for and who holds the production service-role credential remain open (product.md §19) | Operational business decision | Pre-launch |
-| No git remote configured | Setup | Any push/CI work |
-| Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All slices |
-| Refund/retention/deletion legal copy | Business decision, from spec §19 | Pre-launch |
-| 250-session / 1,250-capture launch capacity (`guest_session_cap`, now enforced) is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; decision D13) | Launch policy, to revisit with real data | Beyond launch |
+| Service role key is the single highest-value secret; RLS does not constrain it | Security constraint | All code |
+| 250-session / 1,250-capture launch capacity (`guest_session_cap`, enforced) is a hypothesis to validate via load testing and early real events, not a fixed constant (product.md §9.5, §19; D13) | Launch policy, to revisit with real data | Beyond launch |
 | Exact timing/criteria for moving launch price from ₱999 toward the ₱1,490 target | Business decision once early paid-event data exists (product.md §19) | Post-launch |

@@ -12,8 +12,9 @@ it is post-MVP, and the architecture reserves nothing for it.
 | Product requirements, scope, non-goals | [docs/product.md](docs/product.md) | **Authoritative.** Do not edit without an explicit request. |
 | How the system is built | [docs/architecture.md](docs/architecture.md) | |
 | Consequential decisions and their reasoning | [docs/decisions.md](docs/decisions.md) | |
-| Implementation sequence | [docs/roadmap.md](docs/roadmap.md) | |
-| Current state, blockers | [docs/progress.md](docs/progress.md) | Keep updated as slices land. |
+| Implementation history and status | [docs/roadmap.md](docs/roadmap.md) | Implementation complete. |
+| Current state, blockers, release follow-ups | [docs/progress.md](docs/progress.md) | Keep current. |
+| Remaining pre-release verification | [docs/release-validation.md](docs/release-validation.md) | **Canonical.** Record results there. Do not recreate slice-specific test checklists elsewhere. |
 | Next.js version rules | [AGENTS.md](AGENTS.md) | |
 
 Put information in its one home and cross-reference. Do not copy it between files.
@@ -220,8 +221,8 @@ Browser automation does NOT count as verification of:
 - physical printed-QR scanning;
 - genuine venue Wi-Fi/mobile-network conditions.
 
-Those remain human/real-device verification (roadmap slices 2, 14, 16 and 17) unless actually exercised
-through an approved real-device testing system.
+Those remain human/real-device verification (tracked in `docs/release-validation.md`) unless
+actually exercised through an approved real-device testing system.
 
 Automated E2E results may reduce the manual checklist by proving application-level behavior, but
 they must not replace product acceptance criteria that explicitly require real devices or
