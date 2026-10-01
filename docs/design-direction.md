@@ -3,8 +3,8 @@
 **Status: implemented 2026-09-29 — awaiting human visual approval** (including the desktop/browser
 pass, "Desktop and browser" below). **Event Theme & Keepsakes and its Full Set amendment:
 approved by the user 2026-09-30** as the implementation target for Slices 15–17 (see that
-section). Slices 15 (theme foundation), 16 (keepsakes, both families) and 17 (themed signage) are built;
-Slice 17 awaits its print-and-scan checks. The contracted FiveFrames
+section). Slices 15 (theme foundation), 16 (keepsakes, both families) and 17 (themed signage) are built and
+verified. The contracted FiveFrames
 UI/UX designer handoff is the authoritative visual direction for the whole product. It
 **supersedes every previous visual exploration** recorded here before (the warm
 terracotta/cream guest, host, public-gallery and demo directions, and their Dribbble/Shopify/A24

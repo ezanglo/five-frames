@@ -14,6 +14,7 @@ import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { getEventCaptureStats, listCapturesForEventHost } from "@/lib/dal/captures";
 import { getLatestPaymentForEvent } from "@/lib/dal/payments";
+import { getDashboardVersion } from "@/lib/dal/dashboard-live";
 import {
   canOpenCapture,
   deriveEventLifecycleState,
@@ -35,14 +36,15 @@ import { ConfirmButton } from "@/components/ff/confirm-button";
 import { CopyLinkButton } from "@/components/ff/copy-button";
 import { LivePill } from "@/components/ff/pill";
 import { SHOTS_PER_GUEST } from "@/components/ff/shots";
-import { DashboardPoller } from "../dashboard-poller";
+import { DashboardLive } from "../dashboard-live";
 import { CaptureToggle } from "./capture-toggle";
 
 /**
  * Host dashboard tab (D6 / mobile 06). Desktop: a main column (stat tiles, latest photos) and a
  * 380px side column (capture, share with guests, reveal). Mobile: the same cards stacked into
  * groups — Live now, Share with guests, After the party. Every number and state is read from the
- * real event; nothing is illustrative. Counts refresh by polling (decision D9).
+ * real event; nothing is illustrative. Counts refresh live over the app's own SSE stream, with
+ * polling as the fallback (decision D21).
  */
 export default async function EventDashboardPage({
   params,
@@ -58,7 +60,8 @@ export default async function EventDashboardPage({
   if (!event) notFound();
 
   const state = deriveEventLifecycleState(event);
-  const [stats, captures, latestPayment] = await Promise.all([
+  const [version, stats, captures, latestPayment] = await Promise.all([
+    getDashboardVersion(host.id, eventId),
     getEventCaptureStats(host.id, eventId),
     listCapturesForEventHost(host.id, eventId),
     state === "draft" ? getLatestPaymentForEvent(host.id, eventId) : Promise.resolve(null),
@@ -379,7 +382,7 @@ export default async function EventDashboardPage({
 
   return (
     <>
-      <DashboardPoller />
+      {version && <DashboardLive eventId={eventId} version={version} />}
 
       {/* Mobile: grouped stack */}
       <div className="flex flex-col gap-5 lg:hidden">

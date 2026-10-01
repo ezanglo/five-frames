@@ -164,6 +164,12 @@ change, not a refactor.
   on a sign goes into the layout model first, so `signage.test.ts` checks it against the plate,
   the quiet zone and the safe area. Text is outlined from the bundled TTFs, not `<text>`. Keep the
   real-decoder tests (`test/qr-decode.ts`) passing for every format.
+- **Live dashboard updates go through the app's own SSE route** (`/events/[eventId]/live`,
+  decision D21). It sends an opaque version, never data, and the page refreshes from the server.
+  Never add browser Supabase Realtime, and never derive counts from messages. Any background
+  `router.refresh()` must be gated on a reachability probe (see `DashboardLive`): a failed
+  refresh request makes Next hard-navigate, which strands an offline tab on the browser's error
+  page.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

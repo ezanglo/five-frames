@@ -21,6 +21,7 @@ import {
   type DemoFrames,
 } from "@/lib/demo/state";
 import { EVENT_PRICE_PHP } from "@/lib/payments/pricing";
+import { DemoKeepsakes } from "./demo-keepsakes";
 
 type Composing = {
   index: number;
@@ -58,6 +59,7 @@ export function DemoExperience() {
   const activeIndex = composing ? -1 : nextEmptySlotIndex(frames);
   const complete = isDemoComplete(frames);
   const taken = filledSlotCount(frames);
+  const latestKept = frames.findLast((slot) => slot.kind === "filled");
 
   function revokeOwnUrl(url: string) {
     URL.revokeObjectURL(url);
@@ -258,6 +260,14 @@ export function DemoExperience() {
             </Button>
           </div>
         )}
+
+        <DemoKeepsakes
+          latest={
+            latestKept?.kind === "filled"
+              ? { src: latestKept.previewUrl, message: latestKept.message }
+              : null
+          }
+        />
 
         <HighlightCard
           icon={<Sparkles />}

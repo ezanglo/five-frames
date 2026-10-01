@@ -5,6 +5,7 @@ import {
   getExpiryWarning,
   hasReachedGuestCapacity,
   isCaptureOpen,
+  isGalleryOpenToLinkHolders,
   isGalleryRevealed,
 } from "./lifecycle";
 import type { EventRow } from "@/lib/db/types";
@@ -178,6 +179,58 @@ describe("isGalleryRevealed", () => {
       reveal_at: null,
     });
     expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+
+  // Slice 18 verification of the existing custom reveal (product.md §7.4, §8.2).
+  it("'custom' is independent of capture: revealed while capture is still open", () => {
+    const event = baseEvent({
+      reveal_mode: "custom",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-15T10:00:00.000Z",
+      reveal_at: "2026-06-15T11:00:00.000Z",
+    });
+    expect(isCaptureOpen(event, NOW)).toBe(true);
+    expect(isGalleryRevealed(event, NOW)).toBe(true);
+  });
+
+  it("'custom' is independent of capture: not revealed early because capture closed", () => {
+    const event = baseEvent({
+      reveal_mode: "custom",
+      activated_at: "2026-06-01T00:00:00.000Z",
+      capture_opened_at: "2026-06-14T10:00:00.000Z",
+      capture_closed_at: "2026-06-14T20:00:00.000Z",
+      reveal_at: "2026-06-16T09:00:00.000Z",
+    });
+    expect(deriveEventLifecycleState(event, NOW)).toBe("capture_closed");
+    expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+
+  it("'custom' never reveals before activation, even with a past reveal_at", () => {
+    const event = baseEvent({ reveal_mode: "custom", reveal_at: "2026-06-01T00:00:00.000Z" });
+    expect(isGalleryRevealed(event, NOW)).toBe(false);
+  });
+});
+
+describe("isGalleryOpenToLinkHolders", () => {
+  const revealedCustom = {
+    reveal_mode: "custom" as const,
+    activated_at: "2026-06-01T00:00:00.000Z",
+    reveal_at: "2026-06-15T11:59:59.000Z",
+  };
+
+  it("opens a revealed custom gallery to link holders", () => {
+    expect(isGalleryOpenToLinkHolders(baseEvent(revealedCustom), NOW)).toBe(true);
+  });
+
+  it("'only me' wins over a custom reveal time that has passed", () => {
+    const event = baseEvent({ ...revealedCustom, visibility: "only_me" });
+    expect(isGalleryRevealed(event, NOW)).toBe(true);
+    expect(isGalleryOpenToLinkHolders(event, NOW)).toBe(false);
+  });
+
+  it("stays closed before the custom reveal time", () => {
+    const event = baseEvent({ ...revealedCustom, reveal_at: "2026-06-15T12:00:01.000Z" });
+    expect(isGalleryOpenToLinkHolders(event, NOW)).toBe(false);
   });
 });
 

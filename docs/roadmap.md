@@ -350,7 +350,8 @@ realistic conditions.
 - Weak Wi-Fi, congested mobile data, interrupted uploads, backgrounded browsers.
 - Full journey: QR scan → join → five captures → own view → share → host dashboard → gallery.
 
-**Criteria:** 29, 30
+**Criteria:** 37, 38 (corrected 2026-10-01: this said "29, 30", the numbering from before the
+theme and keepsake criteria were inserted; 29 and 30 are now keepsake criteria)
 **Verification:** Human-run on real devices. Not automated.
 **Note:** this is a regression and end-to-end pass, not the first look at device behavior —
 slice 2 already validated the capture flow on the same browsers. Its job is to catch what
@@ -542,8 +543,8 @@ A. The Full Set design amendment is needed for Phase B.
 
 ## Slice 17 — Themed signage and pre-activation previews
 
-**Status (2026-10-01):** `awaiting human verification`. Built and passing automated, integration
-and browser verification. The physical print-and-scan checks remain (docs/progress.md → Slice 17).
+**Status (2026-10-01):** `complete`. Automated, integration, browser and physical print-and-scan
+verification passed (docs/progress.md → Slice 17).
 
 **Objective:** All four signage formats carry the event's theme while staying reliably scannable,
 and the host can preview them, including before payment, without any working code existing.
@@ -567,11 +568,45 @@ preview is visibly a preview and does not scan to anything.
 
 ---
 
+## Slice 18 — MVP optional polish
+
+**Status (2026-10-01):** `awaiting human verification`. Everything is built, and automated,
+browser and one-Preview checks passed. The remaining step is a short real-browser check of live
+dashboard updates (docs/progress.md → Slice 18).
+
+**Objective:** three of the four MVP-optional items (product.md §18), each without new
+infrastructure:
+
+- **Live host-dashboard updates** through a server-mediated SSE route, with polling kept as the
+  fallback. No browser Supabase client (decision D21, architecture §9).
+- **Custom gallery reveal time**, which already existed (Slice 5 plus the redesign): verified,
+  not rebuilt.
+- **Keepsakes in the public demo**, both families, using the shared templates and a fixed sample
+  look. D14 unchanged (architecture §6b).
+
+**Out of scope:** automated refund execution. The manual model stands: the refund happens
+outside the app, an operator records it in the Console, and the audit trail stays on the payment
+row (D17).
+
+**Criteria:** 34 (still correct without realtime, now with realtime on top), 16 (demo stays
+non-real), 24–25 (reveal and visibility gating, re-verified for custom times)
+**Verification:** SSE authorization (owner / other host / unknown / malformed / signed out),
+opaque payload, a real join producing a new version, reconnect after a missed change, time-derived
+reveal noticed with no write, and the no-browser-Supabase-client boundary, all against real
+Postgres or source checks. Custom reveal: a day-boundary round trip in the event's timezone,
+independence from capture state, and `only_me` precedence. Demo: all ten styles render through
+the real templates with no link, token or QR, and with no route call. Browser checks for the
+changed surfaces. At most one Vercel Preview, for the SSE runtime. Human: one short live-update
+check.
+
+---
+
 ## MVP-optional (ship only if cheap)
 
-- Realtime dashboard updates. Note that client-side Supabase Realtime is not a drop-in: it would
-  cross the no-browser-Supabase-client boundary and require revisiting D4 (see architecture §9).
-- Custom reveal time.
-- Automated refund execution.
-- Keepsake styles of either family in the public demo (product.md §7.1): the shared templates
-  rendered client-side with a fixed sample theme; D14 unchanged.
+- ~~Realtime dashboard updates~~ — built in Slice 18 as server-mediated SSE plus a polling
+  fallback (D21). Client-side Supabase Realtime is still not a drop-in (architecture §9).
+- ~~Custom reveal time~~ — already implemented; verified in Slice 18.
+- Automated refund execution — not built. Refunds stay manual, recorded through the Operator
+  Console.
+- ~~Keepsake styles of either family in the public demo~~ — built in Slice 18 with the shared
+  templates and a fixed sample look; D14 unchanged.

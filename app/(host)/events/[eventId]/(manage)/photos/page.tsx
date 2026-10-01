@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { listCapturesForEventHost } from "@/lib/dal/captures";
-import { DashboardPoller } from "../../dashboard-poller";
+import { getDashboardVersion } from "@/lib/dal/dashboard-live";
+import { DashboardLive } from "../../dashboard-live";
 import { PhotoManager } from "./photo-manager";
 
 export const metadata = { title: "Photos · FiveFrames" };
@@ -18,11 +19,14 @@ export default async function EventPhotosPage({
   const event = await getEventForHost(host.id, eventId);
   if (!event) notFound();
 
-  const captures = (await listCapturesForEventHost(host.id, eventId)) ?? [];
+  const [version, captures] = await Promise.all([
+    getDashboardVersion(host.id, eventId),
+    listCapturesForEventHost(host.id, eventId).then((rows) => rows ?? []),
+  ]);
 
   return (
     <>
-      <DashboardPoller intervalMs={15000} />
+      {version && <DashboardLive eventId={eventId} version={version} fallbackMs={15000} />}
       <PhotoManager eventId={eventId} timezone={event.timezone} captures={captures} />
     </>
   );

@@ -203,7 +203,9 @@ product invariant 6. A derived state is correct the instant the deadline elapses
 
 ## D9 — Realtime is polling for MVP
 
-**Status:** Accepted (2026-09-21)
+**Status:** Accepted (2026-09-21). Superseded in part by D21 (2026-10-01): the dashboard now also
+gets a server-mediated SSE signal, with this entry's polling kept as the fallback. The reasoning
+below about client-side Supabase Realtime still stands.
 **Context:** The spec calls live dashboard updates a quality expectation and explicitly requires
 the product to remain correct without them.
 **Decision:** Poll the host dashboard on an interval. No realtime transport in MVP.
@@ -675,3 +677,87 @@ longer describes the workload.
   mostly unused);
 - a per-style canvas (arbitrary output sizes with no product need);
 - a separate Full Set sharing path or decision system (two sharing systems).
+
+---
+
+## D21 — Live host-dashboard updates are server-mediated SSE over the app's own route, with polling kept as the fallback
+
+**Status:** Accepted (2026-10-01, Slice 18). Supersedes D9's polling-only posture; D9's rejection
+of client-side Supabase Realtime is unchanged and restated here.
+**Context:** product.md §11.4 wants counts and new captures on the host dashboard to update
+within a few seconds, and says correctness must never depend on it (§13, criterion 34). D9 chose
+polling for MVP and named server-mediated SSE as the option to weigh first, because browser-side
+Supabase Realtime would ship a Supabase client and key to the browser and make RLS load-bearing,
+crossing D3/D4. Slice 18 (MVP-optional polish) asked whether SSE works on the current Next.js 16 /
+Vercel deployment without a new provider.
+**Evidence (first-party, checked 2026-10-01):**
+- Vercel: Node.js functions stream responses by default, and "connections close at the
+  function's maximum duration"; with Fluid compute the default and Hobby maximum is 300 s (Pro
+  800 s). Browsers reconnect SSE on their own. Active CPU is billed only while code runs, not
+  while a function waits on I/O. Vercel sends HTTP/2 pings on idle long responses, and recommends
+  heartbeat data for HTTP/1.1 clients.
+- The project has Fluid compute on with a 300 s default (Vercel project settings, read-only
+  check).
+- Next.js 16 route handlers can return a `ReadableStream` `Response`, and `maxDuration` is a
+  route-segment export (local docs in `node_modules/next/dist/docs/`).
+- One Vercel Preview confirmed the stream arrives unbuffered (`text/event-stream`, first event
+  while the connection stays open) and that a real guest join updated the dashboard through it.
+**Decision:**
+1. The browser talks only to FiveFrames. `GET /events/[eventId]/live` is an authenticated Route
+   Handler. It needs a verified host session (`getAuthenticatedHost`, the proxy also redirects a
+   signed-out request) and the DAL ownership predicate (`getEventForHost`). A malformed id, a
+   missing event and another host's event all get the same 404. No browser Supabase client or
+   session is introduced; Supabase stays behind the DAL (D3/D4 unchanged).
+2. **The stream is an invalidation signal, not data.** It sends only an opaque 16-character hash
+   of what the dashboard shows (`getDashboardVersion`). The browser never learns counts, names,
+   tokens or ids from it; on a new hash it calls `router.refresh()`, which re-reads everything
+   through the DAL. Nothing is counted or derived from messages, so duplicate, replayed, reordered
+   or missed messages can cause at most an extra or a later refresh, never a wrong number.
+3. **Change detection is server-side polling, stated plainly.** The route re-reads the version
+   every 3 s (one ownership-predicated event read plus three `count` queries) and emits only when
+   it differs. It is not a database push. The hash covers `events.updated_at` (which moves on
+   every event write, including each D13 join increment), the join counter, the derived lifecycle
+   state, reveal state, whether capture can reopen (so a safety-net close or a custom reveal time
+   passing is noticed with no write), and the committed, hidden and favorited capture counts.
+4. **Bounded connections.** Each stream ends itself after 240–270 s (jittered) under a 300 s
+   `maxDuration`, sends a comment heartbeat after 25 s of silence, stops when the event is no
+   longer the host's, and gives up after three consecutive read failures. EventSource reconnects
+   after `retry: 3000`. The client closes the stream while the tab is hidden. After three failed
+   attempts without an open, or when the browser closes it for good (non-200), the client stops
+   the browser's retry and reopens with a capped backoff (15 s doubling to 5 min).
+5. **Polling stays as fallback and reconciliation.** It runs every 8 s (15 s on Photos) while the
+   stream isn't delivering, and every 60 s while it is. It pauses while the tab is hidden and
+   refreshes once on return or on `online`. Every background refresh first sends a tiny `HEAD`
+   probe to the same route and is skipped if the app is unreachable. Next falls back to a full
+   browser navigation when a refresh's request fails, which strands an offline tab on the
+   browser's error page (found on the Slice 18 Preview).
+**Reasoning:**
+- It meets §11.4 with nothing new to operate: no pub/sub, no Redis, no Realtime, no new
+  provider or secret, and the D4 trust boundary is exactly as before.
+- An opaque version plus a server refresh keeps one source of truth (the server render). Pushing
+  counts would duplicate dashboard logic in a second place, where it could drift.
+- 3 s server reads keep "within a few seconds" at a small, bounded cost: a handful of indexed
+  `count(*)` queries per open dashboard, and only for hosts actually looking at one (one owner
+  per event). Fluid compute bills idle waiting as I/O, not CPU.
+**Alternatives rejected:**
+- Browser Supabase Realtime (D9's reasons: it crosses D3/D4 and makes RLS load-bearing).
+- Postgres `LISTEN/NOTIFY` from the function: it needs a direct session connection that the
+  pooled/serverless path doesn't give, plus a driver. That is more infrastructure for an
+  optional feature.
+- A hosted pub/sub or Redis for resumable streams: a new provider. It isn't needed, because a
+  reconnect starts from the current version.
+- Faster polling alone: every tick would render the whole dashboard server-side, which costs more
+  than a hash check and is slower to notice changes.
+**Consequences:**
+- Moderation made in the host's own tab still refreshes through its server action. A change
+  made elsewhere is noticed only if it changes a counted value. A hide and an unhide of two
+  different photos between two reads can cancel out; the 60 s reconciliation poll corrects it.
+- Signing out is enforced on the next connection (≤ 270 s). An already-open stream carries only
+  opaque hashes, so this exposes nothing.
+- Functions currently run in `iad1` against Singapore Postgres, so each read crosses the Pacific.
+  The Preview measured about 7.5 s from a join to the updated dashboard (about 3.7 s locally).
+  The existing region follow-up (docs/progress.md) would bring it down; nothing here depends on
+  it.
+- Correctness never depends on SSE delivery (criterion 34): with the stream blocked, the
+  dashboard still converged by polling.
+

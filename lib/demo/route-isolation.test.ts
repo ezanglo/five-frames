@@ -20,6 +20,12 @@ const FORBIDDEN_IMPORT_PATTERNS: RegExp[] = [
   /from\s+["']@supabase\//,
   /import\s+["']server-only["']/,
   /createSignedUploadUrl|createSignedReadUrl|generateLinkToken/,
+  // Slice 18 (demo keepsakes): no production keepsake route or picker, no signage, no QR.
+  /from\s+["']@\/components\/ff\/keepsakes\/keepsake-picker/,
+  /from\s+["']@\/lib\/keepsakes\/render/,
+  /from\s+["']@\/lib\/media\/(qr|signage)/,
+  /from\s+["']qrcode["']/,
+  /\/keepsake\/(photo|set)\//,
 ];
 
 function collectSourceFiles(dir: string): string[] {

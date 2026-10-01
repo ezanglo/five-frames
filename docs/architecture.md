@@ -4,15 +4,17 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-09-30 (Full Set keepsakes, decision D20: a second keepsake family of five
+Last updated: 2026-10-01 (Slice 18, decision D21: live host-dashboard updates over the app's own
+server-mediated SSE route, with polling kept as the fallback, and no browser Supabase client — §9,
+§10; the public demo shows both keepsake families with the shared templates — §6b. Earlier:
+2026-09-30, Full Set keepsakes, decision D20: a second keepsake family of five
 styles in the same registry and renderer; the server derives a session's five eligible captures
 in `(committed_at, slot_index)` order; deterministic geometric cover crops; one family canvas
 chosen by design; still on demand and never persisted — §7b, §10, §11, §13. Earlier the same day:
 Event Theme & Keepsakes, decision D19: theme config on `events`, a
 private `event-theme` bucket, keepsakes rendered on demand from a closed five-style registry and
 never persisted (replacing share cards and `share_path`), themed signage with a placeholder-QR
-Draft preview — §4, §7a–§7c, §10. **Slice 15 (§7a, theme foundation) and Slice 16 (§7b, keepsakes
-of both families) are implemented; §7c themed signage is not yet** (roadmap Slice 17). Earlier: Slice 12 lifecycle automation and retention, D18.)
+Draft preview — §4, §7a–§7c, §10. Slices 15–17 (§7a–§7c) are implemented. Earlier: Slice 12 lifecycle automation and retention, D18.)
 
 ---
 
@@ -83,6 +85,7 @@ Remaining rows not yet built are provisioned/installed in the slice that first n
 ```
 app/
   (host)/                 Host dashboard — Supabase Auth session required
+                          (events/[eventId]/live: the dashboard's SSE signal, §9)
   (operator)/             Operator Console — Supabase Auth session + operator grant required (§5a)
   (guest)/e/[token]/      Guest capture — event token in path, guest cookie for session;
                           keepsake route lives under it (§7b)
@@ -441,9 +444,16 @@ against real persisted data — only the guest capture interaction and a locally
 gallery. That is exactly the scope §7.1 asks for ("the core mechanic: capturing into five frames
 and seeing the resulting gallery experience"), not a limitation to work around.
 
-If the demo shows keepsake styles of either family (product.md §7.1, MVP-optional), it renders
-the shared keepsake templates in the browser (§7b) with a fixed sample theme and sample/local
-photos. D14 is unchanged: no server call, no keepsake route, no theme upload, no signage, no QR.
+**Keepsakes in the demo (built in Slice 18, product.md §7.1 MVP-optional).** The demo renders
+both keepsake families from the shared registry and templates in the browser (§7b "Previews"),
+as two separate choices ("One photo" / "All five"), with one fixed sample look
+(`lib/demo/keepsakes.ts`: a sample name, date and hashtag, a curated accent key and a bundled
+theme illustration). "One photo" uses the visitor's latest kept demo shot (its in-memory object
+URL, revoked by the demo's existing lifecycle) or a bundled sample. "All five" always uses the
+five bundled samples, so it never becomes something to work toward. It is preview only: no
+share or save, no export, no server render. D14 is unchanged: no server call, no keepsake route,
+no theme upload, no signage, no QR. `lib/demo/route-isolation.test.ts` and
+`lib/demo/keepsakes.test.tsx` enforce this.
 
 ---
 
@@ -1194,16 +1204,37 @@ Venue conditions are assumed hostile. The design choices that follow from that:
 
 ### Realtime
 
-**Polling for MVP.** The host dashboard refreshes counts and new captures on an interval. The
-spec explicitly makes realtime a quality expectation, not a correctness dependency, so adding
-a realtime transport before the product is validated would be speculative infrastructure.
-**Supabase Realtime would not be a drop-in addition.** Client-side Realtime means shipping a
-Supabase client and an anon key to the browser and subscribing from there — which deliberately
-crosses the boundary set in §5 and decision D4, and would make RLS load-bearing for the first
-time rather than the narrow insurance it currently is (§10). Adopting it is a revision of the
-security model, requiring real RLS policies for host reads and a new decision, not a switch to
-flip. A server-mediated alternative (polling at a shorter interval, or server-sent events driven
-by the DAL) keeps the current boundary intact and should be weighed first.
+**Server-mediated SSE, with polling as the fallback (decision D21, superseding D9's polling-only
+posture).** Realtime is a quality expectation, not a correctness dependency (product.md §11.4).
+
+```
+Browser (EventSource) ──▶ GET /events/[eventId]/live ──▶ DAL getDashboardVersion ──▶ Postgres
+        ▲                    host session + ownership       (every 3 s, server-side)
+        └── "version changed" ──▶ router.refresh() ──▶ server components re-read via the DAL
+```
+
+- **The browser talks only to this app.** The route requires a verified host session and the DAL
+  ownership predicate. A malformed id, a missing event and another host's event all get the same
+  404. No Supabase client, key or session reaches the browser (§3, D3/D4).
+- **The stream carries an opaque version hash, not dashboard data.** On a new hash, the client
+  refreshes the page, and every number is re-read on the server. Nothing is counted from
+  messages, so duplicate or missed messages can't corrupt what the host sees.
+- **Change detection is server-side polling.** The route re-reads the version every 3 s and
+  emits only on a change. The version covers the event row (`updated_at` moves on every write,
+  including joins), the derived lifecycle and reveal state (so time-based transitions with no
+  write are noticed), and committed, hidden and favorited capture counts.
+- **Bounded:** each stream ends itself after 240–270 s, under `maxDuration = 300` (Vercel Fluid
+  compute's default). EventSource reconnects after 3 s. Heartbeat comments are sent after 25 s of
+  silence. The client closes the stream while the tab is hidden, and backs off (15 s → 5 min)
+  after repeated failed attempts or a non-200 answer.
+- **Polling stays underneath:** every 8 s (15 s on Photos) while the stream isn't delivering, and
+  every 60 s as reconciliation while it is. It pauses while hidden, and refreshes on return or
+  `online`. Every background refresh is gated on a tiny `HEAD` probe to the same route. A failed
+  refresh request makes Next fall back to a full browser navigation, which would leave an
+  offline tab on the browser's error page.
+- **Supabase Realtime is still not a drop-in.** Client-side Realtime would ship a Supabase client
+  and key to the browser and make RLS load-bearing (§10). That remains a security-model revision
+  requiring its own decision. D21 deliberately avoids it.
 
 ---
 
@@ -1220,6 +1251,7 @@ by the DAL) keeps the current boundary intact and should be weighed first.
 | Theme image | Private bucket; signed URL only after the surface's own check (§7a table); never for the Operator Console; server-chosen paths; SVG never accepted |
 | Keepsake isolation | Per-request check of own committed, non-hidden capture (Single-photo) or the server-derived five eligible captures of the cookie's own session (Full Set), + sharing toggle + lifecycle, re-confirmed before responding (§7b); closed render inputs (no display name, links, tokens; no message in a Full Set) |
 | Signage / preview QR | Live QR only from an activated event's token; Draft previews use the URL-less `preview` type (§7c) |
+| Live dashboard stream | Host session + DAL ownership predicate on connect, ownership re-read on every server tick; sends only an opaque version hash; no browser Supabase client (§9, D21) |
 | Link secrecy | 128-bit tokens, unique-indexed, rotatable |
 | Secrets | Server-only env vars, read only in `lib/dal/` and `lib/auth/`; no secret is ever `NEXT_PUBLIC_` |
 | Server-only enforcement | `import 'server-only'` on DAL modules |
