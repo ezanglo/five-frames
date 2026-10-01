@@ -1,11 +1,11 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-01 (**Slice 18 — MVP optional polish: `awaiting human verification`.**
+Last updated: 2026-10-01 (**Slice 18 — MVP optional polish: `complete`.**
 Live host-dashboard updates now run over the app's own server-mediated SSE route, with polling
 kept as the fallback (decision D21, superseding D9's polling-only posture; no browser Supabase
 client). Custom reveal time was verified with no code change. The public demo shows both keepsake
-families with the shared templates (D14 intact). Automated, browser and one-Preview checks passed.
-One short human check of live updates remains (Slice 18 section). Slices 15–17 are `complete`.
+families with the shared templates (D14 intact). Automated, browser, one-Preview and the human
+live-update/offline-recovery checks passed. Slices 15–18 are `complete`.
 Slice 14 is still `awaiting human verification`, narrowed to checks H1–H9, which are blocked until
 a deployment runs the current build with payment and cron configured. The `share_path` drop
 migration is still written and deliberately unapplied (deployment order). The brand identity,
@@ -16,7 +16,7 @@ History and reasoning live in [docs/decisions.md](./decisions.md) (consequential
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
 
-## Slice 18 — MVP optional polish (2026-10-01): `awaiting human verification`
+## Slice 18 — MVP optional polish (2026-10-01): `complete`
 
 Three MVP-optional items (roadmap Slice 18). Automated refund execution is out of scope and not
 built: refunds stay manual and are recorded through the Operator Console (D17).
@@ -152,21 +152,18 @@ disposable host and event, since deleted):**
   connection stayed open (unbuffered);
 - a real join showed on the dashboard 7.5 s later (functions in `iad1`, database in Singapore);
 - the reconnect check found the offline defect above. The fix was verified locally, because only
-  one Preview was allowed; deployed reconnect is part of the human check below.
+  one Preview was allowed; deployed reconnect was then confirmed by the human check below.
 - The Preview deployment still exists; nothing points at it.
 
-**Human verification needed (Slice 18 exit):** use any two browsers or devices on a deployment
-running this build (for example the Preview above, through Vercel login, or a local `pnpm dev`):
-1. Sign in as a host and open an activated event's Dashboard.
-2. From another browser or device, join the event (and commit a photo, if capture is open).
-3. Expected: Guests joined / Photos taken update within a few seconds, with no manual refresh.
-4. Interrupt the dashboard's network (airplane mode or Wi-Fi off) for about 30 s. Join or commit
-   again from the other device, then restore the network.
-5. Expected: the dashboard stays on the page (no browser error page) and shows the new count
-   shortly after the network returns.
-6. Optional taste check: `/demo` → the new Keepsakes card (One photo / All five) reads as an
-   intentional demo sample, at phone and desktop widths.
-Reply PASS/FAIL per item.
+**Human verification (Slice 18 exit): PASS (2026-10-01)**, two browsers/devices on a deployment
+running the final Slice 18 code:
+- Live update: a guest join / committed capture showed on the host dashboard within a few
+  seconds, with no manual refresh.
+- Offline ~30 s: the dashboard stayed on the FiveFrames page (no browser offline-error page).
+- Recovery: after the network returned, SSE/fallback recovered by itself and the dashboard
+  converged to the authoritative updated state.
+- Optional demo keepsake taste check: not recorded as performed (the report did not clearly
+  confirm it). Optional, not an exit condition.
 
 ## Slice 17 — Themed signage and pre-activation previews (2026-10-01): `complete`
 
@@ -810,7 +807,7 @@ are also no longer in `.env.local`.
 **Slices 1–13: complete. Slice 14 (full-flow real-device and venue-condition validation,
 product.md criteria 37/38; the roadmap reference was corrected from the old 29/30 numbering on
 2026-10-01) is `awaiting human verification` — status set 2026-09-23. Slice 18 (MVP optional
-polish) is `awaiting human verification` — see its section.
+polish) is `complete`.
 Slices 15 (event theme foundation), 16 (keepsakes, both families) and 17 (themed signage and
 pre-activation previews) are `complete`. The Event Theme & Keepsakes design (incl. the Full Set amendment) is
 approved.**
@@ -2282,9 +2279,8 @@ device available) will be recorded honestly as a known limitation rather than cl
 
 ## Next slice
 
-**Slice 18 — MVP optional polish: `awaiting human verification`** (one short live-update check,
-Slice 18 section). Nothing else remains in it. Automated refund execution stays unbuilt by
-decision.
+**Slice 18 — MVP optional polish: `complete`** (human live-update and offline-recovery checks
+passed 2026-10-01). Automated refund execution stays unbuilt by decision.
 
 **Slice 14 — full-flow real-device and venue-condition validation: `awaiting human
 verification`.** It was reconciled against Slices 15–17 on 2026-10-01. §3 (physical QR) and §7
@@ -2306,8 +2302,7 @@ launch-blocking defect.
 | Item | Type | Affects |
 |---|---|---|
 | Slice 14 human checks H1–H9 not yet run. §3 and §7 are satisfied by Slices 16 and 17 (reconciliation, 2026-10-01). This is the remaining gating item for MVP completion | Manual verification pending | Guest, host and operator flows on real devices; see checklist above |
-| No deployment runs the current build (HEAD `553042e`) with PayMongo test keys, a webhook and `CRON_SECRET`. Production is a Slice 15-era build. Previews lack the payment and cron variables. The user chooses: deploy HEAD to the dev-backed Production, or configure a Preview | Environment prerequisite (user decision) | Slice 14 H1–H9 |
-| Slice 18 live-update human check (two browsers, one network interruption) not yet run | Manual verification pending | Host dashboard |
+| No deployment runs the current build (HEAD `8f42b80`) with PayMongo test keys, a webhook and `CRON_SECRET`. Production is a Slice 15-era build. Previews lack the payment and cron variables. The user chooses: deploy HEAD to the dev-backed Production, or configure a Preview | Environment prerequisite (user decision) | Slice 14 H1–H9 |
 | Slice 18 Vercel Preview `five-frames-9bqkwa9fx` (dev database) still exists; delete or keep at your discretion | Housekeeping | None |
 | Desktop/browser responsive pass (guest, gallery, demo, 404/error) implemented 2026-09-29 — awaiting human visual approval; host and Operator desktop audit still to do (see section above) | Design pass pending approval | Guest, gallery, demo; host/operator unaudited |
 | Contracted UI/UX handoff redesign implemented 2026-09-29 — **awaiting human visual approval** (checklist in "UI/UX redesign" above). Supersedes the earlier public-gallery, payment/signage and guest/host visual passes, which no longer need separate approval. | Design pass pending approval | All guest, host, auth, gallery and demo screens |

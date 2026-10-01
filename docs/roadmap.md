@@ -570,9 +570,8 @@ preview is visibly a preview and does not scan to anything.
 
 ## Slice 18 — MVP optional polish
 
-**Status (2026-10-01):** `awaiting human verification`. Everything is built, and automated,
-browser and one-Preview checks passed. The remaining step is a short real-browser check of live
-dashboard updates (docs/progress.md → Slice 18).
+**Status (2026-10-01):** `complete`. Automated, browser, one-Preview and the human live-update /
+offline-recovery checks passed (docs/progress.md → Slice 18).
 
 **Objective:** three of the four MVP-optional items (product.md §18), each without new
 infrastructure:
