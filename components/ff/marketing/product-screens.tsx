@@ -15,7 +15,7 @@ import {
 import { BrandLockup } from "@/components/ff/brand-mark";
 import { StatusPill } from "@/components/ff/pill";
 import { FiveShotTeaser, SHOTS_PER_GUEST } from "@/components/ff/shots";
-import { scene } from "@/lib/marketing/sample-scenes";
+import { GUEST_FIVE, galleryPhoto, photoSrc, photoSrcSet } from "@/lib/marketing/photos";
 import { cn } from "@/lib/utils";
 import { PhotoPrint, ShotNumber } from "./photo-print";
 
@@ -117,9 +117,20 @@ function MockPrimary({ children, className }: { children: ReactNode; className?:
   );
 }
 
+/** A photo inside a phone or dashboard mockup: small, so it always takes the 480 file. */
 function SceneImg({ index, className }: { index: number; className?: string }) {
-  // eslint-disable-next-line @next/next/no-img-element -- inline SVG illustration
-  return <img src={scene(index).src} alt="" className={cn("size-full object-cover", className)} />;
+  const photo = galleryPhoto(index);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- pre-sized WebP from public/
+    <img
+      src={photoSrc(photo, 480)}
+      alt=""
+      loading="lazy"
+      decoding="async"
+      style={{ objectPosition: photo.focus }}
+      className={cn("size-full object-cover", className)}
+    />
+  );
 }
 
 /** Guest 01 · Join (open). */
@@ -258,7 +269,7 @@ export function PreviewScreen({ shot = 3 }: { shot?: number }) {
   return (
     <PhoneFrame label="Previewing a photo before keeping it: an optional message, a note that kept photos are final and retakes are free, and Retake and Keep photo buttons.">
       <div className="relative h-[300px] shrink-0 overflow-hidden">
-        <SceneImg index={shot - 1 + 3} />
+        <SceneImg index={shot - 1} />
         <span className="ff-frosted absolute top-9 left-1/2 flex h-8 -translate-x-1/2 items-center gap-2 rounded-full px-3 text-[10px] font-semibold whitespace-nowrap text-ink-inverse">
           <span className="flex items-center gap-1" aria-hidden>
             {Array.from({ length: SHOTS_PER_GUEST }, (_, i) => (
@@ -329,7 +340,8 @@ export function CollectionScreen() {
         <div className="grid grid-cols-3 gap-1.5">
           {Array.from({ length: 12 }, (_, i) => (
             <span key={i} className="relative aspect-square overflow-hidden rounded-[8px] bg-surface-subtle">
-              <SceneImg index={(i * 3 + 1) % 8} />
+              {/* Everyone's photos: other guests' first, then this guest's five. */}
+              <SceneImg index={i + 5} />
             </span>
           ))}
         </div>
@@ -439,7 +451,7 @@ export function HostDashboardVisual({ className, wide }: { className?: string; w
               {Array.from({ length: wide ? 12 : 8 }, (_, i) =>
                 i >= 8 ? (
                   <span key={i} className="relative hidden aspect-square overflow-hidden rounded-[8px] lg:block">
-                    <SceneImg index={(i * 3 + 1) % 8} />
+                    <SceneImg index={i - 1} />
                   </span>
                 ) : i === 5 ? (
                   <span
@@ -451,7 +463,7 @@ export function HostDashboardVisual({ className, wide }: { className?: string; w
                   </span>
                 ) : (
                   <span key={i} className="relative aspect-square overflow-hidden rounded-[8px]">
-                    <SceneImg index={(i * 5 + 2) % 8} />
+                    <SceneImg index={i < 5 ? i : i - 1} />
                     {i === 1 && (
                       <span className="absolute top-1 right-1 flex size-4 items-center justify-center rounded-full bg-surface text-danger [&_svg]:size-2.5">
                         <Heart fill="currentColor" />
@@ -513,17 +525,15 @@ function MiniStat({ label, value, tint }: { label: string; value: string; tint?:
 
 /**
  * Five kept frames as printed photos, tilted like the Join teaser — the "one guest's five" motif,
- * using the same five scenes as the hero prints. `entrance` adds the prints' drop-in: on page
+ * using the same five photos as the hero prints. `entrance` adds the prints' drop-in: on page
  * load, or when an enclosing `<Reveal>` scrolls into view (docs/design-direction.md → "Marketing
  * motion"). The resting arrangement is the same either way.
  */
 export function FiveKeptFrames({
   className,
-  offset = 0,
   entrance,
 }: {
   className?: string;
-  offset?: number;
   entrance?: "load" | "reveal";
 }) {
   return (
@@ -546,7 +556,10 @@ export function FiveKeptFrames({
           )}
         >
           <PhotoPrint
-            src={scene(i + offset).src}
+            src={photoSrc(GUEST_FIVE[i])}
+            srcSet={photoSrcSet(GUEST_FIVE[i])}
+            sizes="(min-width: 640px) 112px, 20vw"
+            focus={GUEST_FIVE[i].focus}
             shot={i + 1}
             style={{ transform: `translateY(${print.y}px) rotate(${print.rotate}deg)` }}
             className="aspect-[4/5] w-full rounded-[12px] border-[3px] border-surface sm:rounded-[16px] sm:border-4"

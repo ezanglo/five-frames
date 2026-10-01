@@ -628,10 +628,27 @@ client-only and prerenders static.
 - **Defect class fixed:** FAQ answers render their id as the element id, so `why-five` collided
   with the homepage section of the same id. Renamed, and `lib/marketing/content.test.ts` now
   fails if a previewed FAQ id matches any homepage element id.
-- **Verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test` 521/521 ✔.
-  Playwright/Chromium on the dev server: `/`, `/demo` (empty and with three kept shots), `/login`,
-  `/signup` at 390, 820, 1024, 1280, 1440 and 1920 wide; no horizontal overflow, one visible h1
-  per page. Emulated Chromium only. Human sign-off is VIS-02 step 5.
+- **Real photography (same pass):** the marketing site's illustrated scenes are replaced by 13
+  free Unsplash-License photos, covering the hero's five prints, the kept-frames row, the
+  guest-journey and host-dashboard mockups, the occasion cards, the rail and the homepage
+  keepsakes.
+  - Registry: `lib/marketing/photos.ts`. Files: `public/marketing/photos/` (WebP 480/960,
+    metadata stripped, about 1 MB in total). Sources and license checks:
+    `docs/asset-credits.md`.
+  - `lib/marketing/photos.test.ts` fails on a missing file, a size mismatch, leftover EXIF or an
+    uncredited photo.
+  - First view on desktop loads five photos, 94 KB in total. Keepsake previews mount only near
+    the viewport.
+  - The demo's sample state and the host Look previews keep the illustrations.
+  - Swap in pilot-event photos with `scripts/prepare-marketing-photos.ts` once there is
+    permission.
+- **Verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · `pnpm test` ✔ (final counts
+  in the latest run). Playwright/Chromium on the dev server:
+  - `/`, `/demo` (empty and with three kept shots), `/login` and `/signup` at 390, 820, 1024,
+    1280, 1440 and 1920 wide;
+  - no horizontal overflow, one visible h1 per page, no broken images, no third-party image
+    hosts.
+  Emulated Chromium only. Human sign-off is VIS-02 step 5.
 
 ## Marketing motion polish (2026-09-30): `awaiting human visual approval`
 

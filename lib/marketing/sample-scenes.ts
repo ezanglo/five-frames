@@ -1,9 +1,9 @@
 /**
- * Illustrated stand-ins for guest photos inside the marketing site's product mockups. FiveFrames
- * has no approved event photography yet (a recorded asset gap — docs/progress.md), and stock
- * photography would misrepresent real guests, so these are simple flat illustrations: obviously
- * not photographs, and nothing anyone could mistake for a real event's media. Inline SVG data
- * URIs, like the demo's samples (lib/demo/samples.ts): no network request, no public/ asset.
+ * Illustrated sample "photos" for product previews that must read as samples: the host's Look
+ * previews (lib/keepsakes/samples.ts) and the public demo's sample look (lib/demo/keepsakes.ts).
+ * Simple flat illustrations — obviously not photographs, and nothing anyone could mistake for a
+ * real event's media. The marketing site itself uses photographs (lib/marketing/photos.ts).
+ * Inline SVG data URIs, like the demo's samples (lib/demo/samples.ts): no network request.
  *
  * The fills are illustration colors, not UI tokens — they sit inside a "photo", the same way the
  * demo's sample images do.

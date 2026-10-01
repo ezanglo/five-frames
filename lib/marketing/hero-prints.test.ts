@@ -1,20 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { HERO_PRINTS, HERO_STAGE, printHeight, printMotion } from "./hero-prints";
-import { SAMPLE_SCENES } from "./sample-scenes";
+import { GUEST_FIVE } from "./photos";
 
 describe("hero print composition", () => {
   it("shows exactly one guest's five frames, numbered 1–5", () => {
     expect(HERO_PRINTS).toHaveLength(SHOTS_PER_GUEST);
     expect(HERO_PRINTS.map((p) => p.shot).sort()).toEqual([1, 2, 3, 4, 5]);
-    expect(new Set(HERO_PRINTS.map((p) => p.scene)).size).toBe(SHOTS_PER_GUEST);
   });
 
-  it("uses only the existing illustrated scenes, never outside imagery", () => {
-    for (const print of HERO_PRINTS) {
-      expect(print.scene).toBeGreaterThanOrEqual(0);
-      expect(print.scene).toBeLessThan(SAMPLE_SCENES.length);
-    }
+  it("fills each print with a different one of the guest's five photos", () => {
+    expect(GUEST_FIVE).toHaveLength(SHOTS_PER_GUEST);
+    expect(new Set(GUEST_FIVE.map((photo) => photo.file)).size).toBe(SHOTS_PER_GUEST);
   });
 
   it("keeps every print inside the stage so nothing overflows the hero", () => {

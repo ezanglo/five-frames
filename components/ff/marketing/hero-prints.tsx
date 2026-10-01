@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { HERO_PRINTS, HERO_STAGE, printHeight, printMotion } from "@/lib/marketing/hero-prints";
-import { scene } from "@/lib/marketing/sample-scenes";
+import { GUEST_FIVE, photoSrc, photoSrcSet } from "@/lib/marketing/photos";
 import { cn } from "@/lib/utils";
 import { ParallaxStage } from "./parallax-stage";
 import { PhotoPrint } from "./photo-print";
@@ -32,6 +32,7 @@ export function FiveFramesHeroVisual({ className }: { className?: string }) {
       <ParallaxStage className="ff-hero-stage absolute inset-0">
         {HERO_PRINTS.map((print) => {
           const { enter, gather } = printMotion(print);
+          const photo = GUEST_FIVE[print.shot - 1];
           const style = {
             left: print.x,
             top: print.y,
@@ -53,9 +54,13 @@ export function FiveFramesHeroVisual({ className }: { className?: string }) {
             <div key={print.shot} className="ff-hero-print absolute" style={style}>
               <div className="ff-print-drop size-full" style={dropStyle}>
                 <PhotoPrint
-                  src={scene(print.scene).src}
+                  src={photoSrc(photo)}
+                  srcSet={photoSrcSet(photo)}
+                  // Below 1024 this stage is display:none, but the browser still fetches its
+                  // images: "1px" there makes it pick the 480 files the mobile row already uses.
+                  sizes={`(min-width: 1024px) ${Math.ceil(print.width)}px, 1px`}
                   shot={print.shot}
-                  focus={print.focus}
+                  focus={photo.focus}
                   className="ff-print-lift size-full rounded-[14px] border-[6px] border-surface"
                   chipClassName="top-2 left-2 size-6 text-[11px]"
                 />

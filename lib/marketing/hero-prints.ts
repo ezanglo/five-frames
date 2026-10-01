@@ -3,17 +3,16 @@ import { SHOTS_PER_GUEST } from "@/components/ff/shots";
 /**
  * Layout of the homepage hero's five printed photos (docs/design-direction.md → "Marketing
  * motion"): one guest's five kept frames, laid on a shallow surface. Pure data — the component
- * renders it, the motion layer reads `depth`. Coordinates are px inside a fixed stage so the
+ * renders it, the motion layer reads `depth`. Only shapes and places: which photo fills a print,
+ * and how it is cropped, come from lib/marketing/photos.ts, so photos can change freely. Coordinates are px inside a fixed stage so the
  * composition is identical on the server, before hydration and after.
  */
 
 export const HERO_STAGE = { width: 520, height: 600 } as const;
 
 export type HeroPrint = {
-  /** Shot number shown on the print (1–5). */
+  /** Shot number shown on the print (1–5); it shows GUEST_FIVE[shot − 1] (lib/marketing/photos.ts). */
   shot: number;
-  /** Index into SAMPLE_SCENES — the same five scenes the guest-journey mockups use. */
-  scene: number;
   /** Top-left corner in stage px, before rotation. */
   x: number;
   y: number;
@@ -24,66 +23,54 @@ export type HeroPrint = {
   rotate: number;
   /** Relative distance from the surface (0.5 back … 1.5 front): parallax gain and stacking. */
   depth: number;
-  /** object-position for the crop, so no scene is distorted. */
-  focus: string;
 };
 
 export const HERO_PRINTS: readonly HeroPrint[] = [
   {
     shot: 1,
-    scene: 0,
     x: 24,
     y: 64,
     width: 176,
     aspect: 4 / 5,
     rotate: -8,
     depth: 0.6,
-    focus: "50% 35%",
   },
   {
     shot: 2,
-    scene: 1,
     x: 300,
     y: 30,
     width: 168,
     aspect: 1,
     rotate: 6,
     depth: 0.9,
-    focus: "50% 72%",
   },
   {
     shot: 3,
-    scene: 2,
     x: 128,
     y: 200,
     width: 256,
     aspect: 5 / 4,
     rotate: -2,
     depth: 1.2,
-    focus: "50% 58%",
   },
   {
     // Laid on top of shot 3's corner, the last print dropped onto the pile.
     shot: 4,
-    scene: 3,
     x: 334,
     y: 322,
     width: 160,
     aspect: 4 / 5,
     rotate: 6,
     depth: 1.4,
-    focus: "50% 45%",
   },
   {
     shot: 5,
-    scene: 4,
     x: 40,
     y: 352,
     width: 150,
     aspect: 4 / 5,
     rotate: -5,
     depth: 0.8,
-    focus: "50% 50%",
   },
 ];
 

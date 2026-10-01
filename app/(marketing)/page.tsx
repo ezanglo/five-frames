@@ -52,7 +52,7 @@ import {
   faqItemsById,
 } from "@/lib/marketing/content";
 import { marketingMetadata } from "@/lib/marketing/metadata";
-import { scene } from "@/lib/marketing/sample-scenes";
+import { OCCASION_PHOTOS, photoSrc, photoSrcSet } from "@/lib/marketing/photos";
 import { SITE_DESCRIPTION, SITE_NAME, getSiteUrl } from "@/lib/marketing/site";
 
 export const metadata = marketingMetadata({
@@ -436,12 +436,12 @@ function StepsSection() {
 }
 
 const OCCASIONS = [
-  { name: "Birthdays", scene: 1, focus: "50% 75%", body: "From a first birthday to a ninetieth, five frames from everyone who came." },
-  { name: "Parties", scene: 4, focus: "50% 50%", body: "The night from every corner of the room, without anyone stuck playing photographer." },
-  { name: "Reunions", scene: 7, focus: "50% 0%", body: "Every branch of the family and every old friend adds their own five." },
-  { name: "Trips", scene: 5, focus: "50% 55%", body: "One shared collection from the whole group, not just one person’s camera roll." },
-  { name: "Team events", scene: 6, focus: "50% 45%", body: "Offsites, launches and year-end parties, seen by the whole team." },
-  { name: "Weddings", scene: 3, focus: "50% 70%", body: "A guest’s-eye view of the day, alongside your photographer’s." },
+  { name: "Birthdays", photo: OCCASION_PHOTOS.birthdays, body: "From a first birthday to a ninetieth, five frames from everyone who came." },
+  { name: "Parties", photo: OCCASION_PHOTOS.parties, body: "The night from every corner of the room, without anyone stuck playing photographer." },
+  { name: "Reunions", photo: OCCASION_PHOTOS.reunions, body: "Every branch of the family and every old friend adds their own five." },
+  { name: "Trips", photo: OCCASION_PHOTOS.trips, body: "One shared collection from the whole group, not just one person’s camera roll." },
+  { name: "Team events", photo: OCCASION_PHOTOS.teamEvents, body: "Offsites, launches and year-end parties, seen by the whole team." },
+  { name: "Weddings", photo: OCCASION_PHOTOS.weddings, body: "A guest’s-eye view of the day, alongside your photographer’s." },
 ];
 
 function OccasionsSection() {
@@ -461,12 +461,18 @@ function OccasionsSection() {
             style={{ "--i": index } as CSSProperties}
             className="ff-rise-reveal flex flex-col overflow-hidden rounded-xl border border-line bg-surface lg:rounded-3xl"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- inline SVG illustration */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized WebP from public/ */}
             <img
-              src={scene(occasion.scene).src}
-              alt=""
-              style={{ objectPosition: occasion.focus }}
-              className="aspect-[4/3] w-full object-cover"
+              src={photoSrc(occasion.photo)}
+              srcSet={photoSrcSet(occasion.photo)}
+              sizes="(min-width: 1024px) 384px, 50vw"
+              alt={occasion.photo.alt}
+              loading="lazy"
+              decoding="async"
+              width={occasion.photo.width}
+              height={occasion.photo.height}
+              style={{ objectPosition: occasion.photo.focus }}
+              className="aspect-[4/3] w-full bg-surface-subtle object-cover"
             />
             <div className="flex flex-col gap-1.5 p-4 lg:p-6">
               <h3 className="text-[16px] font-bold text-ink lg:text-[19px]">{occasion.name}</h3>

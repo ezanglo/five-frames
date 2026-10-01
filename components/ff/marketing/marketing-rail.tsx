@@ -1,7 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { Check } from "lucide-react";
 import { HERO_PRINTS, HERO_STAGE, printMotion } from "@/lib/marketing/hero-prints";
-import { scene } from "@/lib/marketing/sample-scenes";
+import { GUEST_FIVE, photoSrc, photoSrcSet } from "@/lib/marketing/photos";
 import { cn } from "@/lib/utils";
 import { Eyebrow } from "./section";
 import { PhotoPrint } from "./photo-print";
@@ -115,6 +115,7 @@ function PrintStack({ photos = [], className }: { photos?: string[]; className?:
       >
         {HERO_PRINTS.map((print) => {
           const own = photos[print.shot - 1];
+          const photo = GUEST_FIVE[print.shot - 1];
           const { enter } = printMotion(print);
           const place = {
             left: `${(print.x / W) * 100}%`,
@@ -134,9 +135,11 @@ function PrintStack({ photos = [], className }: { photos?: string[]; className?:
             <div key={print.shot} className="absolute" style={place}>
               <div className="ff-print-drop size-full" style={drop}>
                 <PhotoPrint
-                  src={own ?? scene(print.scene).src}
+                  src={own ?? photoSrc(photo)}
+                  srcSet={own ? undefined : photoSrcSet(photo)}
+                  sizes={own ? undefined : "200px"}
                   shot={print.shot}
-                  focus={own ? undefined : print.focus}
+                  focus={own ? undefined : photo.focus}
                   className="size-full rounded-[10px] border-[5px] border-surface"
                 />
               </div>

@@ -137,13 +137,13 @@ Product behavior is unchanged; only composition differs.
 The public marketing site may treat photographs as tactile, physical objects: printed photos with a
 white paper border, layered shadow and a faint light falloff (`PhotoPrint`), resting at slight,
 independent tilts. Photos still look like photos: no glossy 3D materials, and crops use
-`object-position`, never distortion. Until approved event photography exists, the prints use the
-illustrated sample scenes (`lib/marketing/sample-scenes.ts`), never stock imagery.
+`object-position`, never distortion. The prints show real photographs ("Marketing photography"
+below).
 
 - **Signature moment: the hero's five prints** (`components/ff/marketing/hero-prints.tsx`, layout
   data in `lib/marketing/hero-prints.ts`). One guest's five kept frames, numbered 1–5, mixed
-  orientation, laid on a shallow surface. The same five scenes reappear in the "Why five" card
-  and the guest-journey mockups. Always exactly five.
+  orientation, laid on a shallow surface. The same five photos reappear in the "Why five" card,
+  the guest-journey mockups, the marketing rail and the homepage Full Set. Always exactly five.
 - **Motion is restrained and meaning-driven.** Slow, weighted ease-out (`--ease-settle`), no
   overshoot, no perpetual loops, no autoplay spectacle; the page is still once the visitor stops.
   Allowed: a one-time entrance (prints settling onto the surface), shallow depth parallax on a
@@ -163,6 +163,37 @@ illustrated sample scenes (`lib/marketing/sample-scenes.ts`), never stock imager
 - **Decorative only.** Motion layers are `aria-hidden`, never focusable, never carry information
   that isn't in the copy, and never overlap CTAs.
 
+## Marketing photography (2026-10-01, at the user's direction)
+
+The public marketing site uses real photographs, which replace the illustrated scenes there.
+FiveFrames is about real people keeping real moments.
+
+- **Free stock for now.** Unsplash License only, with no Unsplash+ images and no brand or
+  sponsor accounts. Each file is recorded in `docs/asset-credits.md`.
+- **To be replaced by pilot-event photos** once there's permission to use them.
+- **Pictured people never stand in for customers.** No quotes, names or "our hosts" framing
+  next to a photo.
+- **The guest's five** (`GUEST_FIVE` in `lib/marketing/photos.ts`) should look like five guests'
+  phones at one evening, not a photographer's set:
+  - friends laughing;
+  - a candle-lighting detail;
+  - a toast under string lights;
+  - a dancing couple;
+  - a decor/venue shot.
+  Keep that mix (people and details, mixed orientation, warm evening light) when swapping
+  photos.
+- **Occasion cards** get one candid photo each, spread across event types, so the site never
+  reads as weddings-only or birthdays-only. The keepsake examples use a decor photo as the
+  sample theme image, never something that could pass for a guest capture.
+- **Decoupled from layout.** Layout data holds shapes and positions only. Each photo carries its
+  own `focus`.
+- **Served locally.** Files are made by `scripts/prepare-marketing-photos.ts`: WebP at 480 and
+  960 wide, metadata stripped. They are served from `public/marketing/photos/` with
+  `srcSet`/`sizes`, below-the-fold images lazy. Never hotlinked.
+- **Product previews keep the illustrations** (`lib/marketing/sample-scenes.ts`): the demo's
+  sample state, the host Look previews and their keepsake samples. Those must read as samples,
+  not as somebody's event.
+
 ## Marketing rail (2026-10-01)
 
 The left column beside a task on marketing-facing pages: auth (`AuthShell`) and `/demo`
@@ -173,7 +204,7 @@ The left column beside a task on marketing-facing pages: auth (`AuthShell`) and 
   and a frosted pill on top, a light uppercase `Eyebrow`, Fraunces `display-desktop` title, a
   17px lead at 85% white, then short context (checks or a three-item numbered list with the
   homepage's white-on-night chips) and frosted md buttons.
-- **The five prints:** the hero's composition (`HERO_PRINTS`) as a static `PrintStack`, scaled
+- **The five prints:** the hero's composition (`HERO_PRINTS`, filled with `GUEST_FIVE`) as a static `PrintStack`, scaled
   to the space left with container units. One-time settle-in only, no parallax; hidden below
   700px of height. On `/demo` the visitor's kept shots replace prints 1–5 in order.
 - **Desktop only.** Below 1024 each page keeps its own compact header and the task comes first;

@@ -1174,7 +1174,9 @@ the pass and record them here. A taste rejection is a FAIL with notes, handled a
   4. Turn on the OS "Reduce motion" setting and reload.
   5. At desktop width, open `/demo`, `/login` and `/signup` from `/` and judge whether the left
      rail reads as the same site as the homepage, and whether the homepage Keepsakes section
-     reads as FiveFrames (marketing consistency pass, 2026-10-01).
+     reads as FiveFrames (marketing consistency pass, 2026-10-01). Also judge the stock
+     photography: it should feel like guests' phones, crops shouldn't cut off faces, and the site
+     shouldn't read as wedding-only or birthday-only.
 - **PASS when:** the user approves 1–3 and 5, and with Reduce motion on the homepage is fully
   still.
 - **Result:** NOT RUN

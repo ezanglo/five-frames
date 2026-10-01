@@ -20,9 +20,13 @@ export function ShotNumber({ n, className }: { n: number; className?: string }) 
  * border, layered paper shadow, a faint light falloff across the surface (`.ff-print` in
  * globals.css). Always decorative — the image has no alt text and callers hide the group from
  * assistive tech. The crop is set by `focus`, so any orientation is cropped, never stretched.
+ * Pass `srcSet` + `sizes` for a registry photo (lib/marketing/photos.ts) so phones fetch the
+ * small file.
  */
 export function PhotoPrint({
   src,
+  srcSet,
+  sizes,
   shot,
   focus,
   className,
@@ -30,6 +34,8 @@ export function PhotoPrint({
   style,
 }: {
   src: string;
+  srcSet?: string;
+  sizes?: string;
   shot?: number;
   focus?: string;
   className?: string;
@@ -41,10 +47,13 @@ export function PhotoPrint({
       style={style}
       className={cn("ff-print relative block overflow-hidden bg-surface", className)}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element -- inline SVG illustration */}
+      {/* eslint-disable-next-line @next/next/no-img-element -- pre-sized WebP from public/, or a local preview */}
       <img
         src={src}
+        srcSet={srcSet}
+        sizes={sizes}
         alt=""
+        decoding="async"
         draggable={false}
         style={focus ? { objectPosition: focus } : undefined}
         className="size-full object-cover select-none"
