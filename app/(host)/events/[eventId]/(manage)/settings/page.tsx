@@ -6,7 +6,7 @@ import { EventGalleryForm } from "./settings-form";
 
 export const metadata = { title: "Settings · FiveFrames" };
 
-/** Settings · Event & gallery (D8 / mobile 06b): details, reveal timing and visibility. */
+/** Settings · Event & gallery (D8 / mobile 06b): details, reveal timing, visibility and gallery layout. */
 export default async function EventSettingsPage({
   params,
   searchParams,

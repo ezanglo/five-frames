@@ -1,4 +1,9 @@
-import type { GalleryVisibility, ManualPaymentMethod, RevealMode } from "@/lib/db/types";
+import type {
+  GalleryLayout,
+  GalleryVisibility,
+  ManualPaymentMethod,
+  RevealMode,
+} from "@/lib/db/types";
 
 /**
  * Human-readable labels for stored event/payment enums. Every control or summary that shows one
@@ -14,6 +19,13 @@ export const REVEAL_MODE_LABEL: Record<RevealMode, string> = {
 export const VISIBILITY_LABEL: Record<GalleryVisibility, string> = {
   anyone_with_link: "Anyone with the gallery link",
   only_me: "Only me",
+};
+
+/** In the order the host sees them; Masonry is the default (D22). */
+export const GALLERY_LAYOUT_LABEL: Record<GalleryLayout, string> = {
+  masonry: "Masonry",
+  rows: "Rows",
+  grid: "Grid",
 };
 
 export const MANUAL_PAYMENT_METHOD_LABEL: Record<ManualPaymentMethod, string> = {

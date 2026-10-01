@@ -12,6 +12,7 @@ import {
   ImageIcon,
   Layers,
   Link2,
+  LayoutGrid,
   Lock,
   Palette,
   Power,
@@ -29,6 +30,7 @@ import { StatusPill } from "@/components/ff/pill";
 import { CtaBand, FaqList, PriceCard } from "@/components/ff/marketing/blocks";
 import { GuestJourney } from "@/components/ff/marketing/guest-journey";
 import { KeepsakeShowcase } from "@/components/ff/marketing/keepsake-showcase";
+import { GalleryLayoutsShowcase } from "@/components/ff/marketing/gallery-layouts-showcase";
 import { FiveFramesHeroVisual } from "@/components/ff/marketing/hero-prints";
 import { Reveal } from "@/components/ff/marketing/reveal";
 import {
@@ -89,6 +91,7 @@ export default async function HomePage() {
       <JourneySection demoQr={demoQr} />
       <WhyFiveSection />
       <KeepsakesSection />
+      <GallerySection />
       <HostSection />
       <StepsSection />
       <OccasionsSection />
@@ -318,6 +321,64 @@ function KeepsakesSection() {
   );
 }
 
+const GALLERY_POINTS = [
+  {
+    icon: <LayoutGrid />,
+    title: "Masonry, Rows or Grid",
+    body: "Pick a layout in your event settings and change it whenever you like. Masonry is ready by default.",
+  },
+  {
+    icon: <ImageIcon />,
+    title: "The same photos, whichever you pick",
+    body: "The layout only arranges them. Which photos appear, and who can open the gallery, stays exactly as you set it.",
+  },
+  {
+    icon: <Users />,
+    title: "Everyone’s, together",
+    body: "Keepsakes are each guest’s own photos, styled to share. The gallery is the whole event in one place, opened when you reveal it.",
+  },
+];
+
+/**
+ * The revealed gallery (product.md §7.4, decision D22): the finished collection, browsed by
+ * scrolling, in one of three host-chosen layouts. The sample renders through the product's own
+ * layout component, so it shows only what the gallery really does. Kept apart from Keepsakes on
+ * purpose: those are a guest's own photos, this is everyone's.
+ */
+function GallerySection() {
+  return (
+    <Section id="the-gallery" tone="dark" labelledBy="gallery-title" className="relative overflow-hidden">
+      <div aria-hidden className="ff-photo-header-desktop absolute inset-0 opacity-80" />
+      {/* Mobile: heading → sample → points. ≥1024: text left, sample right across both rows. */}
+      <div className="relative grid gap-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-x-16">
+        <SectionHeader
+          id="gallery-title"
+          tone="dark"
+          eyebrow="The gallery"
+          title="Your event. Your gallery."
+          lead="When you reveal it, everyone’s photos come together in one gallery to scroll through, and any photo opens whole with a tap. Choose how it’s laid out: three ways to browse the same event."
+        />
+        <Reveal className="lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
+          <GalleryLayoutsShowcase className="ff-rise-reveal" />
+        </Reveal>
+        <ul className="grid gap-6 sm:grid-cols-3 lg:grid-cols-1 lg:gap-7">
+          {GALLERY_POINTS.map((point) => (
+            <li key={point.title} className="flex gap-4">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-brand [&_svg]:size-5">
+                {point.icon}
+              </span>
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[17px] font-bold text-ink-inverse">{point.title}</h3>
+                <p className="text-label font-medium text-ink-on-dark">{point.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </Section>
+  );
+}
+
 function HostSection() {
   return (
     <Section id="for-hosts" tone="subtle" labelledBy="hosts-title">
@@ -326,7 +387,7 @@ function HostSection() {
           id="hosts-title"
           eyebrow="For hosts"
           title="Everything you need for the day, and after it."
-          lead="One dashboard: set up, share the QR, open capture when everyone’s there, then review, reveal and download."
+          lead="One dashboard: set up, share the QR, open capture when everyone’s there, then review, reveal the gallery in the layout you choose, and download."
         />
         <ButtonLink href="/how-it-works" variant="secondary" size="md" className="self-start lg:self-auto">
           How it works
@@ -359,8 +420,8 @@ function HostSection() {
           guest’s view too.
         </FeatureCard>
         <FeatureCard icon={<Eye />} title="Reveal on your terms">
-          Open the gallery after the event, right away, or at a time you set. Until then, it
-          stays hidden.
+          Open the gallery after the event, right away, or at a time you set, laid out as
+          Masonry, Rows or Grid. Until then, it stays hidden.
         </FeatureCard>
         <FeatureCard icon={<Link2 />} title="Links you control">
           Share the gallery with anyone who has its link, or keep it to yourself. Replace or turn
@@ -397,7 +458,7 @@ const STEPS = [
   },
   {
     title: "Reveal and keep",
-    body: "Review the photos, reveal the gallery when it feels right, and download the originals.",
+    body: "Review the photos, choose a gallery layout, reveal it when it feels right, and download the originals.",
   },
 ];
 

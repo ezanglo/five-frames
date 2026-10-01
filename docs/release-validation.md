@@ -21,7 +21,7 @@ Nothing below is marked PASS until it has actually been run against the release-
 deployment. Release work that isn't a test (configuration, migrations, business decisions) is
 tracked separately in [progress.md → Release follow-ups](./progress.md#release-follow-ups-not-test-cases).
 
-**Status: IN PROGRESS — automated part complete, no open FAIL; awaiting the human/real-device pass.** 52 cases: 11 PASS, 0 FAIL, 11 BLOCKED, 27 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 3 DEFERRED (INAPP-01…03, accepted launch risk). First automated `/e2e-validate` pass against RC `a2a32b1`, 2026-10-01. Its five FAILs were repaired, and the targeted rerun against RC `8f37fba` (same day) cleared four of them. NET-02 then failed again for a new reason: a connection cut on the reserve or commit request left the guest stuck. That was repaired, and the targeted rerun against RC `6d8aca8` (same day) verified the repair (see [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8)). NET-02 goes back to NOT RUN, because only a real Android phone can pass it. SMOKE-01's automated run passed. It must still run last, after the human pass.
+**Status: IN PROGRESS — no open FAIL; a product change (gallery layouts, D22) landed after RC `6d8aca8` and needs a new RC plus the targeted reruns in [Gallery-layout change after RC `6d8aca8`](#gallery-layout-change-after-rc-6d8aca8); then the human/real-device pass.** 54 cases: 10 PASS, 0 FAIL, 11 BLOCKED, 30 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 3 DEFERRED (INAPP-01…03, accepted launch risk). First automated `/e2e-validate` pass against RC `a2a32b1`, 2026-10-01. Its five FAILs were repaired, and the targeted rerun against RC `8f37fba` (same day) cleared four of them. NET-02 then failed again for a new reason: a connection cut on the reserve or commit request left the guest stuck. That was repaired, and the targeted rerun against RC `6d8aca8` (same day) verified the repair (see [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8)). NET-02 goes back to NOT RUN, because only a real Android phone can pass it. SMOKE-01's automated run passed. It must still run last, after the human pass.
 
 ### Run record
 
@@ -218,6 +218,46 @@ one card. The dashboard went from 8 to 16 guests.
 
 ---
 
+### Gallery-layout change after RC `6d8aca8`
+
+A new product capability, not a repair: the host chooses how the revealed gallery is arranged
+(Masonry by default, Rows or Grid; product.md §7.5, decision D22). It is not deployed yet. The
+automated evidence for it is local: typecheck, lint, build, the full suite (559/559 before the last visual fixes; on the final code, only intermittent remote
+5 s timeouts, each file passing alone, see progress.md), including
+`lib/dal/gallery-layout.integration.test.ts` against dev Postgres and Storage, and Playwright
+Chromium checks of a local production build at 390/768/1280. That is not deployment evidence.
+
+**What changed:**
+- the public gallery page and its tile list (`/g/[token]`, `gallery-archive.tsx`, new
+  `components/ff/gallery-layout.tsx`, `.ff-gallery-*` CSS);
+- Settings · Event & gallery (a new "Gallery layout" card) and `saveEventAndGalleryAction`;
+- capture commit writes two extra columns (`display_width/height`) in its existing update.
+  Reserve, slot allocation, idempotency, expiry, TUS upload and the Keep/Retry client are
+  untouched;
+- marketing: homepage (new gallery section, collection mockup, host and steps copy), pricing,
+  how-it-works and FAQ copy, and one line of the demo's desktop rail;
+- migration `20261001000000_gallery_layout.sql`, applied to the dev project (additive; recorded
+  with `migration repair`, so `20260930020000` is still unapplied).
+
+**Invalidated or newly required (rerun on the new RC):**
+
+| Case | Why | What to rerun |
+|---|---|---|
+| ENV-01 | Every new RC | Gate: deployed commit = RC SHA |
+| ENV-02 | Its PASS condition now includes `20261001000000` applied | Re-list migrations (PASS → NOT RUN) |
+| GAL-04 | The gallery's tiles changed (Masonry by default, no longer squares). The emulation proxy recorded `object-fit: cover` square tiles | Full case on a real iPhone, as already pending |
+| GAL-07 (new) | New capability | Real phone, all three layouts, switched from Settings |
+| VIS-03 | The gallery page and homepage changed | Objective overflow proxy, then the human approval already pending |
+| VIS-05 (new) | New visual surfaces | Human taste approval |
+| SMOKE-01 | Always last, and commit now writes the dimensions | Already pending after the human pass |
+
+**Not invalidated:** payments (HOST-04/05, OPS-*), operator audit metadata, TUS and network retry
+(NET-*), signage, keepsakes, capture limits and capacity (CAP-*), lifecycle cron (CRON-*),
+HOST-03 (the Create flow and the fields it checks are unchanged), HOST-08 (moderation semantics are
+unchanged and covered again by the integration test), GAL-01/02/03/05/06 (access and reveal logic
+is unchanged; the page reads the layout only after its access decision), VIS-01, VIS-02 (no motion
+was added beyond the existing section entrance), VIS-04 (the demo's phone view is unchanged).
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.
@@ -318,11 +358,11 @@ earlier ones create:
 8. **B** HOST-07 (close and reopen), with GAL-02 during the closed period
 9. **E** GAL-03 (custom reveal)
 10. **B** HOST-08 … HOST-11 (moderation, downloads, state)
-11. **E** GAL-04 … GAL-06
+11. **E** GAL-04, GAL-07, then GAL-05, GAL-06
 12. **F** OPS-01 … OPS-05
 13. **G** CAP-01, CAP-02
 14. **H** CRON-01 … CRON-03
-15. **J** VIS-01 … VIS-04. Note visual issues all along; record them here at the end.
+15. **J** VIS-01 … VIS-05. Note visual issues all along; record them here at the end.
 16. **K** SMOKE-01, always last
 
 ---
@@ -408,11 +448,12 @@ It is never a PASS and does not hold up completion of this pass.
   2. List migrations against the dev project.
 - **PASS when:**
   - the deployment uses the dev project;
-  - every migration up to and including `20260930010000_event_theme_raw_formats.sql` is applied;
+  - every migration up to and including `20260930010000_event_theme_raw_formats.sql` is applied,
+    and so is `20261001000000_gallery_layout.sql`;
   - `20260930020000_retire_share_cards.sql` is **not** applied (deliberately, until the
     deployment-order follow-up).
-- **Result:** PASS
-- **Evidence / notes:** `supabase migration list --linked` (ref `lrheuifbgbplekxnljfv`): all through `20260930010000` applied, `20260930020000` not applied. Deployment's browser Storage traffic (signed upload/read URLs) goes to the same project ref. Env var *values* were not read (permission boundary).
+- **Result:** NOT RUN (rerun for the next RC: the gallery-layout migration was added after the PASS below)
+- **Evidence / notes:** 2026-10-01, outside a pass: `20261001000000` applied to the dev project, `20260930020000` still not applied (`supabase migration list --linked`). Earlier PASS (RC `6d8aca8`): `supabase migration list --linked` (ref `lrheuifbgbplekxnljfv`): all through `20260930010000` applied, `20260930020000` not applied. Deployment's browser Storage traffic (signed upload/read URLs) goes to the same project ref. Env var *values* were not read (permission boundary).
 
 #### ENV-03 · PayMongo Test mode; no live credentials
 - **Where:** PayMongo dashboard; Vercel env settings
@@ -857,12 +898,13 @@ Open gallery links on a phone that is **not** signed in as host A.
   1. Open the gallery.
   2. Open a photo; swipe through several; close the viewer.
 - **PASS when:**
-  - portrait, landscape and square photos display undistorted;
+  - the gallery shows the event's layout (Masonry unless changed), and portrait, landscape and
+    square photos display undistorted, each in its own shape;
   - the hidden and deleted captures are absent, and the favorited one is present;
   - the viewer opens, swipes both ways and closes back to the grid;
   - no photographer names and no download control appear.
 - **Result:** NOT RUN
-- **Evidence / notes:** Proxy (WebKit iPhone emulation, E1m): 5 photos; hidden and deleted absent, favorite present; grid tiles `object-fit: cover`, viewer `contain` at exact aspect ratios (0.75/1.33/1.00/0.67); no names, no download. Viewer swipe/close not verified (pass stopped). Real iPhone still required.
+- **Evidence / notes:** Proxy (WebKit iPhone emulation, E1m, RC `6d8aca8`, before gallery layouts): 5 photos; hidden and deleted absent, favorite present; grid tiles `object-fit: cover`, viewer `contain` at exact aspect ratios (0.75/1.33/1.00/0.67); no names, no download. Viewer swipe/close not verified (pass stopped). The tile part of that proxy is superseded by D22. Real iPhone still required.
 
 #### GAL-05 · "Only me" denies the link holder
 - **Where:** desktop browser (Settings) + real phone
@@ -890,6 +932,27 @@ Open gallery links on a phone that is **not** signed in as host A.
   - the final rotation works.
 - **Result:** BLOCKED
 - **Evidence / notes:** Not run: further reads of the deployment were refused by the session's permission policy.
+
+#### GAL-07 · Gallery layouts: Masonry, Rows, Grid
+- **Where:** desktop browser (Settings) + real phone (iPhone; Android optional)
+- **Needs:** GAL-04 (revealed E1 with a mix of portrait, landscape and square photos, one hidden,
+  one deleted)
+- **Steps:**
+  1. Open the gallery on the phone. It should be Masonry.
+  2. In Settings → Event & gallery → Gallery layout, choose **Rows** and save. Reload Settings.
+  3. Reload the gallery on the phone. Scroll it, open a photo, swipe, close.
+  4. Repeat with **Grid**, then set it back to **Masonry**.
+- **PASS when:**
+  - Settings reloads each choice, and the gallery shows it after a reload;
+  - Masonry and Rows show every photo in its own shape (portrait stays portrait); Grid shows even
+    squares;
+  - every layout shows the same photos, in the same order, with the hidden and deleted captures
+    absent;
+  - scrolling is smooth, photos are comfortably large, nothing scrolls sideways, and nothing
+    plays or advances on its own;
+  - tapping any tile opens the whole photo, and closing returns to the same place.
+- **Result:** NOT RUN
+- **Evidence / notes:** Real phone required. Local proxy, not deployment evidence (Playwright Chromium, local production build, dev database, synthetic event of 20 captures with 1 hidden and 1 deleted, since deleted): every layout showed 18 tiles in canonical order with no overlap and no horizontal overflow at 390/768/1280. Masonry: 2/3/4 columns; the largest tile-vs-photo shape difference was 6%, the 3.2:1 panorama clamped to 3:1 by design. Rows: one height per row, full width, last row natural (desktop 200–277 px). Grid: 3/4/5 squares (108/159/224 px). Settings: Rows and Grid saved and reloaded; Discard restored the stored choice. Viewer `object-contain`, and Escape returned focus to the opening tile.
 
 ### F. Operator / manual payment
 
@@ -1214,6 +1277,19 @@ the pass and record them here. A taste rejection is a FAIL with notes, handled a
 - **Result:** NOT RUN
 - **Evidence / notes:** Proxy (Chromium Pixel 7 emulation): own photos via "Use your own photo" kept 3 frames; copy says photos stay on the device; Start over → 5 of 5; CTA → `/signup`; no `/e/` or `/g/` link; zero non-GET or Storage requests (D14). Real phone picker still required. The demo input also has `capture="environment"`; check that the library is offered (see IOS-03).
   - Picker changed after RC `a2a32b1` (`capture` removed; shares the guest input; see IOS-03). Local Chromium at 390 and 1280: own photo → preview → Keep, zero non-GET or Storage requests. Real-phone picker still required. Deployed structure verified on RC `8f37fba` (see IOS-03).
+
+#### VIS-05 · Gallery layouts and the homepage gallery section
+- **Where:** real phone + desktop at 1280
+- **Needs:** GAL-07
+- **Steps:**
+  1. Look at E1's gallery in each layout on the phone and on desktop.
+  2. Look at Settings → Event & gallery → Gallery layout on both.
+  3. On the homepage, look at "Your event. Your gallery." and switch its Masonry/Rows/Grid tabs;
+     step the guest journey to "Become part of the collection".
+- **PASS when:** the user approves. The three layouts read as distinct and intentional, the
+  setting is understandable without help, and the homepage samples look like the real gallery.
+- **Result:** NOT RUN
+- **Evidence / notes:** Human taste approval. Local proxy screenshots (Chromium, 390/768/1280) were reviewed during implementation; one Rows tuning change (target row heights 150/200 px) and one mockup clipping fix came out of that review.
 
 ### K. Final smoke pass
 

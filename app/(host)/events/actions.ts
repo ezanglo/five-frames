@@ -30,6 +30,7 @@ import {
 import { DEFAULT_ACCENT, isAccentKey } from "@/lib/theme/accents";
 import { HASHTAG_ERROR, normalizeHashtag } from "@/lib/theme/hashtag";
 import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
+import { isGalleryLayout } from "@/lib/gallery/layouts";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
 
@@ -85,6 +86,19 @@ function parseAfterParty(
         : null,
     visibility,
   };
+}
+
+/**
+ * Gallery layout (Settings · Event & gallery only, D22). Absent from the form — the Create flow,
+ * which never shows it — means "leave it as stored", so saving those steps can't reset a choice.
+ */
+function parseGalleryLayout(
+  formData: FormData,
+): { ok: true; input: Pick<EventConfigInput, "galleryLayout"> | Record<string, never> } | { ok: false; error: string } {
+  const raw = field(formData, "galleryLayout");
+  if (raw === null) return { ok: true, input: {} };
+  if (!isGalleryLayout(raw)) return { ok: false, error: "Choose Masonry, Rows or Grid." };
+  return { ok: true, input: { galleryLayout: raw } };
 }
 
 type LookInput = Pick<EventConfigInput, "hostMessage" | "hashtag" | "accentColor" | "sharingEnabled">;
@@ -165,7 +179,7 @@ export async function saveLookStepAction(
   redirect(`/events/${eventId}/setup?step=share`);
 }
 
-/** Settings · Event & gallery: name, date, timezone, reveal timing, visibility. */
+/** Settings · Event & gallery: name, date, timezone, reveal timing, visibility, gallery layout. */
 export async function saveEventAndGalleryAction(
   eventId: string,
   _prev: EventFormState,
@@ -174,10 +188,13 @@ export async function saveEventAndGalleryAction(
   const host = await requireHost();
   const details = parseDetails(formData);
   if (!details) return { error: "Give your event a name." };
+  const layout = parseGalleryLayout(formData);
+  if (!layout.ok) return { error: layout.error };
 
   const updated = await updateEventConfig(host.id, eventId, {
     ...details,
     ...parseAfterParty(formData, details.timezone),
+    ...layout.input,
   });
   if (!updated) notFound();
   redirect(`/events/${eventId}/settings?saved=1`);

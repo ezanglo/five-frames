@@ -623,6 +623,31 @@ check.
 
 ---
 
+## Slice 19 — Revealed-gallery layouts
+
+**Status (2026-10-01):** `awaiting human verification`. Implemented and verified locally
+(docs/progress.md → Slice 19); the real-phone and taste checks are GAL-07 and VIS-05 in
+release-validation.md.
+
+**Objective:** a product change requested after implementation was complete (product.md §7.5,
+decision D22, architecture §7d). The host chooses how the revealed gallery is arranged: Masonry
+(default), Rows or Grid. Presentation only, browsed by scrolling, with no slideshow. The marketing
+site shows the three layouts with its existing real photography, through the product's own layout
+component.
+
+**Out of scope:** guest-selectable layouts, more layouts, slideshow/story/live-wall modes, any
+change to the host Photos management grid, thumbnail `srcset`.
+
+**Criteria:** 67, 68 (new), and 24–28 and 32 unchanged under every layout.
+**Verification:** real-Postgres tests of the default, the three choices through the Settings
+action, refusal of other values and other hosts, commit-time dimensions, and an unchanged
+moderated list, capture rows, original bytes and access under every layout. Unit tests for
+placement (no overlap, prefix-stable) and rendering (same photos, order and labels in every
+layout). Browser checks of the gallery at 390/768/1280 for each layout, the setting and the
+homepage. Human: GAL-07, VIS-05.
+
+---
+
 ## MVP-optional (ship only if cheap)
 
 - ~~Realtime dashboard updates~~ — built in Slice 18 as server-mediated SSE plus a polling

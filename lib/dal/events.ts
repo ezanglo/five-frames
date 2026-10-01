@@ -7,7 +7,8 @@ import {
   deriveEventLifecycleState,
 } from "@/lib/events/lifecycle";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
-import type { EventRow, GalleryVisibility, RevealMode } from "@/lib/db/types";
+import type { EventRow, GalleryLayout, GalleryVisibility, RevealMode } from "@/lib/db/types";
+import { isGalleryLayout } from "@/lib/gallery/layouts";
 import { isAccentKey } from "@/lib/theme/accents";
 import { InvalidHashtagError, normalizeHashtag } from "@/lib/theme/hashtag";
 
@@ -24,6 +25,8 @@ export type EventConfigInput = {
   revealMode: RevealMode;
   revealAt: string | null;
   visibility: GalleryVisibility;
+  /** Presentation of the revealed gallery only (D22). */
+  galleryLayout: GalleryLayout;
   sharingEnabled: boolean;
   hashtag: string | null;
   /** A curated registry key (lib/theme/accents.ts). Theme image changes go through
@@ -38,9 +41,17 @@ export class InvalidAccentError extends Error {
   }
 }
 
+export class InvalidGalleryLayoutError extends Error {
+  constructor() {
+    super("Choose Masonry, Rows or Grid.");
+    this.name = "InvalidGalleryLayoutError";
+  }
+}
+
 /**
  * Validates on every write (architecture §7a): the hashtag is normalized (no "#") or refused,
- * and the accent must be a curated key. Throws rather than silently dropping a bad value.
+ * the accent must be a curated key, and the gallery layout one of the three (D22). Throws rather
+ * than silently dropping a bad value.
  */
 function toRow(input: Partial<EventConfigInput>) {
   const row: Record<string, unknown> = {};
@@ -51,6 +62,10 @@ function toRow(input: Partial<EventConfigInput>) {
   if (input.revealMode !== undefined) row.reveal_mode = input.revealMode;
   if (input.revealAt !== undefined) row.reveal_at = input.revealAt;
   if (input.visibility !== undefined) row.visibility = input.visibility;
+  if (input.galleryLayout !== undefined) {
+    if (!isGalleryLayout(input.galleryLayout)) throw new InvalidGalleryLayoutError();
+    row.gallery_layout = input.galleryLayout;
+  }
   if (input.sharingEnabled !== undefined)
     row.sharing_enabled = input.sharingEnabled;
   if (input.hashtag !== undefined) {

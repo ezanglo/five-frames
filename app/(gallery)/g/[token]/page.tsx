@@ -6,6 +6,7 @@ import { listCapturesForGalleryViewer } from "@/lib/dal/captures";
 import { isGalleryOpenToLinkHolders, isGalleryRevealed } from "@/lib/events/lifecycle";
 import type { EventRow } from "@/lib/db/types";
 import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
+import { resolveGalleryLayout } from "@/lib/gallery/layouts";
 import { EventDateLine, GuestShell } from "@/components/ff/guest-shell";
 import { HighlightCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
@@ -25,6 +26,9 @@ import { GalleryArchive } from "./gallery-archive";
  * The event theme appears only in the granted branch (product.md §10.1, criterion 43): the
  * locked and "only me" pages never load the theme reader, so they receive no theme image URL,
  * accent or hashtag and keep the FiveFrames default look.
+ *
+ * The host's gallery layout (D22) is read only here, after access is granted, and only chooses
+ * how the already-authorized list is arranged.
  */
 export default async function GalleryPage({
   params,
@@ -138,7 +142,7 @@ export default async function GalleryPage({
           body="This gallery doesn’t have any photos to show."
         />
       ) : (
-        <GalleryArchive captures={captures} />
+        <GalleryArchive captures={captures} layout={resolveGalleryLayout(event.gallery_layout)} />
       )}
     </GuestShell>
   );

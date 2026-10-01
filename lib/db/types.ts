@@ -1,5 +1,7 @@
 export type RevealMode = "after_event" | "immediate" | "custom";
 export type GalleryVisibility = "anyone_with_link" | "only_me";
+/** How the revealed gallery is arranged (D22). Presentation only; see lib/gallery/layouts.ts. */
+export type GalleryLayout = "masonry" | "rows" | "grid";
 
 export type EventRow = {
   id: string;
@@ -13,6 +15,8 @@ export type EventRow = {
   reveal_mode: RevealMode;
   reveal_at: string | null;
   visibility: GalleryVisibility;
+  /** Read through `resolveGalleryLayout`, which renders anything unexpected as Masonry. */
+  gallery_layout: GalleryLayout;
   sharing_enabled: boolean;
   /** Stored without "#"; validated by lib/theme/hashtag.ts on every write. */
   hashtag: string | null;
@@ -64,6 +68,9 @@ export type CaptureRow = {
   storage_path: string;
   display_path: string | null;
   thumbnail_path: string | null;
+  /** Pixel size of the display derivative; null for captures committed before D22's backfill. */
+  display_width: number | null;
+  display_height: number | null;
   mime_type: string | null;
 
   hidden_at: string | null;

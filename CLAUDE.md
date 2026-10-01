@@ -187,6 +187,13 @@ change, not a refactor.
 - **Remaining frames count moderated captures.** The guest view hides hidden/deleted captures,
   but their slots stay used (`lib/capture/guest-slots.ts`). Never derive "shots left" from the
   visible list.
+- **Gallery layouts are presentation only (D22, architecture §7d).** Masonry, Rows and Grid all
+  render the one list from `listCapturesForGalleryViewer`, which never takes the layout. Never
+  add per-layout filtering, ordering or moderation. Render gallery tiles, real or marketing,
+  through `GalleryLayoutList`, so the site can't show an arrangement the product doesn't make.
+  Its container tiers live in both `lib/gallery/layouts.ts` and `app/globals.css`;
+  `layouts.test.ts` checks that they match. Tile shapes come from `display_width/height`,
+  recorded at commit, never from measuring in the browser.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

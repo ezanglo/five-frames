@@ -355,7 +355,7 @@ function DemoRail({ badge, kept }: { badge: ReactNode; kept: string[] }) {
           steps={[
             "Guests scan your QR code — no app, no account.",
             "Retakes are free. Keeping a photo is final.",
-            "You reveal the gallery and download every original.",
+            "You reveal the gallery as Masonry, Rows or Grid, and download every original.",
           ]}
         />
       </div>

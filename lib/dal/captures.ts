@@ -148,6 +148,8 @@ export async function commitCapture(
       mime_type: uploaded.mimeType,
       display_path: derivatives.displayPath,
       thumbnail_path: derivatives.thumbnailPath,
+      display_width: derivatives.displayWidth,
+      display_height: derivatives.displayHeight,
     })
     .eq("id", captureId)
     .eq("status", "pending")
@@ -451,6 +453,9 @@ export type GalleryCaptureView = {
   message: string | null;
   favorited: boolean;
   imageUrl: string;
+  /** Natural size of `imageUrl`'s image for the layout (D22); null for a not-yet-backfilled capture. */
+  width: number | null;
+  height: number | null;
 };
 
 /**
@@ -461,6 +466,7 @@ export type GalleryCaptureView = {
  * (architecture §7). Hidden and deleted captures are excluded, same as every other gallery
  * surface. Uses the display derivative, not the original, since a public viewer only ever
  * needs to view — downloading originals is host-only (product.md §11.2, roadmap Slice 8).
+ * The host's gallery layout (D22) is not an input: every layout renders exactly this list.
  */
 export async function listCapturesForGalleryViewer(
   eventId: string,
@@ -468,7 +474,9 @@ export async function listCapturesForGalleryViewer(
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("captures")
-    .select("id, message, favorited_at, display_path, thumbnail_path, storage_path, created_at")
+    .select(
+      "id, message, favorited_at, display_path, display_width, display_height, thumbnail_path, storage_path, created_at",
+    )
     .eq("event_id", eventId)
     .eq("status", "committed")
     .is("hidden_at", null)
@@ -482,6 +490,8 @@ export async function listCapturesForGalleryViewer(
     message: string | null;
     favorited_at: string | null;
     display_path: string | null;
+    display_width: number | null;
+    display_height: number | null;
     thumbnail_path: string | null;
     storage_path: string;
   };
@@ -494,6 +504,10 @@ export async function listCapturesForGalleryViewer(
       imageUrl: await createSignedReadUrl(
         row.display_path ?? row.thumbnail_path ?? row.storage_path,
       ),
+      // The size describes the display derivative only, so it is dropped when a fallback image
+      // is served (its shape is then unknown and the tile renders square).
+      width: row.display_path ? row.display_width : null,
+      height: row.display_path ? row.display_height : null,
     })),
   );
 }

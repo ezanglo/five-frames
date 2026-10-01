@@ -1,7 +1,9 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GalleryCaptureView } from "@/lib/dal/captures";
+import type { GalleryLayout } from "@/lib/db/types";
+import { GalleryLayoutList } from "@/components/ff/gallery-layout";
 import { Button } from "@/components/ff/button";
 import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 
@@ -9,17 +11,27 @@ const INITIAL_COUNT = 30;
 const PAGE_SIZE = 30;
 
 /**
- * The revealed public gallery (guest 05 Gallery · revealed; DS05 gallery tile): a square-ish
- * 3-column grid, 6px gap, radius/sm, object-fit cover — widening to 4 columns on tablets and 5
- * on desktop inside the wide shell's 1200px column, so tiles stay ~230px (inspectable) instead
- * of shrinking a phone grid into the middle of the browser. Tapping a tile opens the dark viewer.
- * All captures are fetched and signed server-side already; "Show more" is a bounded reveal of
- * already-loaded data for a shorter initial scroll, not a pagination subsystem.
+ * The revealed public gallery (guest 05 Gallery · revealed): one flat, scrollable list of photos
+ * in the host's chosen layout (decision D22): Masonry (the default), Rows or Grid. The layout
+ * only arranges the photos. Every layout gets the same list, in the same order, with the same
+ * viewer. Tapping a tile opens the dark viewer, which always shows the whole photo
+ * (`object-contain`), whatever the tile's crop. There is no slideshow, autoplay or play control:
+ * the gallery is meant to be scrolled.
+ *
+ * All captures are fetched and signed server-side already. "Show more" is a bounded reveal of
+ * already-loaded data for a shorter initial scroll, not a pagination subsystem. It appends
+ * without moving any tile already shown, in every layout (placeMasonry is prefix-stable).
  *
  * Only the photo and its message are shown: the public gallery never exposes who took a photo
  * or when (see docs/design-direction.md "Known discrepancies").
  */
-export function GalleryArchive({ captures }: { captures: GalleryCaptureView[] }) {
+export function GalleryArchive({
+  captures,
+  layout,
+}: {
+  captures: GalleryCaptureView[];
+  layout: GalleryLayout;
+}) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_COUNT);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const lastFocused = useRef<HTMLElement | null>(null);
@@ -36,9 +48,14 @@ export function GalleryArchive({ captures }: { captures: GalleryCaptureView[] })
     message: capture.message,
   }));
 
+  // Focus goes back to the tile that opened the viewer only once the close has rendered: until
+  // then the list is still `inert`, and focusing inside it silently does nothing.
+  useEffect(() => {
+    if (viewerIndex === null) lastFocused.current?.focus();
+  }, [viewerIndex]);
+
   function closeViewer() {
     setViewerIndex(null);
-    lastFocused.current?.focus();
   }
 
   return (
@@ -49,29 +66,31 @@ export function GalleryArchive({ captures }: { captures: GalleryCaptureView[] })
         </p>
         <p>Click a photo to open it · ← → to browse</p>
       </div>
-      <ul className="grid grid-cols-3 gap-1.5 md:grid-cols-4 md:gap-3 lg:grid-cols-5 lg:gap-4">
-        {visible.map((capture, index) => (
-          <li key={capture.id}>
-            <button
-              type="button"
-              onClick={(event) => {
-                lastFocused.current = event.currentTarget;
-                setViewerIndex(index);
-              }}
-              aria-label={photos[index].alt}
-              className="ff-focus group block aspect-square w-full overflow-hidden rounded-sm bg-surface-subtle md:rounded-md"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url */}
-              <img
-                src={capture.imageUrl}
-                alt=""
-                loading="lazy"
-                className="size-full object-cover transition-transform duration-300 md:group-hover:scale-[1.03] motion-reduce:transition-none"
-              />
-            </button>
-          </li>
-        ))}
-      </ul>
+      <GalleryLayoutList
+        layout={layout}
+        items={visible}
+        label="Event photos"
+        renderTile={(capture, index) => (
+          <button
+            type="button"
+            onClick={(event) => {
+              lastFocused.current = event.currentTarget;
+              setViewerIndex(index);
+            }}
+            aria-label={photos[index].alt}
+            className="ff-focus group block size-full overflow-hidden rounded-sm bg-surface-subtle md:rounded-md"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url */}
+            <img
+              src={capture.imageUrl}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="size-full object-cover transition-transform duration-300 md:group-hover:scale-[1.03] motion-reduce:transition-none"
+            />
+          </button>
+        )}
+      />
 
       {hasMore ? (
         <Button

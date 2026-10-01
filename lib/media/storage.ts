@@ -86,6 +86,9 @@ export async function verifyUploadedObject(
 export type Derivatives = {
   displayPath: string;
   thumbnailPath: string;
+  /** Pixel size of the display derivative as written (already upright), for gallery layouts. */
+  displayWidth: number;
+  displayHeight: number;
 };
 
 /**
@@ -106,8 +109,8 @@ export async function generateDerivatives(
   const originalBuffer = Buffer.from(await blob.arrayBuffer());
   const image = sharp(originalBuffer).rotate();
 
-  const [displayBuffer, thumbnailBuffer] = await Promise.all([
-    image.clone().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer(),
+  const [display, thumbnailBuffer] = await Promise.all([
+    image.clone().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer({ resolveWithObject: true }),
     image.clone().resize({ width: 400, height: 400, fit: "inside", withoutEnlargement: true }).jpeg({ quality: 75 }).toBuffer(),
   ]);
 
@@ -118,7 +121,7 @@ export async function generateDerivatives(
   const [displayUpload, thumbnailUpload] = await Promise.all([
     supabase.storage
       .from(BUCKET)
-      .upload(displayPath, displayBuffer, { contentType: "image/jpeg", upsert: true }),
+      .upload(displayPath, display.data, { contentType: "image/jpeg", upsert: true }),
     supabase.storage
       .from(BUCKET)
       .upload(thumbnailPath, thumbnailBuffer, { contentType: "image/jpeg", upsert: true }),
@@ -127,7 +130,12 @@ export async function generateDerivatives(
   if (displayUpload.error) throw displayUpload.error;
   if (thumbnailUpload.error) throw thumbnailUpload.error;
 
-  return { displayPath, thumbnailPath };
+  return {
+    displayPath,
+    thumbnailPath,
+    displayWidth: display.info.width,
+    displayHeight: display.info.height,
+  };
 }
 
 /**

@@ -89,7 +89,7 @@ const HOST_STEPS: { title: string; body: ReactNode }[] = [
   },
   {
     title: "Reveal the gallery",
-    body: "By default it opens once capture closes. You can also reveal it right away or at a time you set, and choose between anyone with the gallery link or only you.",
+    body: "By default it opens once capture closes. You can also reveal it right away or at a time you set, and choose between anyone with the gallery link or only you. Pick how it’s laid out, too: Masonry keeps every photo in its own shape, Rows lines them up across the page, and Grid shows even squares.",
   },
   {
     title: "Download and keep",
@@ -128,7 +128,7 @@ const GUEST_STEPS: { title: string; body: string }[] = [
   },
   {
     title: "See the gallery, when it’s shared",
-    body: "Guests see everyone’s photos only through the gallery link, once you reveal it.",
+    body: "Guests see everyone’s photos only through the gallery link, once you reveal it: one page to scroll through, in the layout you chose, with any photo opening whole.",
   },
 ];
 

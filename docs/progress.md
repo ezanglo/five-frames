@@ -1,8 +1,10 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-01 (**Implementation complete. Release validation in progress: RC `a2a32b1` defects repaired, targeted reruns pending.**)
+Last updated: 2026-10-01 (**Slice 19, gallery layouts, implemented and verified locally; awaiting a new RC, its targeted reruns and human verification. Release validation otherwise unchanged.**)
 
-- Every feature slice is complete: Slices 1–13 and 15–18. No feature slice remains.
+- Slices 1–13 and 15–18 are complete. Slice 19 (revealed-gallery layouts, a product change
+  requested after release validation began) is `awaiting human verification`. See
+  [Slice 19](#slice-19--revealed-gallery-layouts-2026-10-01-awaiting-human-verification).
 - Slice 14 was validation-only. Its remaining scope, the H1–H9 checks and the pending design
   sign-offs now live in one canonical checklist, [release-validation.md](./release-validation.md).
   The first automated pass ran against RC `a2a32b1` (5 FAIL). All five FAILs, plus the
@@ -17,6 +19,84 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 19 — Revealed-gallery layouts (2026-10-01): `awaiting human verification`
+
+The host chooses how the revealed gallery is arranged: **Masonry** (default), **Rows** or
+**Grid**. Presentation only (product.md §7.5, D22, architecture §7d). Not committed, not deployed.
+
+**Built:**
+- Migration `20261001000000_gallery_layout.sql`:
+  - `events.gallery_layout` (`masonry` default, check constraint);
+  - `captures.display_width/height`, written at commit.
+  - Applied to the dev project with `supabase db query --linked` plus `migration repair`, so the
+    unrelated `20260930020000` drop **stays unapplied**. All 35 existing dev events read
+    `masonry`.
+- `pnpm ops:backfill-display-dimensions [--apply]` (idempotent; reads only display
+  derivatives). Run on dev: 64 written, 2 skipped (display object gone); a rerun writes nothing.
+- `lib/gallery/layouts.ts` (choices, default, `resolveGalleryLayout`, tiers, `placeMasonry`) and
+  `components/ff/gallery-layout.tsx` (`GalleryLayoutList`), with `.ff-gallery-*` CSS.
+- `/g/[token]` renders the host's layout after its unchanged access decision. One viewer for all
+  three layouts. A pre-existing focus bug was fixed: closing the viewer now returns focus to the
+  tile (it used to focus while the list was still `inert`).
+- Settings · Event & gallery → "Gallery layout": three radio cards with abstract sketches.
+  Create doesn't show it and can't reset it.
+- Marketing:
+  - homepage "Your event. Your gallery." section (dark), with Masonry/Rows/Grid tabs over the
+    real `GalleryLayoutList` and the existing stock photos (no new assets);
+  - the guest-journey collection mockup now shows Masonry and no longer shows a "Favorites"
+    filter the product never had;
+  - host, steps, pricing, how-it-works, FAQ ("What does the gallery look like?") and one line of
+    the demo's desktop rail.
+  Copy guards forbid slideshow/live-wall and "customizable" gallery claims.
+
+**Automated verification:** `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ (`/` and
+`/demo` still static) · `pnpm test`: 559/559 ✔ across 56 files before the last visual fixes. On
+the final code, two full runs each hit 5 s timeouts against the remote dev database: 6 tests,
+then 1, a different test each time, and the second time in untouched payment code. Every
+affected file then passed alone (captures, lifecycle and payments 40/40; payments.manual 13/13).
+That is the known remote-latency flakiness, now widespread enough to need a maintenance task (see
+Other open items).
+- `lib/gallery/layouts.test.ts` (11): the three choices and the Masonry default/fallback; plain
+  copy; the CSS tiers mirror the TS tiers; aspect rules; masonry with no overlaps, full gaps,
+  prefix-stable and balanced.
+- `lib/gallery/gallery-layout.test.tsx` (6): each layout renders as chosen; same photos, order,
+  labels and buttons in every layout; natural shapes in Masonry/Rows; no playback.
+- `lib/dal/gallery-layout.integration.test.ts` (3, real Postgres and Storage):
+  - default and the check constraint;
+  - Settings action saves Rows/Grid/Masonry and they reload; the Create step leaves the choice
+    alone; an invalid value and another host are refused;
+  - commit stores dimensions; under each layout the gallery list is the same moderated list,
+    capture rows and original bytes are unchanged, and only-me, unrevealed and unknown-token
+    access still grant nothing; unhide restores in place.
+
+**Browser verification (Playwright Chromium, local `next start`, dev database; a synthetic
+20-capture event, 1 hidden and 1 deleted, since deleted). Emulation, not device proof:**
+- Gallery, each layout at 390/768/1280: 18 tiles in canonical order, no overlap, no horizontal
+  overflow.
+  - Masonry: 2/3/4 columns.
+  - Rows: one height per row, full width (phone 112–188 px, tablet 150–177, desktop 200–277).
+  - Grid: 3/4/5 squares, 108/159/224 px.
+- Rows and Grid were chosen through Settings and reloaded; Discard restored the stored choice.
+- The viewer showed the whole photo; Enter/Escape returned focus; Tab follows gallery order.
+- "Only me" showed the private state with no tiles.
+- Homepage section at 1280 and 390, all three tabs (keyboard arrows work); the collection
+  mockup at 390; copy on demo, pricing, how-it-works and FAQ.
+
+**Found and fixed during the visual check:**
+- Rows targets were too tall at tablet width, which left two big photos per row. They are now
+  150 px (tablet tier) and 200 px (desktop tier).
+- The collection mockup's collage pushed the phone header out of view (`min-h-0` on the sheet).
+
+**Known characteristic:** a justified row can be taller than its target when the next photo is
+too wide to fit and the row's photos stretch to fill it. It is occasional at the current targets.
+
+**Human verification needed (GAL-07, VIS-05 in release-validation.md):**
+1. Real phone: open a revealed gallery in Masonry, then switch to Rows and Grid from Settings.
+   Each shows the same photos in the same order, natural shapes in Masonry/Rows, squares in Grid,
+   smooth scrolling, no sideways scroll, and a tap opens the whole photo.
+2. Taste: the three layouts, the setting, and the homepage gallery section and collection
+   mockup on phone and desktop.
 
 ## Slice 18 — MVP optional polish (2026-10-01): `complete`
 
@@ -2167,12 +2247,16 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. Checkpoint the repaired code as a new release-candidate commit and record its SHA in
-   release-validation.md's run record.
+1. Review the Slice 19 diff (uncommitted), then checkpoint it as a new release-candidate commit
+   (on top of the marketing commits made since RC `6d8aca8`) and record its SHA in
+   release-validation.md's run record. The dev
+   database already has `20261001000000`. Code from Slice 19 needs that migration, so don't
+   deploy it against any database that lacks it.
 2. Deploy that commit to `five-frames.vercel.app`.
-3. Run `/e2e-validate` only for the cases listed under "Repairs after RC `8f37fba`" in
-   release-validation.md (NET-02, the NET-01/NET-04 proxies, the HOST-08 light recheck, then
-   SMOKE-01).
+3. Run `/e2e-validate` only for the targeted reruns: ENV-01, ENV-02, the GAL-04/GAL-07 and VIS-03
+   automated proxies from "Gallery-layout change after RC `6d8aca8`", then SMOKE-01. The NET-02,
+   NET-01/NET-04 and HOST-08 repairs were already verified on RC `6d8aca8` and Slice 19 didn't
+   touch them.
 4. After those pass, run the remaining iPhone, Android, real-network, visual and final-smoke
    validation.
 
@@ -2190,6 +2274,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **Production environment reconciliation.** Vercel Production serves the **dev** Supabase project, an interim state since Slice 2. A real launch needs a production Supabase project, separated Vercel environment scopes, live PayMongo keys and a live-mode webhook, `CRON_SECRET`, and the Supabase Auth redirect allowlist for the production origin. None of these is provisioned | Deployment configuration (needs explicit approval) | Before real payments or guest data |
 | **Vercel function region vs Supabase region.** Functions run in US East (`iad1`); Supabase is in `ap-southeast-1`. Reconcile placement, then re-check representative latency (architecture §12) | Deployment configuration | Before real traffic |
 | **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
+| **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
 | **Advance-expiry warning channel.** The warning is in-product only; no outbound email or SMS exists (D18 launch prerequisite) | Product decision | Pre-launch |
@@ -2202,6 +2287,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 
 | Item | Type | Affects |
 |---|---|---|
+| Full-suite integration tests intermittently exceed vitest's 5 s default against the remote dev database (a different test per run; each passes alone). A small `/maintain-project` task should give the `*.integration.test.ts` suites an explicit timeout | Verification tooling | Every full `pnpm test` run |
 | Slice 18 Vercel Preview `five-frames-9bqkwa9fx` (dev database) still exists; delete or keep at your discretion | Housekeeping | None |
 | Handoff capabilities not in the product: delete event, public photographer attribution (cover photo/theme color and pre-payment previews became product in Slices 15–17) | Product decision (only if the product should change) | Settings, gallery viewer |
 | `.env.local` key typo `EXT_PUBLIC_SUPABASE_URL` and missing `E2E_*` variables | Local environment | Running the app/tests locally |

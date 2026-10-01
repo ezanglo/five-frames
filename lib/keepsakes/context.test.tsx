@@ -23,6 +23,7 @@ const EVENT: EventRow = {
   reveal_mode: "after_event",
   reveal_at: null,
   visibility: "only_me",
+  gallery_layout: "masonry",
   sharing_enabled: true,
   hashtag: "DaniTurns40",
   accent_color: "marigold",

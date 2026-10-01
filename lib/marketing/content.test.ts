@@ -98,6 +98,8 @@ describe("marketing copy stays honest and on-brand", () => {
     [/\bzip\b/i, "bulk download is not a ZIP (D11)"],
     [/real[- ]?time/i, "counts are polled, not realtime (D9)"],
     [/\bvideo\b/i, "there is no video feature"],
+    [/slide ?show|live (photo )?wall/i, "the gallery is scrolled, never played (D22)"],
+    [/customi[sz]able|custom galler|custom layout/i, "a choice of three gallery layouts is not customization (D22)"],
   ];
 
   it.each(FORBIDDEN)("contains no %s", (pattern, reason) => {

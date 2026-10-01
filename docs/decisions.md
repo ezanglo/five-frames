@@ -761,3 +761,60 @@ Vercel deployment without a new provider.
 - Correctness never depends on SSE delivery (criterion 34): with the stream blocked, the
   dashboard still converged by polling.
 
+
+## D22 — Revealed-gallery layouts: three host-chosen, CSS-only arrangements of one unchanged photo list
+
+**Status:** Accepted (2026-10-01, gallery-layout slice).
+**Context:** The revealed gallery was a fixed square grid. The product now treats it as the
+finished event result, browsed by scrolling (product.md §7.5), and the host chooses how it is
+arranged: Masonry, Rows or Grid. The choice must change presentation only. Masonry and Rows show
+each photo in its own shape, which needs its aspect ratio before the image loads, and captures
+didn't store dimensions.
+**Decision:**
+1. **Storage.** `events.gallery_layout text not null default 'masonry'`, checked to
+   `masonry | rows | grid`. The column default gives existing events Masonry, and
+   `resolveGalleryLayout` renders anything unreadable as Masonry. The host sets it only in
+   Settings · Event & gallery; Create doesn't show it, and its saves leave it untouched (absent
+   field = unchanged). The DAL refuses any other value. No generic settings blob and no
+   page-builder model.
+2. **Dimensions.** `captures.display_width` / `display_height` (nullable) record the display
+   derivative's own pixel size, written at commit from the derivative the server just produced
+   (`generateDerivatives` returns it). Older captures are filled by the idempotent
+   `pnpm ops:backfill-display-dimensions --apply`, which reads only display derivatives and writes
+   only null columns. A capture without dimensions renders as a square tile, never as an error.
+3. **One list, any layout.** `listCapturesForGalleryViewer` is unchanged in scope, filters and
+   order, and doesn't take the layout. The page reads the layout only after its existing access
+   decision. The viewer, signed-URL minting (one display-derivative URL per capture, as before),
+   "Show more" and moderation are shared by all three.
+4. **CSS geometry, no measuring script.** `components/ff/gallery-layout.tsx`
+   (`GalleryLayoutList`) renders one flat `<ul>` in the gallery's own order, sized by container
+   queries on its own width (tiers <560 / 560–879 / ≥880 px, mirrored in
+   `lib/gallery/layouts.ts`):
+   - Masonry: greedy shortest-column placement (`placeMasonry`), precomputed for 2/3/4 columns as
+     CSS variables in column-width units, then absolutely positioned. It is exact for any width,
+     prefix-stable (Show more never moves a tile) and keeps DOM/focus order chronological.
+   - Rows: flex-wrap with each tile's grow and basis proportional to its aspect ratio, so a row
+     shares one height and fills the width. A filler keeps the last row at natural size.
+   - Grid: equal squares.
+   Tile shapes are clamped to 1:3–3:1, so an extreme panorama never becomes a sliver; the viewer
+   always shows the whole photo.
+5. **The marketing site renders its gallery samples through the same component**, so it can only
+   show arrangements the product produces.
+**Alternatives rejected:**
+- CSS multi-column masonry: column-major order (photo 1 and photo 251 side by side in a large
+  gallery, focus order down column 1 first), and appending reshuffles columns.
+- Grid row-span masonry: needs thousands of implicit grid lines for a full 1,250-photo event,
+  beyond some engines' limits, and quantizes heights.
+- A JS layout library or measuring on the client: a hydration-time reflow or flash, and a new
+  dependency, for something CSS can do from stored dimensions.
+- Measuring dimensions lazily on the public gallery route: heavy work and writes on a public
+  read path. Commit already decodes the image.
+- Serving thumbnails via `srcset`: doubles the signing calls per render, and 400 px thumbnails
+  are soft in a two-column phone Masonry. Kept for a later performance pass if needed.
+**Consequences:**
+- Commit now writes two more columns in its existing update. Slot allocation, idempotency,
+  expiry and the frame mechanism are unchanged.
+- Justified rows vary in height when a wide photo doesn't fit the line and the line's photos
+  stretch to fill it. Row targets (140 / 150 / 200 px) are tuned so that's occasional.
+- Production rollout: apply migration 20261001000000 (additive, safe before or after code), then
+  run the backfill. Until the backfill runs, older captures show as squares in Masonry and Rows.

@@ -140,7 +140,7 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   the same `auth.users` a host session is issued against; a row's mere existence is the
   authorization.
 - **`events`** — owner, name, date, timezone, host message, lifecycle timestamps, config
-  (reveal mode, visibility, sharing enabled), theme (`theme_image_path`, `accent_color`,
+  (reveal mode, visibility, sharing enabled, `gallery_layout` — §7d, D22), theme (`theme_image_path`, `accent_color`,
   `hashtag` — §7a, D19), `event_token`, `gallery_token`,
   `activated_at`, `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`,
   `hosted_until`, `grace_until`, `media_deleted_at` (Slice 12, D18 — the durable "permanent
@@ -149,8 +149,8 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 - **`guest_sessions`** — `event_id`, display name, created/last-seen. One row per browser
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
-  `message`, storage keys, moderation flags (`hidden_at`, `deleted_at`, `favorited_at`),
-  `committed_at`. There is no `kind` column: every capture is a photo. `committed_at` is written
+  `message`, storage keys, `display_width`/`display_height` (the display derivative's size, §7d),
+  moderation flags (`hidden_at`, `deleted_at`, `favorited_at`), `committed_at`. There is no `kind` column: every capture is a photo. `committed_at` is written
   once, when the row becomes `committed`, and never rewritten; with `slot_index` it gives a
   session's committed captures a total, stable order (Full Set photo order, §7b). `share_path` (Slice 10's
   share-card cache) is **retired** by D19: keepsakes are not persisted, so nothing replaces it
@@ -501,7 +501,8 @@ only ever resumes into the same reservation's object.
 
 - The original is stored untouched in a private bucket.
 - **Display** and **thumbnail** derivatives are generated server-side with `sharp` after commit
-  and written as separate objects. **The original is never modified** (invariant 10).
+  and written as separate objects. **The original is never modified** (invariant 10). Commit also
+  records the display derivative's pixel size for gallery layouts (§7d).
 - **Keepsakes** (§7b) are further derived outputs, rendered on demand from display derivatives
   (one for a Single-photo keepsake, five for a Full Set) and never stored. They replace Slice
   10's share cards. Never a mutation of the original.
@@ -1100,6 +1101,42 @@ DOM/Satori rendering differences, which each style's visual check covers.
   identical.
 - The plate is sized for a 29-module symbol, the smallest a capture URL can produce. Longer URLs
   keep the format's QR size, and their quiet zone only grows.
+
+---
+
+## 7d. Revealed-gallery layouts
+
+Decision D22, product.md §7.5. The host picks how the revealed gallery is arranged: **Masonry**
+(default), **Rows** or **Grid**. It is presentation only.
+
+- **What it can't change.** `/g/[token]` decides access exactly as before (token, visibility,
+  reveal) and only then reads `gallery_layout` (through `resolveGalleryLayout`, Masonry for
+  anything unreadable). `listCapturesForGalleryViewer` doesn't take the layout: same filters
+  (committed, not hidden, not deleted), same order (`created_at`), same signed display-derivative
+  URL per capture. All three layouts share the tile button, "Show more" and the `PhotoViewer`,
+  which shows the whole photo (`object-contain`).
+- **Geometry** (`components/ff/gallery-layout.tsx`, `lib/gallery/layouts.ts`, `.ff-gallery-*` in
+  `app/globals.css`). One flat `<ul>` in gallery order; container queries on the gallery's own
+  width pick a tier (<560 / 560–879 / ≥880 px). Each tile's box has its final shape before the
+  image loads, so there is no layout shift and no measuring script.
+  - Masonry: 2 / 3 / 4 columns. `placeMasonry` puts each photo in the shortest column (leftmost on
+    a tie), precomputed per tier as CSS variables in column-width units plus a gap count. Exact
+    at any width, no overlaps, and prefix-stable, so Show more never moves a tile.
+  - Rows: flex-wrap; each tile grows from a basis of `aspect × row height` (140 / 150 / 200 px),
+    so a row shares one height and fills the width; the last row keeps its natural size.
+  - Grid: 3 / 4 / 5 equal squares, `object-cover` for display only.
+  - Shape comes from `display_width/height`; unknown → square. Tile shapes clamp to 1:3–3:1.
+- **Dimensions.** `generateDerivatives` returns the display derivative's size and commit stores
+  it in the same update that marks the capture committed. Older captures: idempotent
+  `pnpm ops:backfill-display-dimensions [--apply]` (reads display derivatives only, writes only
+  null columns).
+- **Host setting.** Settings · Event & gallery → "Gallery layout": three native radio cards with
+  small abstract sketches, saved with the form (`saveEventAndGalleryAction`). The Create flow
+  doesn't include the field, and a save without it leaves the stored value alone. The DAL refuses
+  anything but the three values; so does the column's check constraint.
+- **Marketing.** The homepage gallery section and the guest-journey collection mockup render
+  through `GalleryLayoutList` with the marketing stock photos, so they show only real arrangements.
+- The host Photos page keeps its own management grid.
 
 ---
 

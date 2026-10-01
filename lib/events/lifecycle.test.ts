@@ -21,6 +21,7 @@ function baseEvent(overrides: Partial<EventRow> = {}): EventRow {
     reveal_mode: "after_event",
     reveal_at: null,
     visibility: "anyone_with_link",
+    gallery_layout: "masonry",
     sharing_enabled: true,
     hashtag: null,
     accent_color: "violet",

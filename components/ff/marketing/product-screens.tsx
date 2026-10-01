@@ -16,6 +16,7 @@ import { BrandLockup } from "@/components/ff/brand-mark";
 import { StatusPill } from "@/components/ff/pill";
 import { FiveShotTeaser, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { GUEST_FIVE, galleryPhoto, photoSrc, photoSrcSet } from "@/lib/marketing/photos";
+import { GalleryLayoutList } from "@/components/ff/gallery-layout";
 import { cn } from "@/lib/utils";
 import { PhotoPrint, ShotNumber } from "./photo-print";
 
@@ -314,10 +315,19 @@ export function PreviewScreen({ shot = 3 }: { shot?: number }) {
   );
 }
 
-/** Guest 05 · revealed gallery — the shared collection. */
+/** Everyone's photos in the collection mockup: other guests' first, then this guest's five. */
+const COLLECTION_SAMPLE = Array.from({ length: 10 }, (_, i) => {
+  const photo = galleryPhoto(i + 5);
+  return { id: `${photo.file}-${i}`, width: photo.width, height: photo.height, index: i + 5 };
+});
+
+/**
+ * Guest 05 · revealed gallery — the shared collection, in the default Masonry layout (D22),
+ * drawn by the product's own GalleryLayoutList so the mockup matches the real page.
+ */
 export function CollectionScreen() {
   return (
-    <PhoneFrame label="The revealed event gallery: a grid of everyone’s kept photos, opened when the host chose to reveal it.">
+    <PhoneFrame label="The revealed event gallery: everyone’s kept photos in one scrolling collage, each in its own shape, opened when the host chose to reveal it.">
       <MockHeader
         className="h-[176px]"
         topRight={
@@ -328,26 +338,21 @@ export function CollectionScreen() {
         title="Relive the moments"
         subtitle={`${SAMPLE_EVENT.name} · ${SAMPLE_EVENT.date}`}
       />
-      <MockSheet className="gap-2.5">
-        <div className="flex gap-1.5">
-          <span className="flex h-7 items-center rounded-full bg-brand px-3 text-[10px] font-semibold text-ink-inverse">
-            All photos
-          </span>
-          <span className="flex h-7 items-center rounded-full border border-line px-3 text-[10px] font-semibold text-ink">
-            Favorites
-          </span>
+      {/* min-h-0: the collage is taller than the phone, so the sheet clips it instead of growing. */}
+      <MockSheet className="min-h-0 gap-2.5">
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <GalleryLayoutList
+            layout="masonry"
+            items={COLLECTION_SAMPLE}
+            renderTile={(item) => (
+              <span className="block size-full overflow-hidden rounded-[8px] bg-surface-subtle">
+                <SceneImg index={item.index} />
+              </span>
+            )}
+          />
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-surface to-transparent" />
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
-          {Array.from({ length: 12 }, (_, i) => (
-            <span key={i} className="relative aspect-square overflow-hidden rounded-[8px] bg-surface-subtle">
-              {/* Everyone's photos: other guests' first, then this guest's five. */}
-              <SceneImg index={i + 5} />
-            </span>
-          ))}
-        </div>
-        <p className="mt-auto text-center text-[10px] font-medium text-ink-muted">
-          Tap a photo to see its message
-        </p>
+        <p className="text-center text-[10px] font-medium text-ink-muted">Tap a photo to open it</p>
       </MockSheet>
     </PhoneFrame>
   );

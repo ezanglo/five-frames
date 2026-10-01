@@ -378,6 +378,107 @@
     animation: ff-rise 900ms var(--ease-settle) both;
     animation-delay: calc(var(--i, 0) * 80ms);
   }
+  /* Revealed-gallery layouts (decision D22, architecture §7d; components/ff/gallery-layout.tsx).
+     Sized by the gallery's own width, not the viewport, so a narrow column or a marketing mock
+     gets the phone arrangement. Tiers (mirrored in lib/gallery/layouts.ts GALLERY_TIERS):
+     <560px · 560–879px · ≥880px. Every tile reserves its final shape before the image loads. */
+  .ff-gallery {
+    container-type: inline-size;
+  }
+  .ff-gallery-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ff-gallery-tile {
+    position: relative;
+    width: 100%;
+    aspect-ratio: var(--a, 1);
+  }
+
+  /* Masonry: positions precomputed per tier as --m{tier}-x (column), -y (heights above, in
+     column widths) and -k (items above, one gap each). */
+  .ff-gallery-masonry {
+    --cols: 2;
+    --gap: 6px;
+    --colw: calc((100cqw - (var(--cols) - 1) * var(--gap)) / var(--cols));
+    position: relative;
+    height: var(--m0-h);
+  }
+  .ff-gallery-masonry > li {
+    position: absolute;
+    width: var(--colw);
+    left: calc(var(--m0-x) * (var(--colw) + var(--gap)));
+    top: calc(var(--m0-y) * var(--colw) + var(--m0-k) * var(--gap));
+  }
+
+  /* Rows: each tile grows in proportion to its aspect ratio, so every row shares one height and
+     fills the width. The filler soaks up the last row's space so it keeps its natural size. */
+  .ff-gallery-rows {
+    --row: 140px;
+    --gap: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap);
+  }
+  .ff-gallery-rows > li {
+    min-width: 0;
+    flex: var(--a) 1 calc(var(--a) * var(--row));
+  }
+  .ff-gallery-rows::after {
+    content: "";
+    flex: 1000000 1 0px;
+  }
+
+  /* Grid: equal squares. */
+  .ff-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .ff-gallery-grid .ff-gallery-tile {
+    aspect-ratio: 1;
+  }
+
+  @container (min-width: 560px) {
+    .ff-gallery-masonry {
+      --cols: 3;
+      --gap: 12px;
+      height: var(--m1-h);
+    }
+    .ff-gallery-masonry > li {
+      left: calc(var(--m1-x) * (var(--colw) + var(--gap)));
+      top: calc(var(--m1-y) * var(--colw) + var(--m1-k) * var(--gap));
+    }
+    .ff-gallery-rows {
+      --row: 150px;
+      --gap: 12px;
+    }
+    .ff-gallery-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+  }
+
+  @container (min-width: 880px) {
+    .ff-gallery-masonry {
+      --cols: 4;
+      --gap: 16px;
+      height: var(--m2-h);
+    }
+    .ff-gallery-masonry > li {
+      left: calc(var(--m2-x) * (var(--colw) + var(--gap)));
+      top: calc(var(--m2-y) * var(--colw) + var(--m2-k) * var(--gap));
+    }
+    .ff-gallery-rows {
+      --row: 200px;
+      --gap: 16px;
+    }
+    .ff-gallery-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 16px;
+    }
+  }
 }
 
 @keyframes ff-print-drop {

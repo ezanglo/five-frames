@@ -38,6 +38,7 @@ const INCLUDED = [
       "Guests-joined and photos-taken counts that refresh on their own",
       "Hide, unhide, delete and favorite",
       "Gallery reveal after the event, right away, or at a time you set",
+      "A choice of gallery layout: Masonry, Rows or Grid",
       "Download every original, individually or all at once",
     ],
   },

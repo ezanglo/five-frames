@@ -6,6 +6,8 @@ import type { EventRow } from "@/lib/db/types";
 import type { EventFormState } from "@/app/(host)/events/actions";
 import { SectionCard } from "@/components/ff/cards";
 import { AfterPartyFields, EventDetailsFields } from "@/components/ff/event-fields";
+import { GalleryLayoutField } from "@/components/ff/gallery-layout-field";
+import { resolveGalleryLayout } from "@/lib/gallery/layouts";
 import { UnsavedChangesCard, useUnsavedChanges } from "@/components/ff/host/settings-sections";
 
 function serialize(form: HTMLFormElement): string {
@@ -13,8 +15,8 @@ function serialize(form: HTMLFormElement): string {
 }
 
 /**
- * Settings · Event & gallery: what guests see when they open the link (name, date, timezone)
- * and After the party (reveal timing, visibility). The unsaved card — amber dot, Discard, Save
+ * Settings · Event & gallery: what guests see when they open the link (name, date, timezone),
+ * After the party (reveal timing, visibility) and the Gallery layout (D22). The unsaved card — amber dot, Discard, Save
  * changes — appears once something changed; leaving or switching sub-section asks first.
  */
 export function EventGalleryForm({
@@ -85,6 +87,13 @@ export function EventGalleryForm({
         titleFont="heading"
       >
         <AfterPartyFields event={event} timezone={timezone} />
+      </SectionCard>
+      <SectionCard
+        title="Gallery layout"
+        caption="How everyone’s photos are arranged once the gallery opens. Change it any time."
+        titleFont="heading"
+      >
+        <GalleryLayoutField value={resolveGalleryLayout(event.gallery_layout)} />
       </SectionCard>
       {state.error && (
         <p className="text-caption font-medium text-danger" role="alert">

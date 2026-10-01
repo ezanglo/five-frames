@@ -163,6 +163,14 @@ export const FAQ_GROUPS: FaqGroup[] = [
         ],
       },
       {
+        id: "gallery-looks",
+        question: "What does the gallery look like?",
+        answer: [
+          "One page of everyone’s photos to scroll through. Tap any photo to see it whole, with its message if the guest added one.",
+          "You choose the layout in your event settings: Masonry keeps every photo in its own shape, Rows lines them up neatly across the page, and Grid shows even squares. It’s the same photos either way, and you can change it whenever you like.",
+        ],
+      },
+      {
         id: "hide",
         question: "Can I hide photos?",
         answer: [

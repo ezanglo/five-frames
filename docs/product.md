@@ -212,6 +212,16 @@ Manual payment may include cash, a manually verified bank transfer, or another e
 - Reveal is independent of capture being open or closed; the host may reveal while capture is still open if they choose.
 - Reveal makes the **gallery link** live, subject to the visibility setting below.
 
+### 7.5 Gallery presentation
+
+The revealed gallery is the finished event result: one flat page of everyone's visible photos that people browse by scrolling, and tap to see any photo whole (with its message, if the guest added one). It is not a slideshow: nothing plays, advances or animates on its own, and there is no story or watch mode.
+
+- **The host chooses the gallery layout.** Exactly three choices: **Masonry** (each photo in its own shape, in a relaxed column collage), **Rows** (photos in neat rows across the page, each in its own shape) and **Grid** (even square thumbnails). **Masonry is the default** for every event, including events created before the choice existed. The host can change it at any time, before or after reveal.
+- **Layout is presentation only.** It never changes which captures appear, their order, reveal timing, visibility, who can open the gallery, moderation (hidden and deleted captures stay out in every layout), favorites, downloads, or any original. Every layout shows the same photos in the same order, and opening a photo always shows the whole photo, whatever the thumbnail's crop.
+- Guests and gallery viewers see the host's chosen layout. They don't choose their own.
+- Gallery layouts are not keepsakes and have no keepsake styles; keepsakes (§10.2) are a guest's own photos, the gallery is everyone's.
+- The host's own Photos view (§11.2) is a management grid and is unaffected by the choice.
+
 ---
 
 ## 8. Access and Privacy Model
@@ -558,13 +568,14 @@ Event Theme & Keepsakes must not grow into a general design tool (a Canva-like e
 - Event theme — "Look" (§10.1): optional theme image, accent color, and optional hashtag, with previews of representative guest screens, the five Single-photo and five Full Set keepsake styles, and each signage format. All optional, with polished defaults.
 - Gallery reveal timing (after event / immediate / custom time).
 - Gallery visibility (anyone with link / only me).
+- Gallery layout (Masonry by default, Rows or Grid; §7.5).
 - Sharing (keepsakes of both families) enabled or disabled (§10.3).
 
 ### 11.2 Dashboard
 
 - Event status and lifecycle state, with the capture open/close control.
 - Guest session count and photo count.
-- Gallery grid with moderation: **hide, unhide, delete, favorite**.
+- Gallery grid with moderation: **hide, unhide, delete, favorite**. (This is the host's management view; the revealed gallery's layout, §7.5, doesn't change it.)
 - Downloads: individual captures and bulk download of originals.
 - Gallery link, capture link, and event signage (§11.3).
 - Sharing and visibility settings.
@@ -750,7 +761,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Capture flow: capture/select → preview → optional message → confirm → direct upload → commit.
 - Reliable upload behavior under bad network, with safe retries and no duplicate commits.
 - Guest's private view of their own captures, with download.
-- Gallery with reveal timing (after event / immediate / custom).
+- Gallery with reveal timing (after event / immediate / custom), browsed by scrolling, in a host-chosen layout: Masonry (default), Rows or Grid (§7.5).
 - Separate view-only gallery link; visibility "anyone with link" or "only me"; link rotation/revocation.
 - Host moderation: hide, unhide, delete, favorite.
 - Host downloads: individual and bulk originals.
@@ -924,6 +935,10 @@ Observable behavior that defines launch readiness.
 64. A guest session with fewer than five committed captures sees no Full Set anywhere: no locked, greyed-out or teaser Full Set, no "unlock" or progress language, and nothing suggesting the remaining frames should be used.
 65. Once a session has five committed captures, all visible to the guest, the Full Set is available from the guest's own view and may appear on the completion state in calm language, never as an unlock, reward, achievement, challenge or bonus. While the host has any of the five hidden, the Full Set is unavailable; after the host unhides it, the Full Set is available again.
 66. The host can preview the five Full Set styles with the event's theme, on sample photos, alongside the Single-photo styles, in every editable state including Draft, and cannot generate a Full Set from guests' captures.
+
+**Gallery layout (§7.5)**
+67. A new event's revealed gallery uses Masonry, as does any existing event the host never changed. The host can switch between Masonry, Rows and Grid at any time, and the choice persists.
+68. In every layout, the revealed gallery shows exactly the same photos in the same order (hidden and deleted captures excluded), opening a photo shows the whole photo, and changing the layout changes no capture, original, moderation state, reveal timing, visibility or access.
 
 ---
 
