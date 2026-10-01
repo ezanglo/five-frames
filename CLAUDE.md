@@ -171,6 +171,18 @@ change, not a refactor.
   `router.refresh()` must be gated on a reachability probe (see `DashboardLive`): a failed
   refresh request makes Next hard-navigate, which strands an offline tab on the browser's error
   page.
+- **Signed TUS uploads go to `…/upload/resumable/sign`.** The bare `/upload/resumable` wants a
+  JWT and rejects an `x-signature` token with `Invalid Compact JWS` (NET-02). Keep the browser's
+  TUS options in `lib/media/tus.ts`; `captures.resumable.integration.test.ts` runs them against
+  real Storage.
+- **Guest/demo photo inputs never set `capture`.** It makes Android open only the camera, with no
+  library. Use `components/ff/photo-picker-input.tsx`.
+- **Multi-file original downloads go through `lib/media/save-files.ts`.** One cross-origin link
+  navigation per file lets later ones cancel earlier ones (HOST-10), and copy may only claim a
+  file was sent to the browser, never saved.
+- **Remaining frames count moderated captures.** The guest view hides hidden/deleted captures,
+  but their slots stay used (`lib/capture/guest-slots.ts`). Never derive "shots left" from the
+  visible list.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

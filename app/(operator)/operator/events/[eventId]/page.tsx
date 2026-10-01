@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, CircleAlert, ShieldCheck } from "lucide-react";
-import type { PaymentRow } from "@/lib/db/types";
+import { paymentAuditRows, type OperatorPaymentView } from "@/lib/payments/audit";
 import { getOperatorEventDetail } from "@/lib/dal/operator-events";
 import { isDuplicatePayment } from "@/lib/dal/payments";
 import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
-import {
-  MANUAL_PAYMENT_METHOD_LABEL,
-  REVEAL_MODE_LABEL,
-  VISIBILITY_LABEL,
-} from "@/lib/events/labels";
+import { REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
 import { deriveEventLifecycleState, isGalleryRevealed } from "@/lib/events/lifecycle";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
 import { SectionCard, StatTile } from "@/components/ff/cards";
@@ -25,18 +21,6 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="text-right text-label font-semibold break-words text-ink">{value}</dd>
     </div>
   );
-}
-
-const PROVIDER_STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  paid: "Paid",
-  paid_duplicate: "Paid (duplicate)",
-  superseded: "Superseded",
-};
-
-function humanize(value: string): string {
-  const spaced = value.replaceAll("_", " ");
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 /** "Now" in the event's timezone, as a datetime-local value — computed on the server so the
@@ -133,6 +117,7 @@ export default async function OperatorEventDetailPage({
         <aside className="flex flex-col gap-5 lg:gap-6">
           <SectionCard
             title="Payment"
+            caption={`Times in ${tz.replaceAll("_", " ")}.`}
             action={
               event.activated_at ? (
                 <StatusPill size="sm" tone="success" icon="check">
@@ -152,7 +137,7 @@ export default async function OperatorEventDetailPage({
                     key={payment.id}
                     payment={payment}
                     duplicate={isDuplicatePayment(payment, event)}
-                    when={when}
+                    timezone={tz}
                   />
                 ))}
               </ul>
@@ -207,26 +192,12 @@ export default async function OperatorEventDetailPage({
 function PaymentAttempt({
   payment,
   duplicate,
-  when,
+  timezone,
 }: {
-  payment: PaymentRow;
+  payment: OperatorPaymentView;
   duplicate: boolean;
-  when: (iso: string | null) => string;
+  timezone: string;
 }) {
-  const amount = payment.amount ?? payment.manual_amount;
-  const currency = payment.currency ?? payment.manual_currency;
-  const status = payment.refunded_at
-    ? "Refunded"
-    : duplicate
-      ? "Duplicate — needs manual refund"
-      : payment.source === "provider"
-        ? payment.provider_status
-          ? (PROVIDER_STATUS_LABEL[payment.provider_status] ?? humanize(payment.provider_status))
-          : "—"
-        : payment.confirmed_at
-          ? "Confirmed"
-          : "—";
-
   return (
     <li
       className={
@@ -236,34 +207,21 @@ function PaymentAttempt({
       }
     >
       <dl className="flex flex-col">
-        <Row
-          label="Source"
-          value={
-            payment.source === "provider"
-              ? "PayMongo (self-service)"
-              : `Manual · ${payment.manual_method ? MANUAL_PAYMENT_METHOD_LABEL[payment.manual_method] : "—"}`
-          }
-        />
-        <Row
-          label="Status"
-          value={duplicate && !payment.refunded_at ? <span className="text-danger">{status}</span> : status}
-        />
-        <Row
-          label="Amount"
-          value={
-            amount != null ? (
-              <span className="tabular">
-                ₱{(amount / 100).toLocaleString("en-PH")} {currency ?? ""}
-              </span>
-            ) : (
-              "—"
-            )
-          }
-        />
-        {payment.source === "manual" && payment.reference_note && (
-          <Row label="Note" value={payment.reference_note} />
-        )}
-        {payment.refunded_at && <Row label="Refunded" value={when(payment.refunded_at)} />}
+        {paymentAuditRows(payment, { duplicate, timezone }).map((row) => (
+          <Row
+            key={row.label}
+            label={row.label}
+            value={
+              row.danger ? (
+                <span className="text-danger">{row.value}</span>
+              ) : row.label === "Amount" ? (
+                <span className="tabular">{row.value}</span>
+              ) : (
+                row.value
+              )
+            }
+          />
+        ))}
       </dl>
     </li>
   );

@@ -1,11 +1,13 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-01 (**Implementation complete. Consolidated release validation pending.**)
+Last updated: 2026-10-01 (**Implementation complete. Release validation in progress: RC `a2a32b1` defects repaired, targeted reruns pending.**)
 
 - Every feature slice is complete: Slices 1–13 and 15–18. No feature slice remains.
 - Slice 14 was validation-only. Its remaining scope, the H1–H9 checks and the pending design
   sign-offs now live in one canonical checklist, [release-validation.md](./release-validation.md).
-  It is designed for a single pass against one final deployment, and none of it has run yet.
+  The first automated pass ran against RC `a2a32b1` (5 FAIL). All five FAILs, plus the
+  capture-error and photo-picker risks found alongside them, are repaired but not yet deployed.
+  See [Release-validation repairs after RC `a2a32b1`](#release-validation-repairs-after-rc-a2a32b1).
 - Existing human evidence (Slices 15–18) is recorded there and is not repeated.
 - Non-testing release work (environment reconciliation, region alignment, the `share_path`
   deployment order, raw-HEIC early rejection, legal copy, the expiry-warning channel) is listed
@@ -793,10 +795,11 @@ card was retired in Slice 16.
 - **Slice 14** (full-flow real-device and venue-condition validation, criteria 37/38) was a
   validation slice with no implementation work. On 2026-10-01 its remaining scope moved to
   [release-validation.md](./release-validation.md). It is **not** marked passed.
-- All pending pre-release checks are in that file: 52 cases, none run yet. That includes the
-  former H1–H9 and the pending design sign-offs.
-- The pass runs once, top to bottom, against one final Vercel deployment of a frozen release
-  candidate. No separate per-slice validation passes are planned.
+- All pending pre-release checks are in that file: 52 cases, including the former H1–H9 and the
+  pending design sign-offs. The automated part ran against RC `a2a32b1`: 8 PASS, 5 FAIL,
+  13 BLOCKED, 23 NOT RUN, 3 DEFERRED (INAPP-01…03, accepted launch risk, not a pre-release gate).
+- The five FAILs are repaired locally. They are rerun, with the cases the repairs touch, on the
+  next deployed release candidate (release-validation.md → "Repairs after RC `a2a32b1`").
 
 ### Slice 14 history (2026-09-23 → 2026-10-01)
 
@@ -1778,6 +1781,28 @@ supersedes it. Current automated totals are in the Slice 18 section (474/474).
   payment row was created for this event at any point. This confirms the fix holds against the
   real provider, not just the simulated integration suite.
 
+## Release-validation repairs after RC `a2a32b1`
+
+Found by `/e2e-validate` against RC `a2a32b1` (2026-10-01). All are taxonomy **B** (project
+implementation). Repaired in one `/maintain-project` pass and **not yet deployed**. Evidence and
+rerun list: release-validation.md.
+
+| Case | Root cause | Repair | Regression coverage |
+|---|---|---|---|
+| NET-02 | Signed TUS upload sent to `/upload/resumable`, which needs a JWT (`Invalid Compact JWS`); signed uploads live under `/upload/resumable/sign` | Endpoint carries `/sign`. Shared browser options in `lib/media/tus.ts`, resume fingerprint scoped to the reservation's object | `captures.resumable.integration.test.ts` (real dev Storage: ≥6 MB, interrupt, resume, one commit; failed upload consumes nothing) |
+| HOST-08 | Guest view omits moderated captures, and the screen counted their slots as free | `listModeratedSlotIndexesForGuestSession` (slot numbers only); `lib/capture/guest-slots.ts` counts them as used | `guest-slots.test.ts`; `captures.integration.test.ts` HOST-08 case |
+| HOST-05 | Any `pending` provider row (left by every started checkout) rendered "Payment received" | `lib/payments/draft-payment.ts`: unfinished vs confirming, no receipt claim before activation | `draft-payment.test.ts`; `payments.integration.test.ts` abandoned-checkout case |
+| OPS-03 | Audit fields stored and selected but never rendered; actor ids not resolved | `lib/payments/audit.ts` rows; operator emails resolved in `getOperatorEventDetail` | `audit.test.ts`; `payments.manual.integration.test.ts` OPS-03 case |
+| Capture errors (NET-04 observation) | `resetAttemptUI()` cleared the error right after it was set | `lib/capture/attempt.ts` reducer: an ended attempt keeps its message | `attempt.test.ts` |
+| Picker (IOS-03 / AND-02 / VIS-04 risk) | `capture="environment"` makes Android open only the camera (web.dev) | Shared `components/ff/photo-picker-input.tsx` without `capture` | `photo-picker-input.test.tsx`; demo isolation test now also forbids upload/server-action imports |
+| HOST-10 + guest "Download my photos" | One cross-origin link navigation per file; later ones cancel earlier ones (reproduced in headed Chromium: 2 of 6) | Shared `lib/media/save-files.ts`: fetch each in full, save from a blob, one at a time; truthful "sent to your downloads" copy | `save-files.test.ts` |
+
+Verification at the end of the repair: typecheck ✔, lint ✔, build ✔, full suite 509/509 on the
+second run. The first run had one failure in the pre-existing lifecycle sweep test, which passes
+on its own and in the rerun; the sweep acts on every event in the shared dev database. Local
+headed Chromium against dev Supabase, synthetic data only (removed afterwards), checked every
+changed surface. None of this is device proof.
+
 ## Regression protection added for human-found defects
 
 One defect was caught by the integration tests themselves during implementation, before reaching
@@ -2084,10 +2109,13 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. Freeze the release candidate.
-2. Configure one final Vercel validation deployment, following release-validation.md → "Test
-   environment setup checklist". Choosing Production or a Preview is the user's call.
-3. Execute release-validation.md once, from top to bottom.
+1. Checkpoint the repaired code as a new release-candidate commit and record its SHA in
+   release-validation.md's run record.
+2. Deploy that commit to `five-frames.vercel.app`.
+3. Run `/e2e-validate` only for the failed/affected cases listed under "Repairs after RC
+   `a2a32b1`".
+4. After those pass, run the remaining iPhone, Android, real-network, visual and final-smoke
+   validation.
 
 Do not begin `/release-review` or any production mutation until that pass is done. Done means every
 case is PASS, or BLOCKED with the user's explicit acceptance, and no launch-blocking FAIL remains.
@@ -2109,6 +2137,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **First production operator grant(s)**, and who holds the production service-role credential. The mechanism exists (`pnpm ops:grant-operator`) (product.md §19) | Operational business decision | Pre-launch |
 | **Supabase Auth email templates** (confirmation, password reset) are still Supabase defaults | Design/configuration task | Host emails |
 | **Physical print ordering / keepsake fulfillment** | Post-MVP (product.md §10.5, §18) | Not a release item. Listed so it isn't mistaken for one |
+| **Dev-data hygiene.** The 2026-10-01 validation run saw, in the dev-backed Operator Console, at least one event that may belong to a real person. It was not opened, used or changed. Decide whether real-person data belongs in the dev project, and keep validation to synthetic events and direct detail URLs | Privacy / data hygiene (user decision) | Before more validation on the dev-backed deployment |
 
 ## Other open items
 

@@ -2,7 +2,7 @@ import "server-only";
 
 import sharp from "sharp";
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { CAPTURES_BUCKET } from "@/lib/media/constants";
+import { CAPTURES_BUCKET, SIGNED_TUS_PATH_SUFFIX } from "@/lib/media/constants";
 
 /**
  * Private bucket for photo originals and derivatives (architecture §7, invariant 8). No
@@ -40,15 +40,16 @@ export async function createSignedUploadUrl(path: string): Promise<SignedUpload>
 }
 
 /**
- * TUS resumable-upload endpoint for this project (D7, first-party: direct storage hostname
- * is recommended for large-file performance). Derived from the same project URL already
- * used for every other Supabase client, not a new secret.
+ * Signed TUS resumable-upload endpoint for this project (D7, first-party: direct storage
+ * hostname is recommended for large-file performance). Derived from the same project URL
+ * already used for every other Supabase client, not a new secret. It carries the signed-upload
+ * suffix because the browser authenticates with `x-signature` only (NET-02).
  */
 export function getResumableUploadEndpoint(): string {
   const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!projectUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured");
   const projectId = new URL(projectUrl).hostname.split(".")[0];
-  return `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable`;
+  return `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable${SIGNED_TUS_PATH_SUFFIX}`;
 }
 
 export type UploadedObjectCheck =

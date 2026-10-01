@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Camera, ImagePlus, Pointer, RotateCcw, Sparkles } from "lucide-react";
+import { PhotoPickerInput } from "@/components/ff/photo-picker-input";
 import { Button, ButtonLink } from "@/components/ff/button";
 import { GuestShell, SheetActions } from "@/components/ff/guest-shell";
 import { HighlightCard } from "@/components/ff/cards";
@@ -209,18 +210,7 @@ export function DemoExperience() {
           )}
         </div>
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) chooseOwnFile(file);
-            e.target.value = "";
-          }}
-        />
+        <PhotoPickerInput ref={fileInputRef} onFile={chooseOwnFile} />
 
         {pickerOpen && !composing && (
           <div className="flex flex-col gap-4 rounded-lg border border-line bg-surface p-4">

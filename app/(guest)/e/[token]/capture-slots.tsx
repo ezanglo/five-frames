@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import * as tus from "tus-js-client";
 import { Camera, Clock, Image as ImageIcon, Pointer, RefreshCw } from "lucide-react";
 import { reserveSlot, commitSlot } from "./actions";
-import { RESUMABLE_UPLOAD_THRESHOLD_BYTES, TUS_CHUNK_SIZE_BYTES } from "@/lib/media/constants";
+import { RESUMABLE_UPLOAD_THRESHOLD_BYTES } from "@/lib/media/constants";
+import { signedTusUploadOptions } from "@/lib/media/tus";
 import type { ReserveResponse } from "./actions";
 import { Button } from "@/components/ff/button";
 import type { CSSProperties } from "react";
@@ -16,29 +17,32 @@ import { HighlightCard, InfoCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
 import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 import { PreviewSheet } from "@/components/ff/preview-sheet";
+import { PhotoPickerInput } from "@/components/ff/photo-picker-input";
 import { EmptySlotFace, ShotNumber, ShotProgress, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { firstName, formatEventTime } from "@/lib/events/format";
 import { DownloadOwnPhotosButton, KeepsakeViewerActions, OwnPhotoList, type OwnPhoto } from "./own-photos";
 import { useKeepsakePicker, type GuestKeepsakes } from "./keepsakes";
+import {
+  ATTEMPT_COPY,
+  attemptReducer,
+  initialAttemptState,
+  type EndedReason,
+} from "@/lib/capture/attempt";
+import {
+  buildGuestSlots,
+  takenFrameCount,
+  type GuestSlot,
+  type GuestSlotCapture,
+} from "@/lib/capture/guest-slots";
 
 /** Guest message limit shown in the UI (DS04: max 100 guest). The server stays authoritative. */
 const MESSAGE_MAX = 100;
 
-type SlotStatus = "committed" | "pending";
-type Slot = {
-  id: string;
-  status: SlotStatus;
-  message: string | null;
-  capturedAt: string | null;
-  thumbnailUrl: string | null;
-  displayUrl: string | null;
-  downloadUrl: string | null;
-} | null;
-
 /**
  * Uploads directly to Supabase Storage over TUS (D7) — resumable in fixed 6MB chunks, and
  * automatically continues from a previous attempt's byte offset if this same file (by name,
- * size, type and last-modified) was already partway uploaded, including across a reload.
+ * size, type and last-modified) was already partway uploaded to this same reservation's object,
+ * including across a reload.
  */
 function uploadViaTus(params: {
   file: File;
@@ -49,16 +53,13 @@ function uploadViaTus(params: {
 }): Promise<void> {
   return new Promise((resolve, reject) => {
     const upload = new tus.Upload(params.file, {
-      endpoint: params.endpoint,
-      retryDelays: [0, 1000, 3000, 5000],
-      chunkSize: TUS_CHUNK_SIZE_BYTES,
-      headers: { "x-signature": params.token, "x-upsert": "true" },
-      metadata: {
-        bucketName: params.bucket,
+      ...signedTusUploadOptions({
+        endpoint: params.endpoint,
+        token: params.token,
+        bucket: params.bucket,
         objectName: params.objectName,
         contentType: params.file.type || "application/octet-stream",
-        cacheControl: "3600",
-      },
+      }),
       onError: (error) => reject(error),
       onSuccess: () => resolve(),
     });
@@ -71,15 +72,6 @@ function uploadViaTus(params: {
     });
   });
 }
-
-type Phase =
-  | "idle"
-  | "resuming"
-  | "previewing"
-  | "reserving"
-  | "uploading"
-  | "committing"
-  | "error";
 
 function pendingStorageKey(eventId: string) {
   return `ff_pending_reserve:${eventId}`;
@@ -126,6 +118,7 @@ export function CaptureSlots({
   guestName,
   keepsakes,
   initialCaptures,
+  moderatedSlotIndexes,
 }: {
   token: string;
   eventId: string;
@@ -136,38 +129,16 @@ export function CaptureSlots({
   guestName: string;
   /** Null when keepsakes are off: no keepsake action anywhere, originals unaffected. */
   keepsakes: GuestKeepsakes | null;
-  initialCaptures: {
-    id: string;
-    slotIndex: number;
-    status: SlotStatus;
-    message: string | null;
-    capturedAt: string | null;
-    thumbnailUrl: string | null;
-    displayUrl: string | null;
-    downloadUrl: string | null;
-  }[];
+  initialCaptures: GuestSlotCapture[];
+  /** Slots whose kept photo the host hid or deleted: still used, never offered again. */
+  moderatedSlotIndexes: number[];
 }) {
-  const [slots, setSlots] = useState<Slot[]>(() => {
-    const next: Slot[] = [null, null, null, null, null];
-    for (const c of initialCaptures) {
-      next[c.slotIndex] = {
-        id: c.id,
-        status: c.status,
-        message: c.message,
-        capturedAt: c.capturedAt,
-        thumbnailUrl: c.thumbnailUrl,
-        displayUrl: c.displayUrl,
-        downloadUrl: c.downloadUrl,
-      };
-    }
-    return next;
-  });
+  const [slots, setSlots] = useState<GuestSlot[]>(() =>
+    buildGuestSlots(initialCaptures, moderatedSlotIndexes),
+  );
   const router = useRouter();
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [attempt, dispatch] = useReducer(attemptReducer, initialAttemptState);
+  const { phase, file: selectedFile, previewUrl, message, error } = attempt;
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const pendingKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -195,6 +166,7 @@ export function CaptureSlots({
       reserveKey = JSON.parse(raw).reserveKey;
     } catch {
       clearPending();
+      dispatch({ type: "settled" });
       return;
     }
     if (!reserveKey) return;
@@ -202,7 +174,7 @@ export function CaptureSlots({
     pendingKeyRef.current = reserveKey;
     reserveSlot(token, reserveKey).then((res) => {
       if (res.kind === "reserved") {
-        setPhase("resuming");
+        dispatch({ type: "resumable" });
       } else if (res.kind === "already_committed") {
         setSlots((prev) => {
           const next = [...prev];
@@ -218,13 +190,16 @@ export function CaptureSlots({
           return next;
         });
         clearPending();
+        dispatch({ type: "settled" });
       } else {
         clearPending();
+        dispatch({ type: "settled" });
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Forgets the persisted reserve key. The attempt's own UI state is the reducer's job. */
   function clearPending() {
     pendingKeyRef.current = null;
     try {
@@ -232,22 +207,15 @@ export function CaptureSlots({
     } catch {
       // Private browsing or blocked storage — nothing to clean up.
     }
-    setPhase("idle");
   }
 
-  function resetAttemptUI() {
-    setSelectedFile(null);
+  function releasePreview() {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-    setMessage("");
-    setError(null);
   }
 
   function onFileChosen(file: File) {
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setError(null);
-    setPhase("previewing");
+    releasePreview();
+    dispatch({ type: "chosen", file, previewUrl: URL.createObjectURL(file) });
   }
 
   function openPicker() {
@@ -256,8 +224,8 @@ export function CaptureSlots({
 
   /** Discard the previewed photo without committing anything — a free retake. */
   function discardPreview() {
-    resetAttemptUI();
-    setPhase(pendingKeyRef.current ? "resuming" : "idle");
+    releasePreview();
+    dispatch({ type: "discarded", resuming: Boolean(pendingKeyRef.current) });
   }
 
   function retake() {
@@ -265,10 +233,16 @@ export function CaptureSlots({
     openPicker();
   }
 
+  /** The attempt ended with nothing kept: the photo goes, the reason stays on screen. */
+  function endAttempt(reason: EndedReason) {
+    clearPending();
+    releasePreview();
+    dispatch({ type: "ended", reason });
+  }
+
   async function confirmAttempt() {
     if (!selectedFile) return;
-    setError(null);
-    setPhase("reserving");
+    dispatch({ type: "step", phase: "reserving" });
 
     let key = pendingKeyRef.current;
     if (!key) {
@@ -283,27 +257,16 @@ export function CaptureSlots({
 
     const reserved = await reserveSlot(token, key);
 
-    if (reserved.kind === "frames_exhausted") {
-      setError("All five shots are already kept.");
-      clearPending();
-      resetAttemptUI();
-      return;
-    }
-    if (reserved.kind === "capture_not_open") {
-      setError("Capture has ended.");
-      clearPending();
-      resetAttemptUI();
-      return;
-    }
-    if (reserved.kind === "expired") {
-      setError("That attempt took too long. Please try again.");
-      clearPending();
-      resetAttemptUI();
+    if (
+      reserved.kind === "frames_exhausted" ||
+      reserved.kind === "capture_not_open" ||
+      reserved.kind === "expired"
+    ) {
+      endAttempt(reserved.kind);
       return;
     }
     if (reserved.kind === "not_joined") {
-      setError("Your session isn't recognized. Reload the page and rejoin.");
-      setPhase("error");
+      dispatch({ type: "retryable", error: ATTEMPT_COPY.notJoined });
       return;
     }
 
@@ -313,12 +276,11 @@ export function CaptureSlots({
     if (reserved.kind === "reserved") {
       captureId = reserved.captureId;
       slotIndex = reserved.slotIndex;
-      setPhase("uploading");
+      dispatch({ type: "step", phase: "uploading" });
       try {
         await uploadFile(selectedFile, reserved);
       } catch {
-        setPhase("error");
-        setError("Photo didn’t upload. Check your connection and tap Retry — your shot is safe.");
+        dispatch({ type: "retryable", error: ATTEMPT_COPY.uploadFailed });
         return;
       }
     } else {
@@ -326,7 +288,7 @@ export function CaptureSlots({
       slotIndex = reserved.slotIndex;
     }
 
-    setPhase("committing");
+    dispatch({ type: "step", phase: "committing" });
     const keptMessage = message.trim() || null;
     const committed = await commitSlot(token, captureId, message);
 
@@ -345,7 +307,8 @@ export function CaptureSlots({
         return next;
       });
       clearPending();
-      resetAttemptUI();
+      releasePreview();
+      dispatch({ type: "committed" });
       // With all five kept, ask the server whether "Your five, together" is available: the
       // flag comes only from getFullSetAvailability, never from counting slots here.
       const keptNow = slots.filter((slot, i) => i !== slotIndex && slot?.status === "committed").length + 1;
@@ -353,22 +316,14 @@ export function CaptureSlots({
       return;
     }
     if (committed.kind === "not_uploaded") {
-      setPhase("error");
-      setError("We couldn’t confirm the upload yet. Tap Retry — your shot is safe.");
+      dispatch({ type: "retryable", error: ATTEMPT_COPY.notUploaded });
       return;
     }
     if (committed.kind === "expired" || committed.kind === "capture_not_open") {
-      setError(
-        committed.kind === "expired"
-          ? "That attempt took too long. Please try again."
-          : "Capture has ended.",
-      );
-      clearPending();
-      resetAttemptUI();
+      endAttempt(committed.kind);
       return;
     }
-    setPhase("error");
-    setError("Something went wrong. Tap Retry — your shot is safe.");
+    dispatch({ type: "retryable", error: ATTEMPT_COPY.unknown });
   }
 
   const nextEmptyIndex = slots.findIndex((s) => s === null);
@@ -378,7 +333,7 @@ export function CaptureSlots({
   const composing = Boolean(
     selectedFile && previewUrl && (phase === "previewing" || busy || phase === "error"),
   );
-  const taken = slots.filter((s) => s?.status === "committed").length;
+  const taken = takenFrameCount(slots);
   const allCaptured = activeIndex === -1;
   const greetingName = firstName(guestName) ?? guestName;
 
@@ -417,20 +372,7 @@ export function CaptureSlots({
   // Desktop story panel: the guest's own kept shots fill the five-frame motif.
   const motifPhotos = keptPhotos.flatMap((p) => (p.thumbnailUrl ? [p.thumbnailUrl] : []));
 
-  const fileInput = (
-    <input
-      ref={fileInputRef}
-      type="file"
-      accept="image/*"
-      capture="environment"
-      className="hidden"
-      onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) onFileChosen(file);
-        e.target.value = "";
-      }}
-    />
-  );
+  const fileInput = <PhotoPickerInput ref={fileInputRef} onFile={onFileChosen} />;
 
   if (allCaptured && !composing) {
     return (
@@ -509,6 +451,20 @@ export function CaptureSlots({
         {/* 3 + 2 on phones; one row of five on wide desktops, so the allowance reads at a glance. */}
         <div className="grid grid-cols-3 gap-2.5 xl:grid-cols-5 xl:gap-3">
           {slots.map((slot, index) => {
+            if (slot?.status === "moderated") {
+              // Kept, then removed from this view by the host. The frame stays used (§9.3).
+              return (
+                <div
+                  key={index}
+                  role="img"
+                  aria-label={`Shot ${index + 1} used`}
+                  className="relative flex h-[150px] items-center justify-center rounded-lg bg-surface-subtle md:aspect-[4/5] md:h-auto lg:aspect-auto lg:h-[150px] xl:aspect-[4/5] xl:h-auto"
+                >
+                  <span className="text-caption font-medium text-ink-muted">Used</span>
+                  <ShotNumber n={index + 1} className="absolute top-2 left-2" />
+                </div>
+              );
+            }
             if (slot?.status === "committed") {
               const viewer = viewerPhotos.findIndex((v) => v.id === slot.id);
               return (
@@ -559,7 +515,7 @@ export function CaptureSlots({
               </div>
             );
           })}
-          {taken > 0 && (
+          {keptPhotos.length > 0 && (
             <p className="flex h-[150px] flex-col justify-center gap-2 px-1 text-caption font-medium text-ink-muted md:h-auto lg:h-[150px] xl:col-span-5 xl:h-auto xl:flex-row xl:items-center xl:px-0">
               <Pointer className="size-5 xl:size-4" aria-hidden />
               Tap your photo to preview.
@@ -609,7 +565,7 @@ export function CaptureSlots({
           taken={taken}
           message={message}
           messageMax={MESSAGE_MAX}
-          onMessage={setMessage}
+          onMessage={(text) => dispatch({ type: "message", text })}
           keepState={busy ? "busy" : phase === "error" ? "retry" : "idle"}
           keepLabel={
             phase === "uploading"

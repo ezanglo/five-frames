@@ -2,7 +2,10 @@ import { Clock, Image as ImageIcon, Lock, Users } from "lucide-react";
 import { getEventByToken } from "@/lib/dal/events";
 import { getEventThemeForGuest } from "@/lib/dal/event-theme";
 import { getGuestSession, touchGuestSession } from "@/lib/dal/guest-sessions";
-import { listCapturesForGuestSessionWithUrls } from "@/lib/dal/captures";
+import {
+  listCapturesForGuestSessionWithUrls,
+  listModeratedSlotIndexesForGuestSession,
+} from "@/lib/dal/captures";
 import { getGuestSessionIdFromCookie } from "@/lib/auth/guest-session";
 import { deriveEventLifecycleState, hasReachedGuestCapacity } from "@/lib/events/lifecycle";
 import { firstName, formatEventDate } from "@/lib/events/format";
@@ -241,7 +244,10 @@ export default async function GuestEventPage({
   }
 
   await touchGuestSession(event.id, session.id);
-  const captures = await listCapturesForGuestSessionWithUrls(event.id, session.id);
+  const [captures, moderatedSlotIndexes] = await Promise.all([
+    listCapturesForGuestSessionWithUrls(event.id, session.id),
+    listModeratedSlotIndexesForGuestSession(event.id, session.id),
+  ]);
 
   return (
     <CaptureSlots
@@ -263,6 +269,7 @@ export default async function GuestEventPage({
         displayUrl: c.displayUrl,
         downloadUrl: c.downloadUrl,
       }))}
+      moderatedSlotIndexes={moderatedSlotIndexes}
     />
   );
 }

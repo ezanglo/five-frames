@@ -486,10 +486,16 @@ write these bytes to this path" — it never implies the slot is still yours.
 **Implemented (Slice 3):** the client picks standard signed-URL PUT below 6MB, TUS at or above it
 — Supabase's own recommended threshold, and the same value as the fixed chunk size (D7). The TUS
 path authenticates with the `token` from `createSignedUploadUrl` via the `x-signature` header, so
-the browser still never receives the anon key or a broader credential (D3/D4). `tus-js-client`'s
-default fingerprint-based resume means a re-selected file continues from its last successful
-chunk rather than restarting, including across a reload — this is the mechanism, beyond the
-reserve/commit gate, that makes "connection drops mid-upload" cheap for large files.
+the browser still never receives the anon key or a broader credential (D3/D4). Storage accepts an
+`x-signature`-only TUS upload only on the signed endpoint, `…/storage/v1/upload/resumable/sign`.
+The bare `…/upload/resumable` expects a JWT bearer and rejects the request with `Invalid Compact
+JWS` (NET-02, found in release validation; supabase/storage `src/http/routes/tus`). The options
+the browser uses live in `lib/media/tus.ts`, and `captures.resumable.integration.test.ts` runs them
+against real Storage. `tus-js-client`'s fingerprint-based resume means a re-selected file
+continues from its last successful chunk rather than restarting, including across a reload —
+this is the mechanism, beyond the reserve/commit gate, that makes "connection drops mid-upload"
+cheap for large files. The fingerprint includes the reservation's object path, so a stored upload
+only ever resumes into the same reservation's object.
 
 ### Derivatives
 
@@ -1376,7 +1382,7 @@ traffic to track, not before.
 | Venue network worse than resumable upload can absorb | Guests lose captures | Reservation TTL guarantees no permanently lost frame; measure real failure rates during capture-slice device testing |
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |
-| Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | MVP ships sequential signed-URL downloads; server-side archive is a known follow-up |
+| Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | MVP ships sequential signed-URL downloads (host "Download all" and guest "Download my photos" share `lib/media/save-files.ts`: each original is fetched in full and saved from a blob before the next starts, because a link navigation per file let later ones cancel earlier ones, HOST-10); server-side archive is a known follow-up |
 | Keepsake render latency/cost higher than assumed (Single-photo target: p95 well under ~2 s, output a few hundred KB; Full Set gate in §7b: p95 ≤ 2.5 s warm, ≤ 5 s cold, ≤ ~800 KB) | Slow share/save on venue networks | Slice 16 measurement gate (§7b). If the Full Set misses it after tuning, add content-addressed persistence for that family (D19's runner-up) via a new decision; the render input is already deterministic |
 | Geometric Full Set crops cut people out (a portrait photo in a landscape slot keeps about half its height, or less at extreme ratios) | Full Sets look careless | Deterministic cover crop with a top-biased focus (§7b); design avoids extreme slot ratios and compositions that need a perfect crop; human review of mixed-orientation renders in Slice 16. No content analysis in MVP |
 | DOM preview ≠ Satori export for a style | Guest/host sees one thing, gets another | Satori-subset CSS only; per-style visual parity check in Slice 16; fallback to small server-rendered previews from the same templates |

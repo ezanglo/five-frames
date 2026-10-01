@@ -190,6 +190,30 @@ export async function listCapturesForGuestSession(
   return data as CaptureRow[];
 }
 
+/**
+ * Slots of this guest session that hold a committed capture the host has hidden or deleted.
+ * The guest's own view leaves those captures out (spec §8.3), but each still consumed its frame
+ * (§9.3, invariant 4), so the guest UI must never offer the slot or count it as left (HOST-08).
+ * Slot numbers only: no id, path or URL of a moderated capture reaches the guest.
+ */
+export async function listModeratedSlotIndexesForGuestSession(
+  eventId: string,
+  guestSessionId: string,
+): Promise<number[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("captures")
+    .select("slot_index")
+    .eq("guest_session_id", guestSessionId)
+    .eq("event_id", eventId)
+    .eq("status", "committed")
+    .or("hidden_at.not.is.null,deleted_at.not.is.null")
+    .order("slot_index", { ascending: true });
+
+  if (error) throw error;
+  return (data as { slot_index: number }[]).map((row) => row.slot_index);
+}
+
 const EXTENSION_FOR_MIME_TYPE: Record<string, string> = {
   "image/jpeg": ".jpg",
   "image/png": ".png",

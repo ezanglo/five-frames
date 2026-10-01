@@ -24,6 +24,7 @@ import {
   hasPendingProviderPayment,
   REFUND_POLICY_COPY,
 } from "@/lib/payments/pricing";
+import { DRAFT_PAYMENT_COPY } from "@/lib/payments/draft-payment";
 import { saveDetailsStepAction, saveLookStepAction, startCheckoutAction } from "../../actions";
 import { DetailsStepForm } from "../../wizard-forms";
 import { LookStudio } from "@/components/ff/look/look-studio";
@@ -188,8 +189,7 @@ export default async function EventSetupPage({
           {isPending && checkout !== "cancelled" && (
             <p role="status" className="flex items-start gap-3 rounded-lg bg-brand-tint p-4 text-label font-medium text-ink">
               <Clock className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
-              A payment attempt is already in progress. Continuing returns you to that same
-              checkout — it won’t start a second one or charge you twice.
+              {DRAFT_PAYMENT_COPY.checkout_unfinished.checkoutStatus}
             </p>
           )}
 

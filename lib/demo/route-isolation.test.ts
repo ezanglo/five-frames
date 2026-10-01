@@ -26,6 +26,11 @@ const FORBIDDEN_IMPORT_PATTERNS: RegExp[] = [
   /from\s+["']@\/lib\/media\/(qr|signage)/,
   /from\s+["']qrcode["']/,
   /\/keepsake\/(photo|set)\//,
+  // The demo's photo picker shares its input with real capture; the upload path must not follow.
+  /from\s+["']tus-js-client["']/,
+  /from\s+["']@\/lib\/media\/tus/,
+  /from\s+["'][^"']*\/actions["']/,
+  /["']use server["']/,
 ];
 
 function collectSourceFiles(dir: string): string[] {

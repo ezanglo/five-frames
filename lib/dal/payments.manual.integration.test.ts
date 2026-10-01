@@ -12,6 +12,9 @@ import {
   type ManualPaymentInput,
 } from "@/lib/dal/payments";
 import type { PaymongoWebhookEvent } from "@/lib/payments/paymongo-client";
+import { getOperatorEventDetail } from "@/lib/dal/operator-events";
+import { paymentAuditRows } from "@/lib/payments/audit";
+import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 
 /**
  * Runs against the real linked dev Postgres (architecture §11) — manual payment
@@ -256,6 +259,57 @@ describe("manual payment confirmation and refund", () => {
     expect(result.event.capture_opened_at).toBeNull();
     expect(result.event.capture_closed_at).toBeNull();
     expect(deriveEventLifecycleState(result.event)).toBe("draft");
+  });
+
+  it("the Operator Console's payment record carries the full confirm and refund audit trail (OPS-03)", async () => {
+    const event = await createDraftEvent(hostAId, "Manual audit trail");
+    // 00:30 on Oct 2 in Manila is still Oct 1 in UTC: a day-boundary paid-at.
+    const paidAtIso = zonedDateTimeLocalToUtcIso("2026-10-02T00:30", event.timezone);
+    expect(paidAtIso.startsWith("2026-10-01T16:30")).toBe(true);
+
+    const confirmed = await confirmManualPayment(
+      operatorBId,
+      event.id,
+      manualInput({ method: "bank_transfer", paidAtIso, referenceNote: "ref 123" }),
+    );
+    expect(confirmed.outcome).toBe("activated");
+
+    let detail = await getOperatorEventDetail(event.id);
+    let rows = Object.fromEntries(
+      paymentAuditRows(detail!.payments[0], { duplicate: false, timezone: event.timezone }).map(
+        (r) => [r.label, r.value],
+      ),
+    );
+    expect(rows).toMatchObject({
+      Source: "Manual",
+      Method: "Bank transfer (verified)",
+      Status: "Confirmed",
+      Amount: "₱999",
+      Currency: "PHP",
+      "Paid at": "Fri, Oct 2, 2026 · 12:30 AM",
+      "Confirmed by": `manual-operator-b-${suffix}@example.test`,
+      Note: "ref 123",
+    });
+    expect(rows["Confirmed at"]).toMatch(/2026/);
+    expect(rows["Refunded at"]).toBeUndefined();
+
+    await recordManualRefund(operatorBId, event.id, { note: "returned by transfer" });
+
+    detail = await getOperatorEventDetail(event.id);
+    rows = Object.fromEntries(
+      paymentAuditRows(detail!.payments[0], { duplicate: false, timezone: event.timezone }).map(
+        (r) => [r.label, r.value],
+      ),
+    );
+    expect(rows).toMatchObject({
+      Status: "Refunded",
+      "Refunded by": `manual-operator-b-${suffix}@example.test`,
+      "Refund note": "returned by transfer",
+      // The confirmation record stays after the refund.
+      "Confirmed by": `manual-operator-b-${suffix}@example.test`,
+      "Paid at": "Fri, Oct 2, 2026 · 12:30 AM",
+    });
+    expect(rows["Refunded at"]).toMatch(/2026/);
   });
 
   it("the sole activating manual payment is not flagged a duplicate after a valid refund", async () => {

@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
 import type { EventRow, PaymentRow } from "@/lib/db/types";
+import type { OperatorPaymentView } from "@/lib/payments/audit";
 
 /**
  * Operator Console reads (architecture §8b, product.md §5.1). Deliberately a separate
@@ -72,7 +73,7 @@ export type OperatorEventDetail = {
   /** Every payment row for this event, most recent first — not just the latest one, so a
    *  `paid_duplicate` payment (product.md §15.1 manual-refund follow-up) stays visible
    *  even when it isn't the most recently created row. */
-  payments: PaymentRow[];
+  payments: OperatorPaymentView[];
 };
 
 /**
@@ -156,6 +157,26 @@ export async function getOperatorEventDetail(
     .order("created_at", { ascending: false });
 
   if (paymentsError) throw paymentsError;
+  const paymentRows = (payments ?? []) as PaymentRow[];
+
+  // confirmed_by / refunded_by are operator user ids. Resolve them to the account email for
+  // the audit record (OPS-03); every auth user has a hosts row carrying it.
+  const actorIds = [
+    ...new Set(
+      paymentRows.flatMap((p) => [p.confirmed_by, p.refunded_by]).filter((id): id is string => !!id),
+    ),
+  ];
+  const actorEmail = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const { data: actors, error: actorsError } = await supabase
+      .from("hosts")
+      .select("id, email")
+      .in("id", actorIds);
+    if (actorsError) throw actorsError;
+    for (const actor of actors as { id: string; email: string }[]) {
+      actorEmail.set(actor.id, actor.email);
+    }
+  }
 
   return {
     event: withoutThemeMedia(event as EventRow),
@@ -167,6 +188,10 @@ export async function getOperatorEventDetail(
       favorited: favorited.count ?? 0,
       deleted: deleted.count ?? 0,
     },
-    payments: (payments ?? []) as PaymentRow[],
+    payments: paymentRows.map((p) => ({
+      ...p,
+      confirmedByEmail: p.confirmed_by ? (actorEmail.get(p.confirmed_by) ?? null) : null,
+      refundedByEmail: p.refunded_by ? (actorEmail.get(p.refunded_by) ?? null) : null,
+    })),
   };
 }

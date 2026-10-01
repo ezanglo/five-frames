@@ -21,7 +21,7 @@ Nothing below is marked PASS until it has actually been run against the release-
 deployment. Release work that isn't a test (configuration, migrations, business decisions) is
 tracked separately in [progress.md → Release follow-ups](./progress.md#release-follow-ups-not-test-cases).
 
-**Status: NOT RUN.** 52 cases, 0 run.
+**Status: IN PROGRESS — repairs landed, targeted reruns pending.** Results against RC `a2a32b1`: 52 cases, 8 PASS, 5 FAIL, 13 BLOCKED, 23 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 3 DEFERRED (INAPP-01…03, accepted launch risk). First automated `/e2e-validate` pass, 2026-10-01. All five FAILs were repaired locally after that RC (see [Repairs after RC `a2a32b1`](#repairs-after-rc-a2a32b1)). They stay FAIL until rerun on the next deployed release candidate.
 
 ### Run record
 
@@ -30,13 +30,34 @@ gallery URL in this file.
 
 | Field | Value |
 |---|---|
-| Release-candidate commit (full SHA) | |
-| Vercel environment used (Production or Preview) | |
-| Deployment origin (no tokens) | |
+| Release-candidate commit (full SHA) | `a2a32b13946f7902288739bfb6a943d6eb46fa0e` |
+| Vercel environment used (Production or Preview) | Production (Option A) |
+| Deployment origin (no tokens) | `https://five-frames.vercel.app` |
 | Supabase project | `five-frames-dev` (expected) |
 | PayMongo mode | Test (expected) |
-| Date(s) of the pass | |
-| Tester(s) | |
+| Date(s) of the pass | 2026-10-01 (automated part) |
+| Tester(s) | `/e2e-validate` (Playwright Chromium/WebKit, E2E host A + operator O); human part pending |
+
+### Repairs after RC `a2a32b1`
+
+Repaired in one `/maintain-project` pass (2026-10-01), not yet deployed. The failed evidence above
+stays as recorded. Checkpoint the repaired code as a new release candidate, record its SHA in the
+run record, deploy it, then rerun only:
+
+| Rerun | Why |
+|---|---|
+| NET-02 | Resumable (TUS) upload used the wrong Storage endpoint |
+| HOST-08 | Guest frame count after hide/delete |
+| HOST-05 | Abandoned checkout no longer reads as "Payment received" |
+| OPS-03, then OPS-05 | Payment/refund audit rows (OPS-05 was never run) |
+| HOST-10, plus the guest's "Download my photos" | Shared multi-download mechanism replaced |
+| NET-04 (the Keep error observation only) | Capture errors no longer vanish |
+| HOST-04, OPS-04 | Light recheck: Share-step payment copy and Console payment rendering changed |
+| IOS-03, AND-02, VIS-04 | Photo picker changed. Already real-device cases in the remaining human pass, so no extra case |
+| SMOKE-01 | Always last |
+
+INAPP-01…03 stay DEFERRED. The Slice 16, 17 and 18 evidence isn't affected (see the invalidation
+rule below).
 
 ---
 
@@ -105,7 +126,8 @@ or into a document.
     "High Efficiency" format).
   - A real Android phone on current Chrome. A photo of 6 MB or more on it, if available (for
     NET-02).
-  - Facebook, Messenger and Instagram installed and signed in on at least one phone.
+  - Facebook, Messenger and Instagram: **not needed for this pass.** INAPP-01…03 are DEFERRED
+    (see section D).
   - A desktop browser (Chrome), plus Safari or Firefox if available.
   - A printer or a second screen to show the event QR.
 - [ ] **S-09 Cron shell.** Load `CRON_SECRET` into an environment variable in your own terminal,
@@ -133,7 +155,7 @@ earlier ones create:
 2. **A** ENV-01 … ENV-05
 3. **B** HOST-01 … HOST-06 (E1 created, paid, capture open)
 4. **C** IOS-01 … IOS-05, AND-01 … AND-03
-5. **D** INAPP-01 … INAPP-03
+5. ~~**D** INAPP-01 … INAPP-03~~ DEFERRED, not part of this pass (see section D)
 6. **I** NET-01 … NET-04
 7. **E** GAL-01 (gallery locked while capture is open)
 8. **B** HOST-07 (close and reopen), with GAL-02 during the closed period
@@ -161,6 +183,10 @@ physical-device evidence and emulation evidence are not interchangeable.
 | **Slice 17** signage print-and-scan | 2026-10-01 | **Physical prints, real phones**, busy theme image | QR format scanned on a real iPhone and a real Android phone; table card printed at 7 × 5 in and scanned from table distance; poster scanned from 1–2 m; digital format on a phone or tablet (and a larger screen) scanned by another phone; several accents with nothing themed in the QR's white margin; the Draft placeholder reads as a preview, has no download, and scans to nothing |
 | **Slice 18** live dashboard | 2026-10-01 | Human, two browsers/devices, deployed final Slice 18 code | A guest join or committed capture appeared on the host dashboard within seconds without a manual refresh; ~30 s offline kept the tab on the FiveFrames page, not the browser's error page; after reconnection the dashboard recovered by itself and converged to the authoritative state |
 
+The Slice 16 in-app evidence covers keepsake **Save** only. It does not show that a guest can
+join, capture, commit or download an original in Facebook, Messenger or Instagram's browser.
+That is INAPP-01…03, which are DEFERRED.
+
 **Supporting evidence (automated or emulated; not device proof):**
 
 - Slices 15–18 Playwright/Chromium passes at 390–1440 px: layout, picker states, Look, signage
@@ -187,12 +213,20 @@ reading out of `lib/dal/keepsakes.ts` into `lib/dal/event-theme.ts`. That is a r
 by the keepsake integration suites that passed after it. It is not judged to invalidate the
 Slice 16 device evidence.
 
+The repairs after RC `a2a32b1` touch none of these paths. They changed the guest capture screen
+and picker, the guest's and host's multi-file original download, the host dashboard and Share-step
+payment copy, the Console's payment rows, and the TUS endpoint. Keepsake routes, templates,
+picker and share/save code are unchanged (`own-photos.tsx` changed only in "Download my photos"),
+as are signage and `DashboardLive`/`/live`. No existing evidence is invalidated.
+
 ---
 
 ## Final consolidated validation checklist
 
 Each case lists: **Where** (environment/device), **Needs** (prerequisites), **Steps**, **PASS
-when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED`) and **Evidence / notes**.
+when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED` · `DEFERRED`) and **Evidence /
+notes**. `DEFERRED` means the user has accepted the case as a launch risk to verify after launch.
+It is never a PASS and does not hold up completion of this pass.
 
 ### A. Environment and provider readiness
 
@@ -202,8 +236,8 @@ when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED`) and **Evide
 - **Steps:** Open the deployment serving the validation origin. Read its source commit and status.
 - **PASS when:** the commit equals the release-candidate SHA in the run record, the status is
   Ready, and the validation origin resolves to this deployment.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** 2026-10-01, `vercel inspect` + Vercel API metadata. `five-frames.vercel.app` → `dpl_DFmJTFuV1ieKu64F3tPKqu3QjJT4`, target production, Ready, `githubCommitSha` `a2a32b1…` = run-record SHA.
 
 #### ENV-02 · Supabase backend identity and schema state
 - **Where:** Vercel env settings (names and project ref only), `supabase migration list` against
@@ -218,8 +252,8 @@ when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED`) and **Evide
   - every migration up to and including `20260930010000_event_theme_raw_formats.sql` is applied;
   - `20260930020000_retire_share_cards.sql` is **not** applied (deliberately, until the
     deployment-order follow-up).
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** `supabase migration list --linked` (ref `lrheuifbgbplekxnljfv`): all through `20260930010000` applied, `20260930020000` not applied. Deployment's browser Storage traffic (signed upload/read URLs) goes to the same project ref. Env var *values* were not read (permission boundary).
 
 #### ENV-03 · PayMongo Test mode; no live credentials
 - **Where:** PayMongo dashboard; Vercel env settings
@@ -230,8 +264,8 @@ when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED`) and **Evide
   3. Check that no environment this deployment reads holds a live key.
 - **PASS when:** Test mode is on and no live PayMongo credential is configured for the validation
   deployment.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** No PayMongo dashboard access; reading the deployment's `PAYMONGO_*` values was refused by the session's permission policy. PayMongo's hosted checkout shows no mode banner. Needs a human dashboard check.
 
 #### ENV-04 · Webhook delivery to the validation deployment
 - **Where:** PayMongo dashboard → Webhooks
@@ -242,8 +276,8 @@ when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED`) and **Evide
   2. After HOST-05, open its delivery log.
 - **PASS when:** the log shows a successful (2xx) delivery to the validation origin for E1's
   payment, with no failed retries.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Depends on HOST-05 payment completion (not performed) and dashboard access.
 
 #### ENV-05 · Public reachability
 - **Where:** real phone on mobile data, not signed in to Vercel
@@ -252,7 +286,7 @@ when**, then **Result** (`NOT RUN` · `PASS` · `FAIL` · `BLOCKED`) and **Evide
 - **PASS when:** both load directly, with no Vercel login or deployment-protection wall. Guests
   and PayMongo must be able to reach the deployment.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Automated proxy only (not this case): `/`, `/demo` and every public route return 200 with no Vercel protection wall (curl, 2026-10-01). Real phone on mobile data still required.
 
 ### B. Full host journey
 
@@ -272,7 +306,7 @@ Run on a desktop browser unless stated. Host A, event E1.
   - the link lands on the validation origin (via `/auth/confirm`) signed in;
   - sign-in works afterwards.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Needs a controlled inbox. Not submitted from automation (would send a real confirmation email).
 
 #### HOST-02 · Password reset
 - **Where:** desktop browser; host A's inbox
@@ -284,7 +318,7 @@ Run on a desktop browser unless stated. Host A, event E1.
 - **PASS when:** the email arrives; its link opens the reset page on the validation origin; the
   new password works and the old one doesn't.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Needs a controlled inbox.
 
 #### HOST-03 · Create and configure a Draft event (round trip)
 - **Where:** desktop browser
@@ -298,8 +332,8 @@ Run on a desktop browser unless stated. Host A, event E1.
 - **PASS when:** every value reloads exactly as entered. The event date and time show the same
   local value in the event's timezone, with no shift. The reveal, visibility and sharing labels
   are human-readable.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** BROWSER-CHROMIUM, E1 created by E2E host A. Name, date 2026-10-01, Asia/Manila, reveal "When capture closes", visibility "Anyone with the gallery link", teal, hashtag, welcome message, keepsakes on and theme image ("Saved") all reloaded exactly in Settings → Event & gallery and Look; options render labels. The product has no event *time* field (date only); the timezone round trip was exercised by GAL-03 instead.
 
 #### HOST-04 · No usable link before payment; price breakdown
 - **Where:** desktop browser
@@ -314,8 +348,8 @@ Run on a desktop browser unless stated. Host A, event E1.
   - "Pay online" is the primary action;
   - the "Already arranged payment directly with FiveFrames?…" line is informational, with no
     button or form behind it, and there is no way for the host to mark the event paid.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** BROWSER-CHROMIUM, unpaid E1. No `/e/` or `/g/` link in the HTML of dashboard, Share, Settings, Links, Photos; Signage shows only "DRAFT PREVIEW" with 0 downloads; all four `/signage/<format>` routes return 404. Share step: ₱999, fees "Included — nothing extra", total ₱999, refund copy; "Pay online · ₱999" is the only button; the "Already arranged…" line has no control.
 
 #### HOST-05 · Checkout, cancel/retry, and webhook activation
 - **Where:** desktop browser; PayMongo Test checkout
@@ -333,8 +367,9 @@ Run on a desktop browser unless stated. Host A, event E1.
   - ENV-04's delivery log shows the webhook;
   - OPS-02 later shows exactly **one** provider payment for E1, paid, and not flagged as a
     duplicate.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** FAIL
+- **Evidence / notes:** BROWSER-CHROMIUM. Cancel from PayMongo returns to Share with "Payment was cancelled. Nothing was charged" and Pay online works again. **But the E1 dashboard then says "Payment received — confirming with PayMongo… Payment is being confirmed"** — creating a checkout session leaves a `provider_status = 'pending'` payment that `hasPendingProviderPayment` treats as received (`app/(host)/events/[eventId]/(manage)/page.tsx` notice). Completing the test payment was **not performed** (refused by the session's permission policy), so the activation, no-stale-banner and one-payment criteria are unrun. E1 has two abandoned pending checkout sessions.
+  - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** Cause: the dashboard treated any `pending` provider row, which every started checkout leaves (cancelled or abandoned included, since PayMongo reports neither), as payment received. Now a pending row reads "Payment not finished" with "Continue to payment". Only PayMongo's success redirect shows "Checking your payment with PayMongo". No pre-activation copy says a payment was received. Retry reuse and webhook activation are unchanged. Covered by `lib/payments/draft-payment.test.ts` and `payments.integration.test.ts` (abandoned checkout → unpaid, unfinished, retryable, later webhook activates). Local headed-Chromium check passed. The rerun still needs the completed test payment, ENV-04 and the one-payment check.
 
 #### HOST-06 · Capture stays closed until the host opens it
 - **Where:** desktop browser + a phone
@@ -347,7 +382,7 @@ Run on a desktop browser unless stated. Host A, event E1.
 - **PASS when:** before opening, the phone shows a calm "not open yet" state with no join form.
   After opening, the join form appears.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Host side done; real phone portion and QR print/display remain. Proxy only (not a PASS): BROWSER-WEBKIT (iPhone 15 emulation) on stand-in **E1m "RV Main (manual)"** (activated by OPS manual confirm because HOST-05 payment was not completed; capture gating doesn't depend on payment source, D16). Before opening: "Not open yet… Join opens when capture starts", no join form. After host opens capture: join form appears. QR/print portion not exercised.
 
 #### HOST-07 · Close and reopen capture
 - **Where:** desktop browser + the iPhone from C + a private browser window
@@ -364,8 +399,8 @@ Run on a desktop browser unless stated. Host A, event E1.
     and the fresh visitor sees the closed state with no join form;
   - after reopening: the dashboard shows capture open, and the guest can commit again within
     their remaining frames.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Partial, E1m, BROWSER. While closed: guest sees "Capture has ended. Here's what you kept." with own photos and Download; a fresh visitor sees "Capture has ended" with no join form; GAL-02 run. Reopen: dashboard shows Open. Re-commit after reopening was **not demonstrated**: the iPhone-emulated guest got `frames_exhausted` from a pending reservation orphaned by the test harness (lost localStorage), and the pass was stopped by the permission policy before its 30-minute TTL lapsed.
 
 #### HOST-08 · Moderation: hide, unhide, favorite, delete
 - **Where:** desktop browser (Photos) + the guest phones
@@ -382,8 +417,9 @@ Run on a desktop browser unless stated. Host A, event E1.
   - neither hide nor delete gives that guest a frame back (their remaining frames don't
     increase);
   - dashboard counts follow each change.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** FAIL
+- **Evidence / notes:** BROWSER-CHROMIUM + WEBKIT, E1m. Favorite toggles; hide removes the photo from its guest's view and unhide restores it; delete (dialog "It won't give the guest their shot back") removes it for good; dashboard/Photos counts follow. **FAIL: the guest's displayed remaining frames increase after hide or delete.** iPhone guest with 4 commits showed "1 of 5 shots left"; after one delete it showed "2 of 5 shots left · 3 taken". Android guest with 3 commits, 1 hidden, showed "3 of 5 shots left · 2 taken"; the hidden slot renders as an empty frame. `taken` counts only visible slots (`capture-slots.tsx`). Server-side refusal was observed (`frames_exhausted`), but whether the server would accept a commit beyond 5 was not verified (pass stopped).
+  - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** Cause: the guest view drops hidden/deleted captures (correctly, §8.3), and the screen then counted those slots as free. The server now also sends the slot numbers of moderated captures (no ids or URLs). Your Five counts them as taken and shows them as "Used". Covered by `lib/capture/guest-slots.test.ts` and `captures.integration.test.ts` (hide, unhide and delete never change the count; UI and server agree; a sixth capture is refused). Local headed-Chromium check passed: hide, then delete plus unhide, both stayed "2 of 5 shots left · 3 taken".
 
 #### HOST-09 · Individual original download
 - **Where:** desktop browser (Photos)
@@ -393,8 +429,8 @@ Run on a desktop browser unless stated. Host A, event E1.
   - a file saves and the tab stays on Photos (no navigation);
   - the file is the original: for a phone photo its long edge is larger than 1,600 px (the
     display derivative's size), and it matches the guest's photo.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** BROWSER-CHROMIUM, E1m. Tile download saved `006-rv-iphone.jpg`, 2400×3200, byte-identical (MD5) to the uploaded fixture; tab stayed on Photos.
 
 #### HOST-10 · Bulk original download and multi-download behavior
 - **Where:** desktop Chrome; then Safari or Firefox if available
@@ -409,8 +445,9 @@ Run on a desktop browser unless stated. Host A, event E1.
   - filenames are distinct;
   - at most one browser permission prompt appears. Record it exactly.
   - Downloads dropped silently after allowing the prompt are a FAIL.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** FAIL
+- **Evidence / notes:** BROWSER-CHROMIUM + BROWSER-WEBKIT (headless), E1m, 6 eligible originals (incl. 1 hidden, excl. 1 deleted). Chromium saved 2 then 4; WebKit saved 4 and 4; filenames distinct; no permission prompt in automation. All 6 original requests were issued as navigations, yet the UI reported **"Saved 6 originals."** `bulk-download-button.tsx` clicks a cross-origin `<a download>` every 300 ms; browsers ignore `download` cross-origin, so later navigations can cancel earlier ones. Confirm on headed desktop Chrome/Safari. The same failure class likely affects the guest's "Download my photos" (`DownloadOwnPhotosButton` in `own-photos.tsx`, the same sequential anchor-click pattern), which no case covers on its own. Include it in the fix.
+  - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** Reproduced locally in headed Chromium: 6 navigations, all `ERR_ABORTED`, 2 of 6 files saved, UI "Saved 6 originals". Cause confirmed: each cross-origin link click navigates the tab, and the next one cancels any whose response hasn't arrived. Host and guest now share `lib/media/save-files.ts`: each original is fetched in full (CORS works on the signed URLs) and saved from a same-origin blob before the next starts. Still sequential signed URLs, no ZIP (D11), same authorization and scope. After the fix, the same headed run saved 6 of 6 full-size originals (hidden included, deleted excluded) with no navigation. The guest's "Download my photos" saved 2 of 2. The note now says "N originals sent to your downloads", not "Saved", because the page can't see what the browser keeps. Covered by `lib/media/save-files.test.ts`. Rerun: headed desktop Chrome, then Safari or Firefox. Record any "download multiple files" prompt exactly, and confirm the guest's "Download my photos" on a real phone.
 
 #### HOST-11 · Event state and counts
 - **Where:** desktop browser
@@ -424,8 +461,8 @@ Run on a desktop browser unless stated. Host A, event E1.
   - "N of 250 guests" equals the guest sessions joined on E1;
   - the photo count equals committed minus deleted;
   - the Operator Console shows the same numbers.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Partial: E1m dashboard tracked each state (Draft → Active/closed → Open ↔ Closed) and counts (3 guests; 7 photos, then 6 after a delete). The Operator Console comparison was refused by the session's permission policy.
 
 ### C. Guest capture — real devices
 
@@ -447,7 +484,7 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
     access rules;
   - after joining, five empty frames show, with no nagging or "use your frames" copy.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit iPhone emulation, E1m): join copy shows "No app to download · No account — just your first name · Your photos follow this event's own access settings"; after joining, five empty frames and a quiet "5 of 5 shots left". QR scan and real Safari still required.
 
 #### IOS-02 · Camera capture with a message
 - **Where:** real iPhone, Safari
@@ -461,7 +498,7 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
   - there is no delete or replace control for it;
   - remaining frames show quietly, if at all.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit): portrait JPEG + message committed and shows in own view with the message; no delete/replace control.
 
 #### IOS-03 · Library photo (HEIC on the device)
 - **Where:** real iPhone, Safari
@@ -474,7 +511,8 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
   - If it fails after upload with a retry error, record **FAIL** with the photo's format. This is
     the known raw-HEIC follow-up, and whether it blocks launch is decided in triage.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit): landscape JPEG committed. HEIC can't be exercised in emulation. The proxy set the file directly, which bypasses the picker. The guest input has `capture="environment"`, which on current iOS Safari and Android Chrome may open the camera with no library option. Record exactly what the picker offers; if there's no library option, record FAIL (product.md §16 requires photo-library access).
+  - **Picker changed after RC `a2a32b1`:** `capture="environment"` is removed. Guest and demo now share one standard `accept="image/*"` input (`components/ff/photo-picker-input.tsx`). Google's web.dev documents that with `capture`, Android opens the camera with no option to choose an existing picture, and that without it, Chrome and Safari on iOS and Android offer both the camera and existing images. On the rerun, record that both Take Photo and the library are offered.
 
 #### IOS-04 · Session continuity
 - **Where:** real iPhone, Safari
@@ -485,7 +523,7 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
 - **PASS when:** both times it is the same session, with the same name, the same committed photos
   and the same remaining frames.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit): reload and a new tab in the same cookie jar kept the name, photos and remaining frames.
 
 #### IOS-05 · Original download from your own view
 - **Where:** real iPhone, Safari
@@ -494,7 +532,7 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
 - **PASS when:** each original saves (Photos or Files) untouched, at full size and without any
   keepsake design, and the page does not navigate away.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit): two originals downloaded byte-identical to the uploads at full size; page did not navigate.
 
 **Android Chrome**
 
@@ -506,7 +544,7 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
   2. Take a photo with the camera, add a message and keep it.
 - **PASS when:** join behaves as IOS-01 and the capture as IOS-02.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (Chromium Pixel 7 emulation): join + square photo with message committed.
 
 #### AND-02 · Library photo
 - **Where:** real Android phone, Chrome
@@ -514,7 +552,8 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
 - **Steps:** Choose a landscape or square photo from the library and keep it.
 - **PASS when:** it commits and appears in your own photos.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (Chromium): landscape library photo committed (the file was set directly, so the picker was bypassed). Record whether the picker offers the library despite `capture="environment"`; see IOS-03.
+  - Picker changed after RC `a2a32b1` (`capture` removed; see IOS-03). Record that both camera and library are offered.
 
 #### AND-03 · Session continuity and original download
 - **Where:** real Android phone, Chrome
@@ -525,12 +564,35 @@ Event E1, capture open. Interrupted uploads, weak networks and reload during upl
 - **PASS when:** the reload keeps the same session and photos, and the original saves untouched
   without leaving the page.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (Chromium): reload kept the session; original downloaded byte-identical without navigation.
 
 ### D. In-app browser capture
 
 For each app, open E1's capture link **inside** the app's own browser. Don't use "Open in browser".
 Keepsake Save in these browsers is existing Slice 16 evidence, so it isn't repeated.
+
+> **Scope decision (user, 2026-10-01): DEFERRED — accepted launch risk / post-launch
+> verification.** In-app-browser *capture* is not a pre-release gate. INAPP-01…03 don't block
+> completion of this pass and are run after launch. The product's compatibility target
+> (product.md §16, "common in-app browsers") is unchanged; only the pre-release check is waived.
+> The Slice 16 Save evidence does not prove the capture flow in these browsers.
+>
+> **Code review for confidence only (2026-10-01, HEAD `a2a32b1`; not in-app proof):**
+> - No user-agent checks, in-app detection or browser-specific branches exist anywhere in
+>   `app/`, `components/`, `lib/` or `proxy.ts`. The only in-app mentions are the keepsake
+>   `?download=1` Save fallback.
+> - Capture uses a standard `<input type="file" accept="image/*" capture="environment">` (at
+>   `a2a32b1`; `capture` was removed afterwards, see IOS-03). The
+>   upload is a plain `fetch` PUT, or `tus-js-client` at 6 MB and over. The reserve key uses
+>   `crypto.randomUUID()` and `localStorage`, which is in try/catch, so blocked storage only loses
+>   reload survival.
+> - A single original downloads by plain navigation to a signed URL with an attachment
+>   disposition. That is the same mechanism as the Slice 16 keepsake Save fallback, which did
+>   work in all three apps.
+> - Unknowns that only a real app shows: whether the embedding WebView implements the file
+>   chooser, and how it handles `capture` and attachment downloads.
+> - Chromium/WebKit proxy runs of join, capture and original download (C, I) passed apart from
+>   NET-02. They are not in-app evidence.
 
 #### INAPP-01 · Facebook
 - **Where:** real phone, Facebook app's in-app browser
@@ -546,16 +608,16 @@ Keepsake Save in these browsers is existing Slice 16 evidence, so it isn't repea
   - If saving the original only works after leaving the in-app browser, record **FAIL** with the
     exact behavior; triage decides whether it blocks launch.
   - Record every limitation exactly. Don't describe a workaround you didn't perform.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** DEFERRED — accepted launch risk / post-launch verification
+- **Evidence / notes:** Not run (user scope decision, 2026-10-01). Not a PASS. See the section D note.
 
 #### INAPP-02 · Messenger
 - **Where:** real phone, Messenger's in-app browser
 - **Needs:** HOST-06
 - **Steps:** Send the E1 link in a chat and open it in Messenger. Then do INAPP-01 steps 2–5.
 - **PASS when:** same as INAPP-01.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** DEFERRED — accepted launch risk / post-launch verification
+- **Evidence / notes:** Not run (user scope decision, 2026-10-01). Not a PASS. See the section D note.
 
 #### INAPP-03 · Instagram
 - **Where:** real phone, Instagram's in-app browser
@@ -563,8 +625,8 @@ Keepsake Save in these browsers is existing Slice 16 evidence, so it isn't repea
 - **Steps:** Send the E1 link in a DM (or another tappable link surface) and open it in Instagram.
   Then do INAPP-01 steps 2–5.
 - **PASS when:** same as INAPP-01.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** DEFERRED — accepted launch risk / post-launch verification
+- **Evidence / notes:** Not run (user scope decision, 2026-10-01). Not a PASS. See the section D note.
 
 ### E. Gallery — real phone
 
@@ -576,7 +638,7 @@ Open gallery links on a phone that is **not** signed in as host A.
 - **Steps:** Open E1's gallery link.
 - **PASS when:** a calm locked state shows, with no photos, no theme image and no hashtag.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Real phone required. Proxy only: BROWSER-CHROMIUM (Pixel 7 emulation), E1m, capture open: "Gallery locked… Still under wraps", 0 capture images, no theme image, no hashtag.
 
 #### GAL-02 · "After the event" reveal on capture close
 - **Where:** real phone
@@ -584,7 +646,7 @@ Open gallery links on a phone that is **not** signed in as host A.
 - **Steps:** Reload the gallery link.
 - **PASS when:** the gallery opens and shows the committed, unhidden photos.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Real phone required. Proxy only: BROWSER-CHROMIUM, E1m, capture closed: "Gallery is open", 7 photos (all committed, none hidden yet), no names, no download control.
 
 #### GAL-03 · Custom reveal time
 - **Where:** desktop browser (Settings) + real phone
@@ -601,7 +663,7 @@ Open gallery links on a phone that is **not** signed in as host A.
   - after the time it opens, while capture is still open.
   - (The dashboard flipping by itself is existing Slice 18 evidence.)
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Settings round trip (desktop) proven; real phone gallery views remain. Proxy for phone part: BROWSER-CHROMIUM, E1m. Custom reveal 14:33 Asia/Manila (06:33 UTC); Settings reloaded `2026-10-01T14:33`. Before: locked with "Thu, Oct 1 · 2:33 PM". After: open with 5 photos while capture stayed open.
 
 #### GAL-04 · Revealed gallery and viewer, mixed orientations
 - **Where:** real iPhone (Android optional)
@@ -615,7 +677,7 @@ Open gallery links on a phone that is **not** signed in as host A.
   - the viewer opens, swipes both ways and closes back to the grid;
   - no photographer names and no download control appear.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit iPhone emulation, E1m): 5 photos; hidden and deleted absent, favorite present; grid tiles `object-fit: cover`, viewer `contain` at exact aspect ratios (0.75/1.33/1.00/0.67); no names, no download. Viewer swipe/close not verified (pass stopped). Real iPhone still required.
 
 #### GAL-05 · "Only me" denies the link holder
 - **Where:** desktop browser (Settings) + real phone
@@ -625,8 +687,8 @@ Open gallery links on a phone that is **not** signed in as host A.
   2. Set it back to **Anyone with the link**.
 - **PASS when:** under Only me, the phone gets the private/denied state with no photos and no
   theme image. Access returns after switching back.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Not run: further reads of the deployment were refused by the session's permission policy.
 
 #### GAL-06 · Invalid, rotated and revoked links
 - **Where:** desktop browser (Settings → Links) + real phone
@@ -641,8 +703,8 @@ Open gallery links on a phone that is **not** signed in as host A.
   - after rotation the old link is denied and the new one works;
   - after revoke the link is denied;
   - the final rotation works.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Not run: further reads of the deployment were refused by the session's permission policy.
 
 ### F. Operator / manual payment
 
@@ -657,8 +719,8 @@ app and recorded through the Operator Console (D17).
   2. Sign out and open `/operator`.
 - **PASS when:** host A gets "We can't find that page" on both, and nothing reveals that the
   Console exists. Signed out, you are redirected to login.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** BROWSER-CHROMIUM. Host A on `/operator` and `/operator/events/<id>`: "We can't find that page", no Console chrome. Signed out: `/operator` → 307 `/login?next=/operator`.
 
 #### OPS-02 · Cross-host visibility, metadata only
 - **Where:** desktop browser, operator O
@@ -674,8 +736,8 @@ app and recorded through the Operator Console (D17).
     counts, capture state, reveal and visibility, and the hosted-until, grace-until and permanent
     deletion rows;
   - **no** guest photo and no theme image appears anywhere in the Console.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** The cross-host Console list contains non-test hosts' events on this dev-backed Production; reading it was refused by the session's permission policy.
 
 #### OPS-03 · Manual confirmation activates, with an audit record
 - **Where:** desktop browser, operator O; then host A
@@ -693,8 +755,9 @@ app and recorded through the Operator Console (D17).
     with capture closed;
   - the payment row shows source manual, method, amount and currency, paid-at in the event's
     timezone, confirmed-at, confirmed-by O, and the note.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** FAIL
+- **Evidence / notes:** BROWSER-CHROMIUM, E2 "RV Manual". Empty Amount blocked by native `required` validation before any dialog; dialog Cancel left method/amount/paid-at/note untouched; confirm activated E2; host A sees capture link, QR and all four signage downloads (SVG attachments) with capture closed. **FAIL: the Console payment row shows only Source, Status, Amount and Note.** Paid-at, confirmed-at and confirmed-by are never rendered (`PaymentAttempt` in `app/(operator)/operator/events/[eventId]/page.tsx`). The paid-at timezone round trip (entered 00:30 Manila, a UTC day-boundary case) could not be checked in the UI.
+  - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** Cause: every field was stored and selected but never rendered, and `confirmed_by`/`refunded_by` were bare user ids. The Console now shows source, method, status, amount, currency, paid-at, confirmed-at and confirmed-by (operator email), note, refunded-at, refunded-by and refund note, in the event's timezone. Covered by `lib/payments/audit.test.ts` and `payments.manual.integration.test.ts` (confirm then refund, with a day-boundary paid-at). Local headed-Chromium check passed: 00:30 Manila showed as "Fri, Oct 2, 2026 · 12:30 AM".
 
 #### OPS-04 · An operator can't confirm their own event
 - **Where:** desktop browser, operator O
@@ -703,8 +766,8 @@ app and recorded through the Operator Console (D17).
 - **PASS when:** the confirm is refused with a clear message, E3 stays unpaid, and no payment row
   is created.
   - The own-event *refund* refusal is covered by integration tests and isn't run here.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** BROWSER-CHROMIUM, E3 "RV Own" (owned by operator O): alert "You cannot confirm payment for an event you own."; E3 stays Unpaid, "No payment attempt yet".
 
 #### OPS-05 · Manual refund disables links, with an audit record
 - **Where:** desktop browser, operator O; real phone
@@ -719,8 +782,8 @@ app and recorded through the Operator Console (D17).
   - the old capture link shows a calm not-found;
   - the payment shows Refunded, with refunded-at, refunded-by O and the note;
   - no false "duplicate payment" banner appears.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Not run (pass stopped by permission policy). E2 is still Active, not refunded.
 
 ### G. Capacity
 
@@ -738,8 +801,8 @@ app and recorded through the Operator Console (D17).
   - the dashboard reads "2 of 2 guests";
   - the third visitor sees the calm "This event is full for now" state, with no join form and no
     error tone.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Setting `guest_session_cap = 2` on E4 was refused by the session's permission policy. E4 "RV Capacity" is activated (manual confirm), capture closed, cap unchanged.
 
 #### CAP-02 · Already-joined guests keep normal access
 - **Where:** iPhone (joined in CAP-01)
@@ -749,8 +812,8 @@ app and recorded through the Operator Console (D17).
   2. Commit a photo.
 - **PASS when:** the guest is still in the same session, with their frames, and the commit
   succeeds. The guest count stays at 2.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Depends on CAP-01.
 
 ### H. Lifecycle cron
 
@@ -764,8 +827,8 @@ for the schedule. Nothing else in the lifecycle depends on cron (architecture §
   1. `curl -i <origin>/api/cron/lifecycle`
   2. The same, with `-H "Authorization: Bearer wrong"`.
 - **PASS when:** both return **401** `{"error":"Unauthorized"}`.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** PASS
+- **Evidence / notes:** curl 2026-10-01: no header → `401 {"error":"Unauthorized"}`; `Bearer wrong` → same.
 
 #### CRON-02 · Authorized request succeeds
 - **Where:** your terminal (S-09); desktop browser, operator O
@@ -779,8 +842,8 @@ for the schedule. Nothing else in the lifecycle depends on cron (architecture §
   - `failures` is empty;
   - every event counted as processed really has an elapsed grace period. Expect 0 for this dev
     data, and record the numbers.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Needs the deployment's `CRON_SECRET` in a human shell (S-09). Note: the cron affects every event on this database, including non-test events.
 
 #### CRON-03 · An unaffected event is unchanged
 - **Where:** desktop browser (operator O, host A)
@@ -792,8 +855,8 @@ for the schedule. Nothing else in the lifecycle depends on cron (architecture §
   - hosted-until, grace-until and the permanent-deletion row are identical to before;
   - E1's photos are all present;
   - the original downloads.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Depends on CRON-02.
 
 ### I. Network resilience
 
@@ -812,7 +875,7 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
   - after the retry exactly **one** new photo exists, in your own view and in host Photos;
   - the frame count is consistent.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (WebKit, aborted Storage PUT): calm "Photo didn't upload. Check your connection and tap Retry — your shot is safe.", no frame consumed; Retry committed exactly once (2 PUTs, remaining 2 → 1, stable after reload).
 
 #### NET-02 · Interrupted large upload (resumable path)
 - **Where:** real Android phone, Chrome, E1
@@ -823,8 +886,9 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
 - **PASS when:** the upload continues or restarts and completes without a duplicate or a lost
   frame. Exactly one new capture exists.
   - With no photo of 6 MB or more available, record **BLOCKED** (no large file).
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** FAIL
+- **Evidence / notes:** BROWSER-CHROMIUM + BROWSER-WEBKIT, 10.5 MB JPEG (≥ 6 MB → TUS path), reproduced 3 times on 3 sessions. The TUS create `POST <ref>.storage.supabase.co/storage/v1/upload/resumable` returns **400 `{"statusCode":"403","code":"AccessDenied","message":"Invalid Compact JWS"}`** before any byte is sent, with or without a network interruption. The guest sees "Check your connection and tap Retry" and retrying never succeeds; no frame is consumed. **Every photo of 6 MB or more is currently impossible to keep.** Re-run on a real Android phone after the fix.
+  - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** Cause: the client posted the `x-signature` token to `/storage/v1/upload/resumable`, which in Supabase Storage only takes a JWT bearer. Signed TUS uploads live under `/upload/resumable/sign` (supabase/storage `src/http/routes/tus`). Reproduced against dev Storage: the bare endpoint gives `400 Invalid Compact JWS`, `/sign` gives `201`. The endpoint now carries `/sign`. The resume fingerprint also includes the reservation's object path, so a re-picked file can't resume into an earlier reservation's object. `captures.resumable.integration.test.ts` uploads a 10+ MB JPEG through real dev Storage with the browser's exact options: interrupt after the first chunk, retry with the same key, resume, exactly one commit; a failed upload consumes no frame. It fails with the original 400 when the fix is reverted. Local headed Chromium kept a 6.7 MB photo over TUS with exact bytes. Still needs the real-Android interrupted run.
 
 #### NET-03 · Genuinely weak network
 - **Where:** real phone(s) on the S-10 network
@@ -837,7 +901,7 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
   - no duplicate capture appears, and no frame is lost;
   - the conditions are recorded.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Real network required.
 
 #### NET-04 · Backgrounding and reload during an upload
 - **Where:** real iPhone and/or Android, E1
@@ -848,7 +912,8 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
 - **PASS when:** each time the state settles as **either** committed **or** frame still
   available, never both and never stuck. A retry on an available frame commits exactly once.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (Chromium, upload held, page reloaded mid-upload): settled as frame still available with "Finish shot"; resuming reused the persisted reserve key and committed exactly once. Observation: if a guest's pending reservation outlives their localStorage, the UI offers a free frame but Keep returns `frames_exhausted` and **shows no message** (the error is set, then cleared by `resetAttemptUI()` in `capture-slots.tsx`) until the 30-minute TTL lapses.
+  - **Repaired after RC `a2a32b1`; targeted rerun required against the next deployed release candidate.** (error visibility only). Attempt state now goes through `lib/capture/attempt.ts`. An attempt that ends without a commit (all five used, capture ended, attempt lapsed) clears the photo and keeps its message until the guest chooses a photo, discards or taps Keep/Retry. Covered by `lib/capture/attempt.test.ts`. Local headed-Chromium check passed: "Capture has ended." was still shown 4 s after Keep. The orphaned-reservation case itself is unchanged: a free-looking frame still refuses until the TTL lapses, now with a visible message.
 
 ### J. Visual sign-off
 
@@ -866,7 +931,7 @@ the pass and record them here. A taste rejection is a FAIL with notes, handled a
 - **PASS when:** the user approves all three.
   - The printed table card is existing Slice 17 evidence.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Human taste approval.
 
 #### VIS-02 · Marketing motion
 - **Where:** a real laptop with a trackpad or mouse; Safari and Firefox desktop; a real phone
@@ -879,7 +944,7 @@ the pass and record them here. A taste rejection is a FAIL with notes, handled a
   4. Turn on the OS "Reduce motion" setting and reload.
 - **PASS when:** the user approves 1–3, and with Reduce motion on the homepage is fully still.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Human taste approval.
 
 #### VIS-03 · Contracted handoff redesign and desktop composition
 - **Where:** real phone + desktop at 1024, 1280 and 1440
@@ -893,7 +958,7 @@ the pass and record them here. A taste rejection is a FAIL with notes, handled a
 - **PASS when:** the user approves. Any screen that doesn't read as the handoff is recorded by
   name.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Human taste approval. Objective proxy: no horizontal overflow at 390/1024/1280/1440 on public, auth, 404, guest, gallery and host pages (Chromium).
 
 #### VIS-04 · Public demo on a real phone
 - **Where:** real phone, `/demo`
@@ -911,7 +976,8 @@ the pass and record them here. A taste rejection is a FAIL with notes, handled a
   - nothing presents itself as a real event link or QR.
   - The keepsake taste note is optional and doesn't affect the result.
 - **Result:** NOT RUN
-- **Evidence / notes:**
+- **Evidence / notes:** Proxy (Chromium Pixel 7 emulation): own photos via "Use your own photo" kept 3 frames; copy says photos stay on the device; Start over → 5 of 5; CTA → `/signup`; no `/e/` or `/g/` link; zero non-GET or Storage requests (D14). Real phone picker still required. The demo input also has `capture="environment"`; check that the library is offered (see IOS-03).
+  - Picker changed after RC `a2a32b1` (`capture` removed; shares the guest input; see IOS-03). Local Chromium at 390 and 1280: own photo → preview → Keep, zero non-GET or Storage requests. Real-phone picker still required.
 
 ### K. Final smoke pass
 
@@ -929,8 +995,8 @@ Not a second matrix. It only proves the final environment still joins up after e
   - the guest's photo appears in host Photos and in the gallery;
   - the dashboard and the Console both show one more guest session and one more photo;
   - no step errors.
-- **Result:** NOT RUN
-- **Evidence / notes:**
+- **Result:** BLOCKED
+- **Evidence / notes:** Not run (pass stopped; the Console step was refused).
 
 ---
 
@@ -948,8 +1014,8 @@ Not a second matrix. It only proves the final environment still joins up after e
   - every case touching the changed code;
   - any existing evidence the change invalidates;
   - SMOKE-01.
-- **Done** means every case is PASS, or BLOCKED with the user's explicit acceptance, and no
-  launch-blocking FAIL remains. Then record a one-line outcome in progress.md. The next lifecycle
+- **Done** means every case is PASS, BLOCKED with the user's explicit acceptance, or DEFERRED by
+  the user's explicit decision (currently INAPP-01…03), and no launch-blocking FAIL remains. Then record a one-line outcome in progress.md. The next lifecycle
   step is `/release-review`.
 
 ---

@@ -4,12 +4,13 @@ import { useState, useTransition } from "react";
 import { Download } from "lucide-react";
 import { getBulkDownloadUrlsAction } from "@/app/(host)/events/actions";
 import { Button } from "@/components/ff/button";
+import { outcomeNote, progressNote, saveFilesOneByOne } from "@/lib/media/save-files";
 
 /**
  * "Download all" (decision D11: client-driven sequential signed URLs, no server-side zip for
  * MVP). The handoff labels this "Download ZIP"; FiveFrames saves each original as its own file,
- * so the label says what actually happens. One browser download per original, spaced out so
- * browsers don't treat a rapid burst of programmatic downloads as a popup storm.
+ * so the label says what actually happens. One browser download per original, each fetched in
+ * full before the next starts (lib/media/save-files.ts).
  */
 export function BulkDownloadButton({
   eventId,
@@ -32,17 +33,10 @@ export function BulkDownloadButton({
         return;
       }
 
-      for (const [index, item] of downloads.entries()) {
-        setNote(`Saving ${index + 1} of ${downloads.length}…`);
-        const anchor = document.createElement("a");
-        anchor.href = item.url;
-        anchor.download = item.filename;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        await new Promise((resolve) => setTimeout(resolve, 300));
-      }
-      setNote(`Saved ${downloads.length} original${downloads.length === 1 ? "" : "s"}.`);
+      const outcome = await saveFilesOneByOne(downloads, {
+        onProgress: (current, total) => setNote(progressNote(current, total)),
+      });
+      setNote(outcomeNote(outcome, { one: "original", many: "originals" }));
     });
   }
 

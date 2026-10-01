@@ -11,3 +11,11 @@ export const CAPTURES_BUCKET = "captures";
  */
 export const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
 export const TUS_CHUNK_SIZE_BYTES = 6 * 1024 * 1024;
+
+/**
+ * Supabase Storage accepts signed (`x-signature`) TUS uploads only under this suffix of the
+ * resumable endpoint. The bare endpoint expects a JWT bearer, and rejects an x-signature-only
+ * request with `Invalid Compact JWS` (NET-02; supabase/storage `src/http/routes/tus`,
+ * `SIGNED_URL_SUFFIX`).
+ */
+export const SIGNED_TUS_PATH_SUFFIX = "/sign";

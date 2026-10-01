@@ -8,10 +8,12 @@ import {
   listCapturesForEventHost,
   listCapturesForGalleryViewer,
   listCapturesForGuestSessionWithUrls,
+  listModeratedSlotIndexesForGuestSession,
   listOriginalDownloadUrlsForEventHost,
   moderateCapture,
   reserveCapture,
 } from "@/lib/dal/captures";
+import { buildGuestSlots, takenFrameCount } from "@/lib/capture/guest-slots";
 
 /**
  * Runs against the real linked dev Postgres and dev Storage bucket (architecture §11) —
@@ -330,6 +332,46 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const gallery = await listCapturesForEventHost(hostId, event.id);
     expect(gallery?.find((c) => c.id === capture.id)).toBeUndefined();
   });
+
+  it("the guest's frame count agrees with the server after hide, unhide and delete (HOST-08)", async () => {
+    const event = await createOpenEvent();
+    const session = await newGuestSession(event.id);
+    const captures = [];
+    for (let i = 0; i < 4; i += 1) captures.push(await commitTinyCapture(event.id, session.id));
+
+    // Exactly what the guest page reads and how Your Five counts it.
+    async function guestTaken() {
+      const [view, moderated] = await Promise.all([
+        listCapturesForGuestSessionWithUrls(event.id, session.id),
+        listModeratedSlotIndexesForGuestSession(event.id, session.id),
+      ]);
+      const slots = buildGuestSlots(
+        view.map((c) => ({ ...c, status: c.status as "committed" | "pending" })),
+        moderated,
+      );
+      return { taken: takenFrameCount(slots), moderated, free: slots.filter((s) => s === null).length };
+    }
+
+    expect(await guestTaken()).toEqual({ taken: 4, moderated: [], free: 1 });
+
+    await moderateCapture(hostId, event.id, captures[1].id, "hide");
+    expect(await guestTaken()).toEqual({ taken: 4, moderated: [captures[1].slot_index], free: 1 });
+
+    await moderateCapture(hostId, event.id, captures[1].id, "unhide");
+    expect(await guestTaken()).toEqual({ taken: 4, moderated: [], free: 1 });
+
+    await moderateCapture(hostId, event.id, captures[2].id, "delete");
+    expect(await guestTaken()).toEqual({ taken: 4, moderated: [captures[2].slot_index], free: 1 });
+
+    // The one free slot the UI offers is the one the server grants; then nothing is free on
+    // either side, and a sixth capture is refused.
+    await moderateCapture(hostId, event.id, captures[0].id, "hide");
+    await commitTinyCapture(event.id, session.id);
+    expect(await guestTaken()).toMatchObject({ taken: 5, free: 0 });
+    expect((await reserveCapture(event.id, session.id, crypto.randomUUID())).kind).toBe(
+      "frames_exhausted",
+    );
+  }, 60_000);
 
   it("host and guest download urls carry an attachment disposition; viewing urls stay inline", async () => {
     const event = await createOpenEvent();

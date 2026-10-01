@@ -22,7 +22,7 @@ import {
   isGalleryRevealed,
 } from "@/lib/events/lifecycle";
 import { formatEventDateTime, formatEventTime } from "@/lib/events/format";
-import { hasPendingProviderPayment } from "@/lib/payments/pricing";
+import { DRAFT_PAYMENT_COPY, deriveDraftPaymentState } from "@/lib/payments/draft-payment";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
 import { qrSvgDataUri } from "@/lib/media/qr";
 import {
@@ -73,7 +73,9 @@ export default async function EventDashboardPage({
   const captureCanOpen = canOpenCapture(event);
   const revealed = isGalleryRevealed(event);
   const expiryWarning = getExpiryWarning(event);
-  const isPaymentPending = hasPendingProviderPayment(latestPayment);
+  const draftPayment = DRAFT_PAYMENT_COPY[
+    deriveDraftPaymentState({ checkoutParam: checkout, latestPayment })
+  ];
   const tz = event.timezone;
 
   const baseUrl = await getRequestBaseUrl();
@@ -88,11 +90,12 @@ export default async function EventDashboardPage({
 
   // ── Notices ────────────────────────────────────────────────────────────────────────────
   const notices: ReactNode[] = [];
-  if ((checkout === "pending" || isPaymentPending) && !event.activated_at) {
+  // Nothing before activation claims a payment arrived: only the verified webhook (or an
+  // operator's manual confirmation) establishes that, and it activates the event (HOST-05).
+  if (draftPayment.notice && !event.activated_at) {
     notices.push(
       <Notice key="pay" icon={<Clock className="animate-pulse" />} tone="tint">
-        Payment received — confirming with PayMongo. This page updates automatically once your
-        event is activated; capture still stays closed until you open it.
+        {draftPayment.notice}
       </Notice>,
     );
   }
@@ -364,17 +367,11 @@ export default async function EventDashboardPage({
     state === "draft" ? (
       <section className="flex flex-col gap-4 rounded-xl border border-brand bg-surface p-5 shadow-glow lg:flex-row lg:items-center lg:justify-between lg:rounded-3xl lg:p-6">
         <div className="flex flex-col gap-1">
-          <h2 className="text-[16px] font-bold text-ink">
-            {isPaymentPending ? "Payment is being confirmed" : "Finish setting up"}
-          </h2>
-          <p className="text-caption font-medium text-ink-muted">
-            {isPaymentPending
-              ? "Your link and QR code appear as soon as PayMongo confirms."
-              : "Activate your event to get its link and QR code. Capture stays closed until you open it."}
-          </p>
+          <h2 className="text-[16px] font-bold text-ink">{draftPayment.cardTitle}</h2>
+          <p className="text-caption font-medium text-ink-muted">{draftPayment.cardBody}</p>
         </div>
         <ButtonLink href={`/events/${eventId}/setup?step=share`} size="md" className="shrink-0">
-          {isPaymentPending ? "View payment status" : "Continue setup"}
+          {draftPayment.cardAction}
           <ArrowRight aria-hidden />
         </ButtonLink>
       </section>

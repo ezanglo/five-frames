@@ -7,6 +7,12 @@ import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 import { ShotNumber, SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { formatEventTime } from "@/lib/events/format";
 import { FullSetCard, useKeepsakePicker, type GuestKeepsakes } from "./keepsakes";
+import {
+  filenameFromSignedUrl,
+  outcomeNote,
+  progressNote,
+  saveFilesOneByOne,
+} from "@/lib/media/save-files";
 
 export type OwnPhoto = {
   id: string;
@@ -165,34 +171,43 @@ export function KeepsakeViewerActions({ onOpen }: { onOpen: () => void }) {
 
 /**
  * "Download my photos" — the guest's own originals, one after another. Same client-driven
- * sequential pattern as the host's bulk download (decision D11); each signed URL already carries
- * an attachment disposition, so each click saves rather than navigating away.
+ * sequential pattern and the same helper as the host's bulk download (decision D11,
+ * lib/media/save-files.ts). Each signed URL is minted only for this guest's own captures.
  */
 export function DownloadOwnPhotosButton({ photos }: { photos: OwnPhoto[] }) {
   const [pending, startTransition] = useTransition();
+  const [note, setNote] = useState<string | null>(null);
   const downloadable = photos.filter((p) => p.downloadUrl);
 
   function handleClick() {
+    setNote(null);
     startTransition(async () => {
-      for (const photo of downloadable) {
-        const anchor = document.createElement("a");
-        anchor.href = photo.downloadUrl!;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-        await new Promise((resolve) => setTimeout(resolve, 400));
-      }
+      const outcome = await saveFilesOneByOne(
+        downloadable.map((photo) => ({
+          url: photo.downloadUrl!,
+          filename: filenameFromSignedUrl(photo.downloadUrl!, `my-shot-${photo.slotIndex + 1}.jpg`),
+        })),
+        { onProgress: (current, total) => setNote(progressNote(current, total)) },
+      );
+      setNote(outcomeNote(outcome, { one: "photo", many: "photos" }));
     });
   }
 
   return (
-    <Button onClick={handleClick} disabled={pending || downloadable.length === 0} className="w-full">
-      <Download aria-hidden />
-      {pending
-        ? "Saving your photos…"
-        : downloadable.length === 1
-          ? "Download my photo"
-          : "Download my photos"}
-    </Button>
+    <>
+      <Button onClick={handleClick} disabled={pending || downloadable.length === 0} className="w-full">
+        <Download aria-hidden />
+        {pending
+          ? "Saving your photos…"
+          : downloadable.length === 1
+            ? "Download my photo"
+            : "Download my photos"}
+      </Button>
+      {note && (
+        <p className="text-center text-caption font-medium text-ink-muted" role="status">
+          {note}
+        </p>
+      )}
+    </>
   );
 }

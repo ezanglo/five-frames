@@ -8,6 +8,7 @@ import {
   startProviderCheckout,
 } from "@/lib/dal/payments";
 import type { PaymongoWebhookEvent } from "@/lib/payments/paymongo-client";
+import { deriveDraftPaymentState } from "@/lib/payments/draft-payment";
 
 /**
  * Runs against the real linked dev Postgres (architecture §11) — the shared activation
@@ -367,6 +368,41 @@ describe("payment and shared activation", () => {
 
     const result = await startProviderCheckout(hostAId, event.id, "https://example.test");
     expect(result).toBeNull();
+  });
+
+  it("an abandoned checkout leaves the event unpaid and unfinished, stays retryable, and a later trusted payment still activates (HOST-05)", async () => {
+    const event = await createDraftEvent(hostAId, "Abandoned checkout");
+    const sessionId = `cs_test_${crypto.randomUUID()}`;
+    // What "Pay online" leaves behind once the host cancels on PayMongo or just walks away:
+    // one pending provider row, and nothing from PayMongo saying either way.
+    const paymentId = await insertProviderPayment(event.id, sessionId);
+
+    const unpaid = await getEventForHost(hostAId, event.id);
+    expect(unpaid?.activated_at).toBeNull();
+    expect(unpaid?.event_token).toBeNull();
+    const latest = await getLatestPaymentForEvent(hostAId, event.id);
+    expect(deriveDraftPaymentState({ checkoutParam: undefined, latestPayment: latest })).toBe(
+      "checkout_unfinished",
+    );
+
+    // Pay online again reuses the same attempt rather than refusing or starting a second one.
+    const { data: retry, error: retryError } = await supabase
+      .rpc("begin_provider_checkout", { p_event_id: event.id })
+      .single<{ payment_id: string; is_new: boolean; already_activated: boolean }>();
+    if (retryError) throw retryError;
+    expect(retry.already_activated).toBe(false);
+    expect(retry.is_new).toBe(false);
+    expect(retry.payment_id).toBe(paymentId);
+
+    // Only the verified webhook establishes payment, and it activates the event.
+    const result = await recordProviderWebhookAndActivate(
+      paidWebhookEvent(`evt_${crypto.randomUUID()}`, sessionId),
+    );
+    expect(result).toEqual({ handled: true, duplicate: false });
+    const activated = await getEventForHost(hostAId, event.id);
+    expect(activated?.activated_at).not.toBeNull();
+    expect(activated?.activating_payment_id).toBe(paymentId);
+    expect((await getLatestPaymentForEvent(hostAId, event.id))?.provider_status).toBe("paid");
   });
 
   it("getLatestPaymentForEvent is ownership-scoped", async () => {
