@@ -18,7 +18,7 @@ import {
   YourFiveScreen,
 } from "@/components/ff/marketing/product-screens";
 import { FeatureCard, PageHero, Section, SectionHeader } from "@/components/ff/marketing/section";
-import { FRAMES, HOSTED_ACCESS_LABEL, PRICE_LABEL } from "@/lib/marketing/content";
+import { FRAMES, HOSTED_ACCESS_LABEL, PAYMENT_COPY, PRICE_LABEL } from "@/lib/marketing/content";
 import { marketingMetadata } from "@/lib/marketing/metadata";
 
 export const metadata = marketingMetadata({
@@ -69,7 +69,7 @@ const HOST_STEPS: { title: string; body: ReactNode }[] = [
   },
   {
     title: "Pay once to activate",
-    body: `You’ll see the full breakdown first — ${PRICE_LABEL}, processing fees included — and the refund terms. Then pay online with GCash, Maya or card.`,
+    body: PAYMENT_COPY.hostStep,
   },
   {
     title: "Get your link, QR and signage",

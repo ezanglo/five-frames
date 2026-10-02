@@ -1,3 +1,4 @@
+import type { PaymentMode } from "@/lib/payments/mode";
 import { hasPendingProviderPayment } from "@/lib/payments/pricing";
 
 /**
@@ -11,14 +12,18 @@ import { hasPendingProviderPayment } from "@/lib/payments/pricing";
  *   reports neither, so the row stays pending and is reused on the next "Pay online".
  * - `confirming`: the host just came back through PayMongo's success redirect. Still unverified
  *   (anyone can open that URL), so the copy says it is being checked, not that it arrived.
+ * - `manual`: `manual` payment mode (D23). There is no checkout to continue, so a leftover
+ *   provider row or redirect param means nothing; the event waits for an operator to confirm.
  */
-export type DraftPaymentState = "none" | "checkout_unfinished" | "confirming";
+export type DraftPaymentState = "none" | "checkout_unfinished" | "confirming" | "manual";
 
 export function deriveDraftPaymentState(input: {
+  mode: PaymentMode;
   /** The `checkout` search param: `pending` after PayMongo's success redirect. */
   checkoutParam: string | undefined;
   latestPayment: { provider_status: string | null } | null | undefined;
 }): DraftPaymentState {
+  if (input.mode === "manual") return "manual";
   if (input.checkoutParam === "pending") return "confirming";
   if (hasPendingProviderPayment(input.latestPayment)) return "checkout_unfinished";
   return "none";
@@ -58,6 +63,14 @@ export const DRAFT_PAYMENT_COPY: Record<DraftPaymentState, DraftPaymentCopy> = {
     cardTitle: "Confirming payment",
     cardBody: "Your link and QR code appear as soon as PayMongo confirms the payment.",
     cardAction: "View payment status",
+    checkoutStatus: null,
+  },
+  manual: {
+    notice: null,
+    cardTitle: "Not active yet",
+    cardBody:
+      "Your link and QR code appear once FiveFrames confirms your payment. Capture stays closed until you open it.",
+    cardAction: "Review setup",
     checkoutStatus: null,
   },
 };

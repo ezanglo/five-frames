@@ -4,6 +4,7 @@ import { listEventsForOperator } from "@/lib/dal/operator-events";
 import { Card } from "@/components/ff/cards";
 import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { TextInput } from "@/components/ff/field";
+import { FilterChip } from "@/components/ff/filter-chip";
 import { StatusPill } from "@/components/ff/pill";
 
 /**
@@ -13,10 +14,21 @@ import { StatusPill } from "@/components/ff/pill";
 export default async function OperatorEventListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const { q } = await searchParams;
-  const events = await listEventsForOperator(q);
+  const { q, status } = await searchParams;
+  // "Awaiting payment": every unactivated event, including one a refund returned to draft. In
+  // the sales-led launch (D23) this is the list of events waiting on a manual confirmation.
+  const unpaidOnly = status === "unpaid";
+  const all = await listEventsForOperator(q);
+  const events = unpaidOnly ? all.filter((event) => !event.activated_at) : all;
+  const filterHref = (unpaid: boolean) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (unpaid) params.set("status", "unpaid");
+    const query = params.toString();
+    return query ? `/operator?${query}` : "/operator";
+  };
 
   return (
     <div className="flex flex-col gap-5 lg:gap-8">
@@ -28,11 +40,14 @@ export default async function OperatorEventListPage({
           <p className="tabular text-caption font-medium text-ink-muted">
             {q
               ? `${events.length} result${events.length === 1 ? "" : "s"} for “${q}”`
-              : `${events.length} event${events.length === 1 ? "" : "s"}, across all hosts`}
+              : unpaidOnly
+                ? `${events.length} event${events.length === 1 ? "" : "s"} awaiting payment`
+                : `${events.length} event${events.length === 1 ? "" : "s"}, across all hosts`}
           </p>
         </div>
 
         <form action="/operator" role="search" className="lg:w-[400px]">
+          {unpaidOnly && <input type="hidden" name="status" value="unpaid" />}
           <label htmlFor="q" className="sr-only">
             Search events
           </label>
@@ -48,16 +63,29 @@ export default async function OperatorEventListPage({
         </form>
       </div>
 
+      <nav aria-label="Filter events" className="flex gap-2">
+        <FilterChip href={filterHref(false)} active={!unpaidOnly}>
+          All
+        </FilterChip>
+        <FilterChip href={filterHref(true)} active={unpaidOnly}>
+          Awaiting payment
+        </FilterChip>
+      </nav>
+
       {events.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 px-6 py-14 text-center">
           <span className="flex size-12 items-center justify-center rounded-full bg-brand-tint text-brand">
             <SearchX aria-hidden className="size-5" />
           </span>
-          <p className="text-[16px] leading-snug font-bold text-ink">No events match</p>
+          <p className="text-[16px] leading-snug font-bold text-ink">
+            {unpaidOnly && !q ? "Nothing awaiting payment" : "No events match"}
+          </p>
           <p className="max-w-xs text-caption font-medium text-ink-muted">
             {q
               ? `Nothing matched “${q}”. Try an event name, host email or event id.`
-              : "No events exist yet."}
+              : unpaidOnly
+                ? "Every event has been paid for."
+                : "No events exist yet."}
           </p>
         </Card>
       ) : (

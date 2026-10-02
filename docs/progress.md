@@ -1,7 +1,11 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-01 (**Slice 19, gallery layouts, implemented and verified locally; awaiting a new RC, its targeted reruns and human verification. Release validation otherwise unchanged.**)
+Last updated: 2026-10-02 (**Sales-led manual payment (D23) implemented and verified locally, on top of Slice 19, gallery layouts. Both await a new RC, their targeted reruns and human verification.**)
 
+- **Sales-led manual payment (D23)** switches online payment off for launch. Every sale is
+  arranged in conversation and confirmed in the Operator Console, which also gains a payments
+  ledger. `awaiting human verification`. See
+  [Sales-led manual payment](#sales-led-manual-payment-2026-10-02-awaiting-human-verification).
 - Slices 1–13 and 15–18 are complete. Slice 19 (revealed-gallery layouts, a product change
   requested after release validation began) is `awaiting human verification`. See
   [Slice 19](#slice-19--revealed-gallery-layouts-2026-10-01-awaiting-human-verification).
@@ -19,6 +23,53 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Sales-led manual payment (2026-10-02): `awaiting human verification`
+
+The founder sells every event in person at launch, so hosts pay FiveFrames directly and an
+operator confirms receipt (product.md §7.2 "sales-led", decision D23). PayMongo stays built and
+tested, but is off. Not committed, not deployed.
+
+**Built:**
+- `lib/payments/mode.ts`: `PAYMENT_MODE = "manual"` (checked-in constant; `online` restores the
+  self-service path) and `SALES_CONTACT` (currently `null`, see Release follow-ups).
+- Host:
+  - Share step in manual mode: price breakdown with "Directly to FiveFrames", and a status
+    instead of "Pay online". It refreshes into the QR hand-over on activation (D21 stream).
+  - The dashboard card reads "Not active yet" (`deriveDraftPaymentState` → `manual`).
+  - `startCheckoutAction` redirects back to Share instead of creating a checkout.
+- Marketing: all payment wording comes from `PAYMENT_COPY_BY_MODE` (`lib/marketing/content.ts`):
+  home, pricing, how-it-works, FAQ and footer.
+- Operator Console:
+  - **Payments** ledger (`/operator/payments`): payment and refund lines, month chips, received /
+    refunded / net totals;
+  - CSV export (`/operator/payments/export`, its own `requireOperator()`, formula-injection safe);
+  - "Awaiting payment" filter on the event list, and header nav (Events · Payments).
+  - Read via `lib/dal/payment-ledger.ts`; pure helpers in `lib/payments/ledger.ts`.
+  - `withOperatorEmails` was extracted from `getOperatorEventDetail` and is shared.
+- Migration `20261002000000_manual_payment_e_wallet.sql`: adds the `e_wallet` manual method,
+  labelled "E-wallet (GCash, Maya)". **Not applied to the dev project.** The agent's attempt was
+  blocked by the session's permission policy. Until it's applied, confirming with E-wallet fails
+  with a check-constraint error.
+- product.md §5.1.1, §7.2, §7.2.1, §13, §15, §17, §18, §19, criteria 17 and 69 (approved by the
+  user). D23 in decisions.md. release-validation.md: HOST-04 rewritten, OPS-06 new, HOST-05 /
+  ENV-03 / ENV-04 DEFERRED.
+
+**Automated verification (local):** `pnpm typecheck` ✔ · `pnpm lint` ✔ · unit tests 431/431 ✔
+(42 files, integration excluded) · `payments.manual.integration.test.ts` 14/14 ✔ (new ledger case)
+· `payments.integration.test.ts` 16/16 ✔ · `operator-events.integration.test.ts` 6/6 ✔.
+- `lib/payments/ledger.test.ts` (7): Manila month across a UTC day boundary, refund as its own
+  negative line in its own month, provider amounts, month validation, peso format, CSV quoting
+  and formula neutralising, duplicate flag.
+- `lib/payments/draft-payment.test.ts`: manual mode ignores any provider state and never
+  mentions PayMongo.
+- `lib/marketing/content.test.ts`: manual-mode copy has no online/card/PayMongo claim, and no
+  marketing page hard-codes "Pay online" or "PayMongo".
+- The ledger integration case caught a real defect before shipping: `payments` and `events` are
+  joined by two foreign keys, so the embed must name `payments_event_id_fkey`.
+
+`pnpm build` ✔ (`/`, `/demo` and the marketing pages still static; `/operator/payments` and its export dynamic). **Not run:** any browser check (outside a validation workflow, the user tests
+UI). HOST-04 and OPS-06 in release-validation.md are the acceptance checks.
 
 ## Slice 19 — Revealed-gallery layouts (2026-10-01): `awaiting human verification`
 
@@ -2247,14 +2298,19 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. Review the Slice 19 diff (uncommitted), then checkpoint it as a new release-candidate commit
+0. Apply `20261002000000_manual_payment_e_wallet.sql` to the dev project (same way as
+   `20261001000000`: `supabase db query --linked -f …`, then
+   `supabase migration repair --linked --status applied 20261002000000`). Set `SALES_CONTACT` in
+   `lib/payments/mode.ts` once the contact channel is chosen.
+1. Review the D23 diff (uncommitted; Slice 19 is committed as `e48546d`), then checkpoint it as a new release-candidate commit
    (on top of the marketing commits made since RC `6d8aca8`) and record its SHA in
    release-validation.md's run record. The dev
    database already has `20261001000000`. Code from Slice 19 needs that migration, so don't
    deploy it against any database that lacks it.
 2. Deploy that commit to `five-frames.vercel.app`.
 3. Run `/e2e-validate` only for the targeted reruns: ENV-01, ENV-02, the GAL-04/GAL-07 and VIS-03
-   automated proxies from "Gallery-layout change after RC `6d8aca8`", then SMOKE-01. The NET-02,
+   automated proxies from "Gallery-layout change after RC `6d8aca8`", HOST-04, the OPS-03/OPS-05
+   rechecks and OPS-06 from "Sales-led payment change after RC `6d8aca8`", then SMOKE-01. The NET-02,
    NET-01/NET-04 and HOST-08 repairs were already verified on RC `6d8aca8` and Slice 19 didn't
    touch them.
 4. After those pass, run the remaining iPhone, Android, real-network, visual and final-smoke
@@ -2271,13 +2327,16 @@ pass doesn't resolve them, and they must not be disguised as tests.
 
 | Item | Type | Notes |
 |---|---|---|
-| **Production environment reconciliation.** Vercel Production serves the **dev** Supabase project, an interim state since Slice 2. A real launch needs a production Supabase project, separated Vercel environment scopes, live PayMongo keys and a live-mode webhook, `CRON_SECRET`, and the Supabase Auth redirect allowlist for the production origin. None of these is provisioned | Deployment configuration (needs explicit approval) | Before real payments or guest data |
+| **Production environment reconciliation.** Vercel Production serves the **dev** Supabase project, an interim state since Slice 2. A real launch needs a production Supabase project, separated Vercel environment scopes, `CRON_SECRET`, and the Supabase Auth redirect allowlist for the production origin. Live PayMongo keys and a live-mode webhook are needed only once `PAYMENT_MODE` becomes `online` (D23). None of these is provisioned | Deployment configuration (needs explicit approval) | Before real payments or guest data |
 | **Vercel function region vs Supabase region.** Functions run in US East (`iad1`); Supabase is in `ap-southeast-1`. Reconcile placement, then re-check representative latency (architecture §12) | Deployment configuration | Before real traffic |
 | **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
 | **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
 | **Advance-expiry warning channel.** The warning is in-product only; no outbound email or SMS exists (D18 launch prerequisite) | Product decision | Pre-launch |
+| **Sales contact channel.** `SALES_CONTACT` (`lib/payments/mode.ts`) is `null`, so the Share step and footer have no "contact us" link. Choose the channel (Messenger, email or phone) and set it | Business decision + one-line change | Before hosts who weren't sold in person can sign up |
+| **Manual-payment receiving account(s)** for bank and GCash/Maya transfers, and whether discounted sales are allowed. The host's Share step always shows the list price; the Console records the real amount (D23) | Business decision | Before the first sale |
+| **Switching online payment on** (`PAYMENT_MODE = online`): live PayMongo account with KYC, live keys and webhook, then the DEFERRED ENV-03, ENV-04 and HOST-05 | Business decision + deployment configuration | When direct sales show demand |
 | **First production operator grant(s)**, and who holds the production service-role credential. The mechanism exists (`pnpm ops:grant-operator`) (product.md §19) | Operational business decision | Pre-launch |
 | **Supabase Auth email templates** (confirmation, password reset) are still Supabase defaults | Design/configuration task | Host emails |
 | **Physical print ordering / keepsake fulfillment** | Post-MVP (product.md §10.5, §18) | Not a release item. Listed so it isn't mistaken for one |

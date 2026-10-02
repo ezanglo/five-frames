@@ -20,6 +20,7 @@ import {
   type ModerationAction,
 } from "@/lib/dal/captures";
 import { startProviderCheckout } from "@/lib/dal/payments";
+import { isOnlinePaymentEnabled } from "@/lib/payments/mode";
 import {
   beginThemeImageUpload,
   commitThemeImageUpload,
@@ -264,11 +265,13 @@ export async function revealGalleryNowAction(eventId: string) {
   redirect(`/events/${eventId}`);
 }
 
-/** Bound to the checkout confirmation page's "Continue to payment" button (product.md
- *  §7.2). Redirects the host's browser to PayMongo's hosted checkout; activation itself
- *  only happens later, via the signed webhook (architecture §8), never here. */
+/** Bound to the Share step's "Pay online" button (product.md §7.2). Redirects the host's
+ *  browser to PayMongo's hosted checkout; activation itself only happens later, via the signed
+ *  webhook (architecture §8), never here. In `manual` payment mode (D23) there is no button,
+ *  and a replayed or crafted submission is sent back to the Share step instead. */
 export async function startCheckoutAction(eventId: string) {
   const host = await requireHost();
+  if (!isOnlinePaymentEnabled()) redirect(`/events/${eventId}/setup?step=share`);
   const baseUrl = await getRequestBaseUrl();
 
   const session = await startProviderCheckout(host.id, eventId, baseUrl);

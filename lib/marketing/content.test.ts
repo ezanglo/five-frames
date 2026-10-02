@@ -6,6 +6,7 @@ import {
   DEFAULT_GUEST_SESSION_CAP,
   FAQ_GROUPS,
   HOME_FAQ_IDS,
+  PAYMENT_COPY_BY_MODE,
   PRICE_LABEL,
   PRICING_FAQ_IDS,
   REFUND_SUMMARY,
@@ -45,6 +46,23 @@ describe("marketing facts come from the product", () => {
     );
     const match = migration.match(/guest_session_cap int not null default (\d+)/);
     expect(match?.[1]).toBe(String(DEFAULT_GUEST_SESSION_CAP));
+  });
+
+  it("never promises online checkout while hosts pay FiveFrames directly (D23)", () => {
+    const { payStep, ...lines } = PAYMENT_COPY_BY_MODE.manual;
+    const manual = [...Object.values(lines), payStep.title, payStep.body].join(" ");
+    expect(manual).not.toMatch(/paymongo|online|\bcard\b|processing fee/i);
+    // Every page reads payment copy from PAYMENT_COPY, so no page can contradict the mode.
+    const pages = [
+      "app/(marketing)/page.tsx",
+      "app/(marketing)/pricing/page.tsx",
+      "app/(marketing)/how-it-works/page.tsx",
+      "components/ff/marketing/blocks.tsx",
+      "components/ff/marketing/site-chrome.tsx",
+    ];
+    for (const page of pages) {
+      expect(readFileSync(path.join(ROOT, page), "utf8")).not.toMatch(/PayMongo|Pay online/);
+    }
   });
 
   it("names only the payment methods checkout actually offers", () => {

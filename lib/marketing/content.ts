@@ -1,5 +1,6 @@
 import { SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { HOSTED_ACCESS_DAYS } from "@/lib/events/policy";
+import { PAYMENT_MODE, type PaymentMode } from "@/lib/payments/mode";
 import { EVENT_PRICE_PHP, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
 
 /**
@@ -28,6 +29,58 @@ export const DEFAULT_GUEST_SESSION_CAP = 250;
 export const PAYMENT_METHODS = ["GCash", "Maya", "card"] as const;
 
 export const PAYMENT_METHODS_SENTENCE = "GCash, Maya or card";
+
+type PaymentCopy = {
+  /** One line: home pricing list, site footer. */
+  line: string;
+  /** Under the price card's CTA. */
+  priceCardNote: string;
+  /** Pricing page "how paying works" steps 2 and 3. */
+  breakdownStep: string;
+  payStep: { title: string; body: string };
+  /** How it works, host step 2. */
+  hostStep: string;
+  /** FAQ "How do I pay?". */
+  faqAnswer: string;
+  /** Pricing page meta description, after "…every guest gets five frames, and ". */
+  metaTail: string;
+};
+
+/**
+ * How paying is described publicly, by payment mode (lib/payments/mode.ts, decision D23). The
+ * site must describe the path the Share step actually offers: no "Pay online" or PayMongo claim
+ * while hosts pay FiveFrames directly.
+ */
+export const PAYMENT_COPY_BY_MODE: Record<PaymentMode, PaymentCopy> = {
+  online: {
+    line: `Pay online with ${PAYMENT_METHODS_SENTENCE}`,
+    priceCardNote: `Set it up first, pay when you’re ready. ${PAYMENT_METHODS_SENTENCE} via PayMongo.`,
+    breakdownStep:
+      "Before you pay: the event price, processing fees (included — nothing extra), the total, and the refund terms.",
+    payStep: {
+      title: "Pay online",
+      body: `${PAYMENT_METHODS_SENTENCE}, handled securely by our payment provider, PayMongo.`,
+    },
+    hostStep: `You’ll see the full breakdown first — ${PRICE_LABEL}, processing fees included — and the refund terms. Then pay online with ${PAYMENT_METHODS_SENTENCE}.`,
+    faqAnswer: `Online with ${PAYMENT_METHODS_SENTENCE}, handled securely by our payment provider, PayMongo. Processing fees are included in the price.`,
+    metaTail: `you pay online with ${PAYMENT_METHODS_SENTENCE}`,
+  },
+  manual: {
+    line: "Pay FiveFrames directly — we set up every event with you",
+    priceCardNote: "Set it up first, then pay FiveFrames directly. Your event activates once we confirm it.",
+    breakdownStep: "Before you pay: the event price, the total, and the refund terms.",
+    payStep: {
+      title: "Pay FiveFrames directly",
+      body: "We arrange payment with you in person — cash, bank transfer or e-wallet — and confirm it ourselves.",
+    },
+    hostStep: `You’ll see the full breakdown first — ${PRICE_LABEL} and the refund terms. Then pay FiveFrames directly, and your event activates as soon as we confirm it.`,
+    faqAnswer:
+      "Directly to FiveFrames. We arrange it with you when we set up your event — cash, bank transfer or e-wallet — and your event activates once we confirm your payment.",
+    metaTail: "you pay FiveFrames directly",
+  },
+};
+
+export const PAYMENT_COPY = PAYMENT_COPY_BY_MODE[PAYMENT_MODE];
 
 export const REFUND_SUMMARY = REFUND_POLICY_COPY;
 
@@ -268,7 +321,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "how-pay",
         question: "How do I pay?",
         answer: [
-          `Online with ${PAYMENT_METHODS_SENTENCE}, handled securely by our payment provider, PayMongo. Processing fees are included in the price.`,
+          PAYMENT_COPY.faqAnswer,
         ],
       },
       {

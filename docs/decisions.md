@@ -818,3 +818,62 @@ didn't store dimensions.
   stretch to fill it. Row targets (140 / 150 / 200 px) are tuned so that's occasional.
 - Production rollout: apply migration 20261001000000 (additive, safe before or after code), then
   run the backfill. Until the backfill runs, older captures show as squares in Masonry and Rows.
+
+---
+
+## D23 — Sales-led launch: a checked-in payment mode, manual payment only, and a read-only ledger
+
+**Status:** Accepted (2026-10-02). Amends D2 for launch: PayMongo stays the provider, but is off.
+**Context:** FiveFrames will market the product personally at launch: talk with each host, demo
+it with them, agree the sale, and take payment directly (product.md §7.2 "sales-led"). The
+self-service PayMongo path (D2) is built, but the founder doesn't want hosts paying online yet,
+and the live PayMongo account (KYC, live webhook) isn't a launch dependency any more. Manual
+payment confirmation, refunds and the per-payment audit record already exist (D16, D17,
+Slice 9). What was missing: a way to turn online payment off without breaking the Share step
+(with no keys, "Pay online" threw), host and public copy that doesn't promise online payment,
+and a view of all money received for bookkeeping.
+**Decision:**
+1. **`PAYMENT_MODE` in `lib/payments/mode.ts`, a checked-in constant (`manual` | `online`), set
+   to `manual`.** Not an env var: switching changes host screens and public copy together, so
+   it ships as one reviewed change, and Preview and Production can't disagree. Same reasoning as
+   the single price constant (`lib/payments/pricing.ts`).
+2. **In `manual` mode** the Share step shows the price breakdown and a status ("Waiting for
+   FiveFrames to confirm your payment") instead of "Pay online". It's a status, not a control,
+   and creates no record (product.md §7.2). The page subscribes to the D21 live stream, so a
+   host sitting beside the operator sees the QR appear when it's confirmed. `startCheckoutAction`
+   refuses and redirects to the Share step. `deriveDraftPaymentState` returns `manual`, so a
+   leftover provider row never shows PayMongo copy. Public copy comes from
+   `PAYMENT_COPY_BY_MODE` in `lib/marketing/content.ts`, and `content.test.ts` fails if a page
+   says "PayMongo" or "Pay online" directly.
+3. **Nothing on the provider path is removed.** The webhook route, `startProviderCheckout`,
+   `begin_provider_checkout` and their tests stay as they are. A signed webhook still activates
+   an event through `activateEvent` (a real payment is never ignored). Switching to `online` is
+   the constant plus live keys, KYC and the webhook (release-validation.md ENV-03).
+4. **Ledger = a read over `payments`, no new table (D17 holds).** `listPaymentLedgerForOperator`
+   (`lib/dal/payment-ledger.ts`) reads every row that took money: `confirmed_at` set (manual),
+   or `provider_status` `paid`/`paid_duplicate`. It pages past the API row limit. Pure helpers in
+   `lib/payments/ledger.ts` turn each into a payment line plus, if refunded, a separate negative
+   refund line dated when the refund happened. They also compute month totals in Asia/Manila and
+   build the CSV, with formula-injection guarding since event names and notes are user-typed.
+   Pages: `/operator/payments` and `/operator/payments/export`. The export runs
+   `requireOperator()` itself, since route handlers sit outside the operator layout. Read-only:
+   confirming and refunding stay on the event page.
+5. **`e_wallet` manual method** (migration `20261002000000`), so GCash/Maya receipts aren't
+   recorded as "other".
+6. **"Awaiting payment" filter** on the Console event list: unactivated events, including ones a
+   refund returned to draft.
+**Alternatives rejected:**
+- An env var for the mode: marketing pages render statically and client chrome can't read
+  server env, so it would need `NEXT_PUBLIC_` plumbing. Environments could drift.
+- Deleting the PayMongo code: going back to it later is planned, and the code is tested.
+- A host "I've sent payment" button: the founder is in the conversation, so it adds a state
+  product.md §7.2 forbids for no benefit at this stage.
+- A ledger/audit table: duplicates facts already on `payments` (D17's reasoning).
+**Consequences:**
+- The Share step's "Total" is the list price. A discounted sale is recorded at its real amount
+  in the Console and the ledger, but the host's screen still shows the list price.
+- A refund attaches only to the payment that activated the event. A duplicate manual payment
+  can't be refunded through the Console. That's unchanged from Slice 9, and rare when one
+  person confirms.
+- Provider rows have no paid time of their own, so the ledger dates them by confirmation or
+  creation time.

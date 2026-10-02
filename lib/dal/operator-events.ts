@@ -159,25 +159,6 @@ export async function getOperatorEventDetail(
   if (paymentsError) throw paymentsError;
   const paymentRows = (payments ?? []) as PaymentRow[];
 
-  // confirmed_by / refunded_by are operator user ids. Resolve them to the account email for
-  // the audit record (OPS-03); every auth user has a hosts row carrying it.
-  const actorIds = [
-    ...new Set(
-      paymentRows.flatMap((p) => [p.confirmed_by, p.refunded_by]).filter((id): id is string => !!id),
-    ),
-  ];
-  const actorEmail = new Map<string, string>();
-  if (actorIds.length > 0) {
-    const { data: actors, error: actorsError } = await supabase
-      .from("hosts")
-      .select("id, email")
-      .in("id", actorIds);
-    if (actorsError) throw actorsError;
-    for (const actor of actors as { id: string; email: string }[]) {
-      actorEmail.set(actor.id, actor.email);
-    }
-  }
-
   return {
     event: withoutThemeMedia(event as EventRow),
     hostEmail: hosts?.email ?? "unknown",
@@ -188,10 +169,37 @@ export async function getOperatorEventDetail(
       favorited: favorited.count ?? 0,
       deleted: deleted.count ?? 0,
     },
-    payments: paymentRows.map((p) => ({
-      ...p,
-      confirmedByEmail: p.confirmed_by ? (actorEmail.get(p.confirmed_by) ?? null) : null,
-      refundedByEmail: p.refunded_by ? (actorEmail.get(p.refunded_by) ?? null) : null,
-    })),
+    payments: await withOperatorEmails(paymentRows),
   };
+}
+
+/**
+ * confirmed_by / refunded_by are operator user ids. Resolves them to the account email for the
+ * audit record (OPS-03); every auth user has a hosts row carrying it.
+ */
+export async function withOperatorEmails<T extends PaymentRow>(
+  payments: T[],
+): Promise<(T & { confirmedByEmail: string | null; refundedByEmail: string | null })[]> {
+  const actorIds = [
+    ...new Set(
+      payments.flatMap((p) => [p.confirmed_by, p.refunded_by]).filter((id): id is string => !!id),
+    ),
+  ];
+  const actorEmail = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const { data: actors, error } = await createServiceClient()
+      .from("hosts")
+      .select("id, email")
+      .in("id", actorIds);
+    if (error) throw error;
+    for (const actor of actors as { id: string; email: string }[]) {
+      actorEmail.set(actor.id, actor.email);
+    }
+  }
+
+  return payments.map((p) => ({
+    ...p,
+    confirmedByEmail: p.confirmed_by ? (actorEmail.get(p.confirmed_by) ?? null) : null,
+    refundedByEmail: p.refunded_by ? (actorEmail.get(p.refunded_by) ?? null) : null,
+  }));
 }

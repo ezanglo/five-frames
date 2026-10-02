@@ -13,6 +13,8 @@ import {
 } from "@/lib/dal/payments";
 import type { PaymongoWebhookEvent } from "@/lib/payments/paymongo-client";
 import { getOperatorEventDetail } from "@/lib/dal/operator-events";
+import { listPaymentLedgerForOperator } from "@/lib/dal/payment-ledger";
+import { ledgerLines } from "@/lib/payments/ledger";
 import { paymentAuditRows } from "@/lib/payments/audit";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 
@@ -384,5 +386,38 @@ describe("manual payment confirmation and refund", () => {
 
     const stillActivated = await getEventForHost(operatorHostId, event.id);
     expect(stillActivated?.activated_at).not.toBeNull();
+  });
+
+  it("the ledger lists money that moved, with who confirmed and refunded it, and never a checkout attempt", async () => {
+    const event = await createDraftEvent(hostAId, "Ledger");
+    // An abandoned "Pay online" attempt: a pending provider row that never took money.
+    const { error: beginError } = await supabase
+      .rpc("begin_provider_checkout", { p_event_id: event.id })
+      .single();
+    if (beginError) throw beginError;
+
+    await confirmManualPayment(
+      operatorBId,
+      event.id,
+      manualInput({ method: "bank_transfer", referenceNote: "BPI ref 4471" }),
+    );
+    await recordManualRefund(operatorBId, event.id, { note: "Event cancelled" });
+
+    const ledger = (await listPaymentLedgerForOperator()).filter((p) => p.event_id === event.id);
+    expect(ledger).toHaveLength(1);
+    const [entry] = ledger;
+    expect(entry.source).toBe("manual");
+    expect(entry.eventName).toBe("Ledger");
+    expect(entry.hostEmail).toBe(`manual-host-a-${suffix}@example.test`);
+    expect(entry.confirmedByEmail).toBe(`manual-operator-b-${suffix}@example.test`);
+    expect(entry.refundedByEmail).toBe(`manual-operator-b-${suffix}@example.test`);
+    expect(entry.reference_note).toBe("BPI ref 4471");
+    // A refunded payment is resolved, not an outstanding duplicate.
+    expect(entry.duplicate).toBe(false);
+
+    expect(ledgerLines(ledger).map((line) => [line.kind, line.amount])).toEqual([
+      ["refund", -99900],
+      ["payment", 99900],
+    ]);
   });
 });

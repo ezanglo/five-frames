@@ -1142,6 +1142,13 @@ Decision D22, product.md §7.5. The host picks how the revealed gallery is arran
 
 ## 8. Payment
 
+**Payment mode (decision D23).** `PAYMENT_MODE` in `lib/payments/mode.ts` is a checked-in
+constant. At launch it is `manual`: there is no checkout, `startCheckoutAction` refuses, and every
+event activates through §8a. The Share step subscribes to the D21 live stream, so it turns into
+the QR hand-over when an operator confirms. Host and public payment copy branch on the same
+constant (`PAYMENT_COPY_BY_MODE`). The rest of this section describes the `online` path, which
+stays built, tested and wired, webhook included.
+
 PayMongo Checkout Sessions (`POST /v2/checkout_sessions`). The host is shown the price breakdown
 — event price, processing fees, total, refundability — from our own records before redirect, not
 derived from provider UI.
@@ -1220,6 +1227,12 @@ route and every server action — never by page-level UI hiding alone.
     Console runs on the same service-role-keyed DAL as everything else, so the boundary is "this
     module never mints media URLs," not a separate credential that literally cannot. That is the
     same honest framing §10 already applies to RLS.
+- **Payment ledger** (`/operator/payments`, D23): a read over `payments` rows that took money
+  (`confirmed_at` set, or provider `paid`/`paid_duplicate`), joined to the event through
+  `payments_event_id_fkey`. Two foreign keys link the tables, so the embed must name it. Each
+  row becomes a payment line, plus a negative refund line dated `refunded_at`. Months and totals
+  use Asia/Manila. The CSV route (`/operator/payments/export`) runs `requireOperator()` itself.
+  Read-only, and no new table (D17).
 - **Confirm manual payment / record manual refund** are the only mutations the Console exposes
   (§8a). Every other field the Console displays is read-only from this surface — editing an
   event's configuration, moderating captures, or changing ownership all remain host-only or

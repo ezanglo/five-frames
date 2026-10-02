@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
+Last updated: 2026-10-02 (sales-led launch: self-service online payment is built but switched off at launch, so every sale is arranged in conversation and confirmed by a FiveFrames operator, §7.2; e-wallet transfers as a manual payment method, §7.2.1; an Operator Console payment ledger, §5.1.1; criteria 17 and 69). Previously 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
 Initial market: Philippines
 
 ---
@@ -97,6 +97,7 @@ Prefer read-only visibility except for the explicitly authorized mutations below
 - See relevant retention/expiry state (§15.2), as those lifecycle capabilities are implemented.
 - Confirm a supplier-assisted/manual payment (mutation; unchanged rule that an operator cannot confirm for an event they own).
 - Record a manually executed refund (mutation; same ownership restriction).
+- See a ledger of every payment that took money and every recorded refund, across all events, with totals for a chosen month and an export for FiveFrames' own bookkeeping. Read-only: it is a view of the payment records (§7.2.1, §15.1), not accounting software.
 
 This list is expected to grow incrementally as later MVP capabilities (e.g. retention/expiry) are implemented, rather than the Console being designed as a complete future back office up front (see Roadmap, out of scope for this document).
 
@@ -168,12 +169,20 @@ States are meaningful product concepts and drive what each role can do.
 - FiveFrames supports two paths to activation, both reaching the same paid/active state:
   1. **Self-service online payment** — the host pays directly through the configured payment provider ("Pay online"). Activation is triggered by the provider's own trusted confirmation of a successful payment.
   2. **Supplier-assisted / manual payment** — used when FiveFrames has arranged the sale directly with the host through a direct conversation (host, couple, coordinator, family, or organizer) and accepts cash or another explicitly agreed offline payment. Activation is triggered **only** when an authorized FiveFrames operator confirms — after actually receiving and verifying the payment — that it was received (§7.2.1).
+- **Launch payment mode: sales-led.** At launch, FiveFrames sells every event directly. Someone from FiveFrames talks with the host, usually demoing the product with them, agrees the sale, and the host pays FiveFrames directly. **Self-service online payment (path 1) is switched off in this mode:** there is no "Pay online" action anywhere in the product, and public copy must not promise online payment. Path 2 is the only way an event activates. Switching path 1 on later is a deliberate product change that restores the self-service rules in this section unchanged; nothing about path 2 changes when it does.
 - **The host can never self-declare payment and activate an event.** Under both paths, activation always originates from a source external to and independent of the host: the payment provider (path 1), or an authorized FiveFrames operator (path 2). A host cannot mark their own event as paid.
 - The **event link and printable QR are issued only after payment is confirmed**, through either path. An unpaid or unconfirmed event can never be distributed to guests.
 - Payment failure (path 1) or payment not yet confirmed (path 2) leaves the event in draft/pending-payment. Nothing is activated and no links are issued.
 - Before payment, the host must be shown a clear breakdown: the FiveFrames event price, any processing/service fees (path 1) or the agreed amount (path 2), the total, and which amounts are refundable versus non-refundable.
 
-**What the host sees before a manual payment is confirmed.** Supplier-assisted/manual payment is an off-platform commercial arrangement between FiveFrames and the host — it does not create a separate persisted "arranged" or "pending confirmation" lifecycle state merely to represent that a conversation or arrangement took place. An unpaid event remains in the same unpaid/pending-payment state (§7 lifecycle table) regardless of which path the host may pursue, until an operator actually confirms receipt (§7.2.1). The ordinary unpaid checkout screen shows one lifecycle state, communicated as:
+**What the host sees before a manual payment is confirmed.** Supplier-assisted/manual payment is an off-platform commercial arrangement between FiveFrames and the host — it does not create a separate persisted "arranged" or "pending confirmation" lifecycle state merely to represent that a conversation or arrangement took place. An unpaid event remains in the same unpaid/pending-payment state (§7 lifecycle table) regardless of which path the host may pursue, until an operator actually confirms receipt (§7.2.1). The ordinary unpaid checkout screen shows one lifecycle state.
+
+**While self-service payment is off (sales-led launch)**, it is communicated as:
+
+- The price breakdown, then a calm status that the event activates, and its link and QR appear, once FiveFrames confirms payment. The screen may update by itself when that happens.
+- No action for the host to declare, flag, or request payment. The same limits as the secondary copy below apply: it must not create or update any payment record, notify anyone, or trigger activation. It may point a host who hasn't arranged payment yet to FiveFrames' contact channel.
+
+**While self-service payment is on**, it is communicated as:
 
 - **Primary action: "Pay online."** Self-service checkout remains available to every unpaid host, including one who has separately arranged payment directly with FiveFrames — arranging manual payment never disables or hides online payment.
 - **Secondary explanatory copy**, for hosts who already arranged payment directly with FiveFrames, to the effect of: "Already arranged payment directly with FiveFrames? Your event will activate once we confirm receipt." This copy is informational only. It must not let the host declare or mark their own payment as made, must not create or update any manual-payment record, must not notify anyone or trigger activation by itself, must not reserve or flag the event as paid, and must not become a self-service "request manual payment" workflow. It is calm, factual wording layered on the existing unpaid state — not a new state, status value, or workflow.
@@ -184,7 +193,7 @@ For supplier-assisted/manual payments, FiveFrames keeps an auditable payment rec
 
 - the event the payment is for,
 - the amount and currency,
-- the payment method/category (e.g., cash, manually verified bank transfer, another explicitly accepted offline arrangement),
+- the payment method/category (e.g., cash, manually verified bank transfer, verified e-wallet transfer such as GCash or Maya, another explicitly accepted offline arrangement),
 - the date the payment was made,
 - the date the payment was confirmed,
 - which authorized FiveFrames operator confirmed it,
@@ -192,7 +201,7 @@ For supplier-assisted/manual payments, FiveFrames keeps an auditable payment rec
 
 This is internal operational data that makes manual confirmation auditable — it is not an invoice, receipt-generation feature, or accounting record for the host. How it is stored is an architecture decision (§17); the product requirement is that this information exists and is auditable per manual payment, not how it is persisted.
 
-Manual payment may include cash, a manually verified bank transfer, or another explicitly accepted offline arrangement. Personal-wallet-to-personal-wallet transfers (e.g., paying into a personal GCash/Maya account) are **not the primary or default payment method** — the default customer-facing path is "Pay online" through the provider. Manual payment is a deliberate, FiveFrames-initiated exception for specific early sales, not a general alternative that hosts can request or choose for themselves.
+Manual payment may include cash, a manually verified bank transfer, a verified e-wallet transfer (e.g., GCash or Maya) into an account FiveFrames controls, or another explicitly accepted offline arrangement. It is always FiveFrames-initiated, as part of a direct sales conversation, and never something a host can select or request in the product. During the sales-led launch it is the only payment path (§7.2). Once self-service online payment is switched on, "Pay online" becomes the default customer-facing path again, and manual payment returns to being the exception for FiveFrames-arranged sales.
 
 ### 7.3 Capture window
 
@@ -647,7 +656,7 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 | Guest opens capture link after capture closed | Calm "capture has ended" state, plus their own captures if their session still exists. The full gallery is reached only through the gallery link. |
 | Event is at its guest-session capacity (§9.5) and a new guest tries to join | Calm "this event is currently full" state, not an error. Guests already joined are unaffected and keep their full remaining allowance. |
 | Self-service payment fails | Event stays unpaid; nothing is activated; host can retry. |
-| A host has arranged supplier-assisted/manual payment but an operator has not yet confirmed receipt | Event stays in the ordinary unpaid/pending-payment state (no separate "arranged" state, §7.2); no link or QR exists; host cannot self-activate; "Pay online" remains available; calm secondary copy tells the host confirmation is pending. |
+| A host has arranged supplier-assisted/manual payment but an operator has not yet confirmed receipt | Event stays in the ordinary unpaid/pending-payment state (no separate "arranged" state, §7.2); no link or QR exists; host cannot self-activate; calm copy tells the host the event activates once FiveFrames confirms payment. While self-service payment is on, "Pay online" also remains available. |
 | Realtime updates unavailable | Dashboard still correct via refresh; no data loss, no incorrect counts. |
 | Host tries to reveal a gallery with no captures | Allowed; empty-state gallery, no error. |
 | Keepsake generation, sharing, or saving fails (either family) | Calm message; guest can retry. The captures, the frames, and the originals are unaffected. |
@@ -677,9 +686,9 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
   - **Post-validation target price hypothesis: ₱1,490 per event.** Not a fake "regular price" shown crossed out at launch — FiveFrames must not present ₱1,490 as a reference/anchor price unless it has actually sold at that price. The move from ₱999 toward ₱1,490 happens once early paid events validate demand at the lower price.
   - One event remains a one-time purchase; guests never pay, at either price point.
 - **Renewal hypothesis:** approximately **₱499/year** to extend hosted access. Unaffected by the launch pricing strategy above unless later evidence creates a real contradiction.
-- **Two payment paths, one commercial outcome (§7.2):** self-service online payment through the configured provider, or supplier-assisted/manual payment for sales FiveFrames arranges and confirms directly (§7.2.1). Both purchase the same one event / one-time price; manual payment is not a discount tier or a different product.
-- **Self-service online payment methods:** **GCash, Maya, and cards** must be supported for the Philippine launch. The provider/technical layer may expose additional appropriate Philippine rails as they become available (e.g., QR Ph, supported online banking) — this is left to architecture and is not a requirement to launch with more than the three named methods.
-- **Supplier-assisted/manual payment:** cash, a manually verified bank transfer, or another explicitly accepted offline arrangement (§7.2.1). Not customer self-service, not the default or primary payment method, and never available for a host to select on their own — FiveFrames initiates it as part of a direct sales conversation.
+- **Two payment paths, one commercial outcome (§7.2):** self-service online payment through the configured provider, or supplier-assisted/manual payment for sales FiveFrames arranges and confirms directly (§7.2.1). Both purchase the same one event / one-time price; manual payment is not a discount tier or a different product. **At launch only the manual path is on** (sales-led, §7.2).
+- **Self-service online payment methods (once self-service payment is on):** **GCash, Maya, and cards** must be supported for the Philippine launch. The provider/technical layer may expose additional appropriate Philippine rails as they become available (e.g., QR Ph, supported online banking) — this is left to architecture and is not a requirement to launch with more than the three named methods.
+- **Supplier-assisted/manual payment:** cash, a manually verified bank transfer, a verified e-wallet transfer, or another explicitly accepted offline arrangement (§7.2.1). Not customer self-service, and never available for a host to select on their own — FiveFrames initiates it as part of a direct sales conversation. It is the only path during the sales-led launch, and the exception once self-service payment is on.
 - **Provider:** PayMongo is a plausible candidate for the self-service online path. **The provider is not a product requirement**; architecture may choose differently as long as the three named self-service methods are supported.
 - **Pre-payment disclosure:** clear breakdown of event price, processing/service fees (self-service) or the agreed amount (manual), total, and refundable versus non-refundable amounts.
 
@@ -724,7 +733,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Server-authoritative frame limits with strong consistency guarantees.
 - Direct-to-storage upload for large media.
 - Private, access-checked media delivery.
-- Support for GCash, Maya and cards in the Philippines (self-service path), plus an auditable manual payment record and operator-only confirmation for the supplier-assisted path (§7.2.1).
+- Support for GCash, Maya and cards in the Philippines on the self-service path once it is switched on (§7.2), plus an auditable manual payment record and operator-only confirmation for the supplier-assisted path (§7.2.1).
 - An internal Operator Console (§5.1) as the sole, server-authoritative and auditable path for operator mutations (manual payment confirmation, manual refund recording), with read-only operational visibility into events across all hosts for support purposes.
 
 **Technical recommendations (preferred, replaceable)**
@@ -751,9 +760,9 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 ### Required for MVP
 - Host account, event creation and configuration (name, date, timezone, message).
 - Draft → payment → active lifecycle, with price breakdown before payment.
-- Self-service online payment via GCash, Maya and cards; activation on provider-confirmed success.
+- Self-service online payment via GCash, Maya and cards; activation on provider-confirmed success. Built, and switched off for the sales-led launch (§7.2).
 - Supplier-assisted/manual payment path for FiveFrames-arranged sales, with a manual payment record (§7.2.1: event, amount/currency, method/category, payment date, confirmation date, confirming operator, optional reference/note) and activation only on authorized-operator confirmation — never host self-declaration.
-- One unpaid customer-facing state with "Pay online" as the primary action, plus calm secondary copy for hosts who already arranged payment directly with FiveFrames (§7.2) — no separate persisted "arranged" payment state.
+- One unpaid customer-facing state, with no separate persisted "arranged" payment state (§7.2). During the sales-led launch: the price breakdown and a calm "activates once FiveFrames confirms your payment" status, with no host payment action. With self-service on: "Pay online" as the primary action, plus calm secondary copy for hosts who already arranged payment directly with FiveFrames.
 - Event link + printable QR issued only once payment is confirmed, through either path.
 - Host-controlled capture open/close, with automatic safety-net close.
 - Guest join via QR/link with display name and anonymous session; no accounts.
@@ -777,7 +786,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Event capacity fair-use boundary (§9.5): launch hypothesis of up to 250 guest sessions per event, with a calm at-capacity state for new joins once reached.
 - Event signage (§11.3): printable QR, table card, poster, and digital/phone-screen formats, each carrying event name, QR, guest instruction, "No app. No account." reassurance and FiveFrames identity. All are themed with the event's accent color and hashtag, and with the theme image where it fits, while the QR stays the priority. The host can preview every format before download, and can preview before activation with a placeholder QR.
 - Guest trust cues on the join screen (§4 principle 9): no app required, no account required, captures follow this event's access rules.
-- Operator Console (§5.1): event list/search and per-event operational detail view across all events, plus the two existing operator mutations — confirm a supplier-assisted/manual payment, record a manual refund — each performed only through the Console rather than an ad hoc or undocumented process.
+- Operator Console (§5.1): event list/search and per-event operational detail view across all events, plus the two existing operator mutations — confirm a supplier-assisted/manual payment, record a manual refund — each performed only through the Console rather than an ad hoc or undocumented process. A read-only payment ledger with monthly totals and an export (§5.1.1).
 
 ### MVP optional (ship if cheap, not launch-blocking)
 - Realtime dashboard updates (fallback to refresh/polling is acceptable).
@@ -815,6 +824,7 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - Five photos is the right allowance.
 - Guests accept commitment finality without frustration.
 - Hosts are comfortable opening capture manually at the venue.
+- Selling directly, in conversation and usually with an in-person demo, is the right way to land the first paid events (§7.2, sales-led launch).
 - The pre-purchase demo (§7.1) meaningfully increases a prospective host's willingness to pay, without being mistaken for a free way to run a real event.
 - An optional event theme and photobooth-style keepsakes make FiveFrames feel premium to hosts without making setup feel like work. Most hosts should be happy with the defaults or a quick theme.
 - Keepsakes carrying a subtle FiveFrames brandmark produce meaningful organic discovery, without guests perceiving them as advertising. A shared Full Set in the brandmark-derived signature layout is recognizably FiveFrames even before the logo is noticed.
@@ -823,7 +833,7 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 **Open — do not block MVP definition**
 - Exact safety-net close duration after the event (48–72 hours).
 - Exact expiry grace period before permanent deletion (~30 days).
-- Final payment provider selection.
+- Final payment provider selection, and when to switch self-service online payment on (needs a live provider account with KYC complete, and a business decision once direct sales show demand).
 - Whether bulk download is a zip, a batched flow, or provider-native.
 - Copy and legal text for refunds, retention and deletion (needs a business/legal decision before launch).
 - Whether hosts may pick a free custom accent color in addition to FiveFrames' curated set (§10.1). This is a design decision; the contrast safeguard applies either way.
@@ -865,7 +875,7 @@ Observable behavior that defines launch readiness.
 14. The host sees price (or agreed amount), fees, total and refundability before paying, for either payment path.
 15. Once an event reaches its guest-session capacity (§9.5), a new guest attempting to join sees a calm "event is full" state; guests already joined are unaffected and keep capturing normally.
 16. A prospective host can experience the pre-purchase demo (§7.1) without paying and without creating any real event, link, or QR; nothing produced by the demo functions as a real capture or gallery link.
-17. A host offered supplier-assisted/manual payment has no action available to mark their own event as paid; the event stays unactivated, with no link or QR, until an authorized FiveFrames operator confirms it. Before confirmation, the host's checkout still shows "Pay online" as the primary action, plus calm secondary copy explaining that confirmation activates the event; online payment is never disabled by the existence of a manual arrangement (§7.2).
+17. A host has no action available to mark their own event as paid; the event stays unactivated, with no link or QR, until an authorized FiveFrames operator confirms payment (or, with self-service payment on, the provider confirms one). During the sales-led launch, the host's checkout shows the price breakdown and calm copy that the event activates once FiveFrames confirms payment, and there is no "Pay online" action in the product and no online-payment promise on the public site. With self-service payment on, the checkout shows "Pay online" as the primary action, plus calm secondary copy explaining that confirmation activates the event, and online payment is never disabled by the existence of a manual arrangement (§7.2).
 18. Confirming a manual payment records an auditable payment record identifying the event, amount/currency, method/category, payment date, confirmation date, and confirming operator (§7.2.1); confirmation activates the event and issues its link and QR exactly as a successful self-service payment would.
 19. Being a host or a paying customer never by itself grants the ability to confirm or refund a manual payment; that ability exists only for accounts FiveFrames has explicitly authorized as operators (§5). An operator who also owns an event cannot confirm payment or a refund for that event — a different authorized operator must do so.
 
@@ -939,6 +949,9 @@ Observable behavior that defines launch readiness.
 **Gallery layout (§7.5)**
 67. A new event's revealed gallery uses Masonry, as does any existing event the host never changed. The host can switch between Masonry, Rows and Grid at any time, and the choice persists.
 68. In every layout, the revealed gallery shows exactly the same photos in the same order (hidden and deleted captures excluded), opening a photo shows the whole photo, and changing the layout changes no capture, original, moderation state, reveal timing, visibility or access.
+
+**Payment ledger (§5.1.1)**
+69. An authorized operator can see every payment that took money and every recorded refund, across all events, newest first, each with its event, host, amount, method, reference, and who confirmed or refunded it and when. They can narrow it to one month and see that month's received, refunded and net totals, and download it as a spreadsheet file. An abandoned or unfinished checkout attempt never appears as money received, and the ledger offers no way to change a payment.
 
 ---
 

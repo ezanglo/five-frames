@@ -18,7 +18,7 @@ import type { ManualPaymentMethod } from "@/lib/db/types";
  * status, the same split every other role boundary in this codebase uses.
  */
 
-const MANUAL_METHODS: ManualPaymentMethod[] = ["cash", "bank_transfer", "other"];
+const MANUAL_METHODS: ManualPaymentMethod[] = ["cash", "bank_transfer", "e_wallet", "other"];
 
 export type ManualPaymentFormState =
   | { status: "idle" }

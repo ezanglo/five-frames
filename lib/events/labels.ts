@@ -31,6 +31,7 @@ export const GALLERY_LAYOUT_LABEL: Record<GalleryLayout, string> = {
 export const MANUAL_PAYMENT_METHOD_LABEL: Record<ManualPaymentMethod, string> = {
   cash: "Cash",
   bank_transfer: "Bank transfer (verified)",
+  e_wallet: "E-wallet (GCash, Maya)",
   other: "Other (explicitly agreed)",
 };
 

@@ -586,7 +586,10 @@ export async function recordManualRefund(
  * payment that lost the activation race and was never refunded still has no `refunded_at`,
  * so it keeps surfacing for operator follow-up exactly as before.
  */
-export function isDuplicatePayment(payment: PaymentRow, event: EventRow): boolean {
+export function isDuplicatePayment(
+  payment: PaymentRow,
+  event: Pick<EventRow, "activating_payment_id">,
+): boolean {
   const succeeded =
     payment.source === "provider"
       ? payment.provider_status === "paid" || payment.provider_status === "paid_duplicate"

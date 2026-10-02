@@ -21,7 +21,7 @@ Nothing below is marked PASS until it has actually been run against the release-
 deployment. Release work that isn't a test (configuration, migrations, business decisions) is
 tracked separately in [progress.md → Release follow-ups](./progress.md#release-follow-ups-not-test-cases).
 
-**Status: IN PROGRESS — no open FAIL; a product change (gallery layouts, D22) landed after RC `6d8aca8` and needs a new RC plus the targeted reruns in [Gallery-layout change after RC `6d8aca8`](#gallery-layout-change-after-rc-6d8aca8); then the human/real-device pass.** 54 cases: 10 PASS, 0 FAIL, 11 BLOCKED, 30 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 3 DEFERRED (INAPP-01…03, accepted launch risk). First automated `/e2e-validate` pass against RC `a2a32b1`, 2026-10-01. Its five FAILs were repaired, and the targeted rerun against RC `8f37fba` (same day) cleared four of them. NET-02 then failed again for a new reason: a connection cut on the reserve or commit request left the guest stuck. That was repaired, and the targeted rerun against RC `6d8aca8` (same day) verified the repair (see [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8)). NET-02 goes back to NOT RUN, because only a real Android phone can pass it. SMOKE-01's automated run passed. It must still run last, after the human pass.
+**Status: IN PROGRESS — no open FAIL; two product changes (gallery layouts, D22; sales-led manual payment, D23) landed after RC `6d8aca8` and need a new RC plus the targeted reruns in [Gallery-layout change after RC `6d8aca8`](#gallery-layout-change-after-rc-6d8aca8) and [Sales-led payment change after RC `6d8aca8`](#sales-led-payment-change-after-rc-6d8aca8); then the human/real-device pass.** 55 cases: 8 PASS, 0 FAIL, 9 BLOCKED, 32 NOT RUN (human/real-device; automated proxy evidence noted where obtained), 6 DEFERRED (INAPP-01…03, accepted launch risk; ENV-03, ENV-04 and HOST-05, online payment switched off by D23). First automated `/e2e-validate` pass against RC `a2a32b1`, 2026-10-01. Its five FAILs were repaired, and the targeted rerun against RC `8f37fba` (same day) cleared four of them. NET-02 then failed again for a new reason: a connection cut on the reserve or commit request left the guest stuck. That was repaired, and the targeted rerun against RC `6d8aca8` (same day) verified the repair (see [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8)). NET-02 goes back to NOT RUN, because only a real Android phone can pass it. SMOKE-01's automated run passed. It must still run last, after the human pass.
 
 ### Run record
 
@@ -34,7 +34,7 @@ gallery URL in this file.
 | Vercel environment used (Production or Preview) | Production (Option A) |
 | Deployment origin (no tokens) | `https://five-frames.vercel.app` |
 | Supabase project | `five-frames-dev` (expected) |
-| PayMongo mode | Test (expected) |
+| PayMongo mode | Not used: `PAYMENT_MODE = manual` (D23). Test, if the mode is switched to `online` |
 | Date(s) of the pass | 2026-10-01 (automated part on `a2a32b1`; targeted automated reruns on `8f37fba` and `6d8aca8`) |
 | Tester(s) | `/e2e-validate` (Playwright Chromium/WebKit, E2E host A + operator O); human part pending |
 
@@ -258,6 +258,42 @@ unchanged and covered again by the integration test), GAL-01/02/03/05/06 (access
 is unchanged; the page reads the layout only after its access decision), VIS-01, VIS-02 (no motion
 was added beyond the existing section entrance), VIS-04 (the demo's phone view is unchanged).
 
+### Sales-led payment change after RC `6d8aca8`
+
+A product change, not a repair (product.md §7.2, decision D23). Online payment is switched off
+(`PAYMENT_MODE = manual` in `lib/payments/mode.ts`). Every event activates through an operator's
+manual confirmation. It is not deployed yet. Automated evidence is local only: typecheck, lint,
+unit tests, and `payments.manual.integration.test.ts` / `payments.integration.test.ts` /
+`operator-events.integration.test.ts` against dev Postgres.
+
+**What changed:**
+- the Share step: no "Pay online". It shows the price breakdown and "Waiting for FiveFrames to
+  confirm your payment", and refreshes itself into the QR hand-over when the event activates
+  (D21 stream). The host dashboard card reads "Not active yet". `startCheckoutAction` refuses;
+- public copy (home, pricing, how-it-works, FAQ, footer): hosts pay FiveFrames directly, with no
+  online-payment or PayMongo claim;
+- Operator Console: a **Payments** ledger (`/operator/payments`, monthly totals, CSV export), an
+  "Awaiting payment" filter on the event list, and an "E-wallet (GCash, Maya)" manual method;
+- migration `20261002000000_manual_payment_e_wallet.sql` (widens a check constraint). **Not yet
+  applied to the dev project.** Until it is, confirming with the E-wallet method fails.
+
+**Invalidated or newly required (rerun on the new RC):**
+
+| Case | Why | What to rerun |
+|---|---|---|
+| ENV-01 | Every new RC | Gate |
+| ENV-02 | Its PASS condition now includes `20261002000000` applied | Re-list migrations |
+| HOST-04 | The unpaid Share step, dashboard card and public copy changed | Full case, rewritten for manual mode (PASS → NOT RUN) |
+| HOST-05, ENV-03, ENV-04 | No online checkout exists in manual mode | DEFERRED until `PAYMENT_MODE = online`. Their earlier evidence stays |
+| OPS-03 | E1 is now activated this way. Pick E-wallet once (the new method) | Light recheck |
+| OPS-05 | After a refund, host A sees the manual-mode Share step, not "Pay online" | Desktop portion again, with the real-phone step already pending |
+| OPS-06 (new) | Payments ledger | Full case |
+| SMOKE-01 | Always last | Already pending |
+
+**Not invalidated:** activation itself (the same `activateEvent` path, D16), every guest, gallery,
+keepsake, signage, capacity, cron and network case. Capture gating doesn't depend on the payment
+source.
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.
@@ -266,8 +302,10 @@ One Vercel deployment of the final intended release code. Every case runs agains
   commit changes, and the rerun rules under [Results and triage](#results-and-triage) apply.
 - **Backend:** the FiveFrames dev/test Supabase project (`five-frames-dev`, `ap-southeast-1`),
   unless the user explicitly changes this later.
-- **Payment:** PayMongo **Test mode** only, with a Test-mode webhook registered to this deployment.
-  No live keys anywhere. No real money.
+- **Payment:** manual confirmation by operator O only (`PAYMENT_MODE = manual`, D23). No
+  PayMongo checkout runs in this pass. If the mode is switched to `online` before release, use
+  PayMongo **Test mode** only, with a Test-mode webhook registered to this deployment, and run the
+  DEFERRED ENV-03, ENV-04 and HOST-05. Never live keys, never real money.
 - **Cron:** `CRON_SECRET` set on this deployment's environment.
 - **No customer Production mutation.** No customer data exists yet. Vercel Production currently
   serves the dev database (a known interim state; see progress.md), so nothing in this pass
@@ -300,13 +338,13 @@ or into a document.
     the dev project;
   - `GUEST_SESSION_SECRET`;
   - `PAYMONGO_SECRET_KEY`, `NEXT_PUBLIC_PAYMONGO_PUBLIC_KEY` → copied from PayMongo's
-    **Test-mode** API keys;
-  - `PAYMONGO_WEBHOOK_SECRET` → the signing secret of the S-05 webhook;
+    **Test-mode** API keys; `PAYMONGO_WEBHOOK_SECRET` → the signing secret of the S-05 webhook.
+    Only needed when `PAYMENT_MODE = online` (D23). In manual mode, leaving them unset is fine;
   - `CRON_SECRET` → a fresh random value.
   - If any variable changes after deploying, redeploy and redo ENV-01.
 - [ ] **S-04 Deploy** the S-01 commit to the S-02 environment. One deployment serves the whole
   pass.
-- [ ] **S-05 Register the PayMongo Test-mode webhook** at `<origin>/api/webhooks/paymongo` for
+- [ ] **S-05 (only when `PAYMENT_MODE = online`, D23) Register the PayMongo Test-mode webhook** at `<origin>/api/webhooks/paymongo` for
   `checkout_session.payment.paid`. Put its secret in `PAYMONGO_WEBHOOK_SECRET` (S-03). If another
   Test-mode webhook points at a deployment running older code on the same database, disable it
   for the pass, so only the release candidate handles deliveries.
@@ -338,7 +376,7 @@ All are created during the pass on the dev database:
 
 | Event | Owner | Activated by | Used in |
 |---|---|---|---|
-| **E1** "RV Main" | Host A | PayMongo Test checkout | HOST, IOS, AND, INAPP, NET, GAL, CRON, SMOKE |
+| **E1** "RV Main" | Host A | Operator O, manual confirm in HOST-04 (D23). PayMongo Test checkout only if `PAYMENT_MODE = online` | HOST, IOS, AND, INAPP, NET, GAL, CRON, SMOKE |
 | **E2** "RV Manual" | Host A | Operator O, manual confirm, then refunded | OPS-03, OPS-05 |
 | **E3** "RV Own" | Operator O | Never (the confirm is refused) | OPS-04 |
 | **E4** "RV Capacity" | Host A | Operator O, manual confirm | CAP |
@@ -350,7 +388,7 @@ earlier ones create:
 
 1. Setup S-01 … S-10
 2. **A** ENV-01 … ENV-05
-3. **B** HOST-01 … HOST-06 (E1 created, paid, capture open)
+3. **B** HOST-01 … HOST-06 (E1 created, confirmed by operator O, capture open; HOST-05 is DEFERRED)
 4. **C** IOS-01 … IOS-05, AND-01 … AND-03
 5. ~~**D** INAPP-01 … INAPP-03~~ DEFERRED, not part of this pass (see section D)
 6. **I** NET-01 … NET-04
@@ -359,7 +397,7 @@ earlier ones create:
 9. **E** GAL-03 (custom reveal)
 10. **B** HOST-08 … HOST-11 (moderation, downloads, state)
 11. **E** GAL-04, GAL-07, then GAL-05, GAL-06
-12. **F** OPS-01 … OPS-05
+12. **F** OPS-01 … OPS-06
 13. **G** CAP-01, CAP-02
 14. **H** CRON-01 … CRON-03
 15. **J** VIS-01 … VIS-05. Note visual issues all along; record them here at the end.
@@ -449,10 +487,11 @@ It is never a PASS and does not hold up completion of this pass.
 - **PASS when:**
   - the deployment uses the dev project;
   - every migration up to and including `20260930010000_event_theme_raw_formats.sql` is applied,
-    and so is `20261001000000_gallery_layout.sql`;
+    and so are `20261001000000_gallery_layout.sql` and
+    `20261002000000_manual_payment_e_wallet.sql`;
   - `20260930020000_retire_share_cards.sql` is **not** applied (deliberately, until the
     deployment-order follow-up).
-- **Result:** NOT RUN (rerun for the next RC: the gallery-layout migration was added after the PASS below)
+- **Result:** NOT RUN (rerun for the next RC: the gallery-layout and e-wallet migrations were added after the PASS below)
 - **Evidence / notes:** 2026-10-01, outside a pass: `20261001000000` applied to the dev project, `20260930020000` still not applied (`supabase migration list --linked`). Earlier PASS (RC `6d8aca8`): `supabase migration list --linked` (ref `lrheuifbgbplekxnljfv`): all through `20260930010000` applied, `20260930020000` not applied. Deployment's browser Storage traffic (signed upload/read URLs) goes to the same project ref. Env var *values* were not read (permission boundary).
 
 #### ENV-03 · PayMongo Test mode; no live credentials
@@ -464,8 +503,8 @@ It is never a PASS and does not hold up completion of this pass.
   3. Check that no environment this deployment reads holds a live key.
 - **PASS when:** Test mode is on and no live PayMongo credential is configured for the validation
   deployment.
-- **Result:** BLOCKED
-- **Evidence / notes:** No PayMongo dashboard access; reading the deployment's `PAYMONGO_*` values was refused by the session's permission policy. PayMongo's hosted checkout shows no mode banner. Needs a human dashboard check.
+- **Result:** DEFERRED (D23: online payment is switched off. Run if `PAYMENT_MODE` becomes `online` before release)
+- **Evidence / notes:** Before D23, BLOCKED: no PayMongo dashboard access; reading the deployment's `PAYMONGO_*` values was refused by the session's permission policy. PayMongo's hosted checkout shows no mode banner. Needs a human dashboard check.
 
 #### ENV-04 · Webhook delivery to the validation deployment
 - **Where:** PayMongo dashboard → Webhooks
@@ -476,8 +515,8 @@ It is never a PASS and does not hold up completion of this pass.
   2. After HOST-05, open its delivery log.
 - **PASS when:** the log shows a successful (2xx) delivery to the validation origin for E1's
   payment, with no failed retries.
-- **Result:** BLOCKED
-- **Evidence / notes:** Depends on HOST-05 payment completion (not performed) and dashboard access.
+- **Result:** DEFERRED (D23, with HOST-05)
+- **Evidence / notes:** Before D23, BLOCKED: depends on HOST-05 payment completion (not performed) and dashboard access.
 
 #### ENV-05 · Public reachability
 - **Where:** real phone on mobile data, not signed in to Vercel
@@ -535,20 +574,30 @@ Run on a desktop browser unless stated. Host A, event E1.
 - **Result:** PASS
 - **Evidence / notes:** BROWSER-CHROMIUM, E1 created by E2E host A. Name, date 2026-10-01, Asia/Manila, reveal "When capture closes", visibility "Anyone with the gallery link", teal, hashtag, welcome message, keepsakes on and theme image ("Saved") all reloaded exactly in Settings → Event & gallery and Look; options render labels. The product has no event *time* field (date only); the timezone round trip was exercised by GAL-03 instead.
 
-#### HOST-04 · No usable link before payment; price breakdown
-- **Where:** desktop browser
-- **Needs:** HOST-03
+#### HOST-04 · No usable link before payment; price breakdown; manual confirmation
+- **Where:** desktop browser (host A), a second browser (operator O)
+- **Needs:** HOST-03, OPS-01's operator O
 - **Steps:**
   1. On unpaid E1, look through the dashboard, Share step, Settings → Links and Look → Signage.
-  2. Open checkout.
+  2. Open the Share step and leave it open.
+  3. Open `/`, `/pricing`, `/how-it-works` and `/faq` signed out, and read the payment wording
+     and the footer.
+  4. As operator O, find E1 under **Awaiting payment** on `/operator` and confirm a manual
+     payment (any method, amount 999). Watch host A's open Share step. Don't reload it.
 - **PASS when:**
-  - no capture link, gallery link, real QR or signage download exists anywhere (Look → Signage
-    shows the "Draft preview" placeholder only);
-  - checkout shows the ₱999 event price, fees, total and refundability before any redirect;
-  - "Pay online" is the primary action;
-  - the "Already arranged payment directly with FiveFrames?…" line is informational, with no
-    button or form behind it, and there is no way for the host to mark the event paid.
-- **Result:** PASS
+  - before step 4, no capture link, gallery link, real QR or signage download exists anywhere
+    (Look → Signage shows the "Draft preview" placeholder only);
+  - the Share step shows the ₱999 event price, "Directly to FiveFrames", the total and
+    refundability, and "Waiting for FiveFrames to confirm your payment";
+  - there is no "Pay online" button, no PayMongo wording, and no button or form that lets the
+    host mark, flag or request payment. The dashboard card reads "Not active yet", and no screen
+    says a payment was received;
+  - the public pages and footer say hosts pay FiveFrames directly, with no "Pay online", card or
+    PayMongo claim;
+  - within about 10 s of O's confirm, host A's Share step turns into "You’re all set" with the QR
+    and link, without a reload, and capture is still closed.
+- **Result:** NOT RUN (rerun for the next RC: rewritten for manual payment mode, D23)
+- **Earlier evidence (online mode, before D23):** the PASS below checked the "Pay online" Share step, which no longer exists in manual mode.
 - **Evidence / notes:** BROWSER-CHROMIUM, unpaid E1. No `/e/` or `/g/` link in the HTML of dashboard, Share, Settings, Links, Photos; Signage shows only "DRAFT PREVIEW" with 0 downloads; all four `/signage/<format>` routes return 404. Share step: ₱999, fees "Included — nothing extra", total ₱999, refund copy; "Pay online · ₱999" is the only button; the "Already arranged…" line has no control.
   - **Light recheck, RC `8f37fba` (BROWSER-CHROMIUM, unpaid R1):** same result. No `/e/` or `/g/` link on dashboard, Share, Settings, Links, Photos or Look. All four signage routes return 404. The Share step shows ₱999, "Included — nothing extra", total ₱999 and the refund copy, with "Pay online · ₱999" as the only button and the "Already arranged…" line with no control. The dashboard card reads "Finish setting up", and no screen says a payment was received.
 
@@ -568,7 +617,7 @@ Run on a desktop browser unless stated. Host A, event E1.
   - ENV-04's delivery log shows the webhook;
   - OPS-02 later shows exactly **one** provider payment for E1, paid, and not flagged as a
     duplicate.
-- **Result:** PASS (RC `8f37fba`). The "delivery log" line is checked under ENV-04, which stays BLOCKED.
+- **Result:** DEFERRED (D23: online payment is switched off. Run, with ENV-03 and ENV-04, if `PAYMENT_MODE` becomes `online` before release.) It passed on RC `8f37fba` in online mode, below.
 - **Rerun evidence, RC `8f37fba` (BROWSER-CHROMIUM + PROVIDER-TEST, R1 "RV2 Main"):**
   - Pay online opened PayMongo's hosted checkout. Its back link returned to Share with "Payment was cancelled. Nothing was charged — you can try again below."
   - The dashboard then read **"Payment not finished"**, with "Continue to payment". Share read "A checkout was started but not finished. Continuing returns you to that same checkout…". There were no links on the dashboard, Share or Links, and no "payment received" wording anywhere.
@@ -582,7 +631,7 @@ Run on a desktop browser unless stated. Host A, event E1.
 
 #### HOST-06 · Capture stays closed until the host opens it
 - **Where:** desktop browser + a phone
-- **Needs:** HOST-05
+- **Needs:** HOST-04 (E1 activated by manual confirm)
 - **Steps:**
   1. Open E1's capture link on a phone.
   2. On the host dashboard, open capture.
@@ -1036,11 +1085,12 @@ app and recorded through the Operator Console (D17).
   3. As host A, open E2.
   4. Reload E2's old capture link on the phone.
 - **PASS when:**
-  - E2 is back to unpaid/Draft, and host A sees no links and the Pay online checkout again;
+  - E2 is back to unpaid/Draft, and host A sees no links and the unpaid Share step again
+    ("Waiting for FiveFrames to confirm your payment" in manual mode);
   - the old capture link shows a calm not-found;
   - the payment shows Refunded, with refunded-at, refunded-by O and the note;
   - no false "duplicate payment" banner appears.
-- **Result:** NOT RUN (RC `8f37fba`; desktop portion passed). Remaining: step 4's reload of the old capture link on a real phone.
+- **Result:** NOT RUN (desktop portion passed on RC `8f37fba` in online mode and needs a light recheck for the manual-mode Share step, D23). Remaining: step 4's reload of the old capture link on a real phone.
 - **Rerun evidence, RC `8f37fba` (BROWSER-CHROMIUM; R2 after OPS-03):**
   - Before the refund, R2's capture link opened in a Pixel 7-emulated Chromium on "Not open yet".
   - Operator O recorded a refund with a note. The dialog read "Record this refund as completed? The event returns to unpaid and its guest link and QR stop working immediately.".
@@ -1049,6 +1099,26 @@ app and recorded through the Operator Console (D17).
   - No "duplicate" wording on the Console or the host dashboard.
   - Reloading the old capture link in the same emulated session showed the calm "We can't find this event · Double-check the link". That is proxy only; the real phone is still required.
   - The old E2 from the RC `a2a32b1` pass is still Active and was not used.
+
+#### OPS-06 · Payment ledger
+- **Where:** desktop browser, operator O; then host A
+- **Needs:** OPS-03 and OPS-05 (E1 confirmed; E2 confirmed and refunded)
+- **Steps:**
+  1. Open **Payments** in the Console header.
+  2. Pick the current month, then All time.
+  3. Download the CSV and open it in a spreadsheet app.
+  4. As host A, open `/operator/payments` and `/operator/payments/export`.
+- **PASS when:**
+  - E1's and E2's payments appear, newest first, each with event, date and time (Manila), method,
+    host email, note and amount. E2 also has a separate negative refund line. No E3 or
+    abandoned checkout appears;
+  - the month's Received, Refunded and Net totals match the lines shown;
+  - each line opens that event's Console page. There is no control to change a payment here;
+  - the CSV has the same lines, with the peso amounts, the reference and who confirmed or
+    refunded, and opens cleanly (no garbled ₱, no formula run from a note);
+  - host A gets "We can't find that page" for both URLs.
+- **Result:** NOT RUN (new, D23)
+- **Evidence / notes:** Local integration test `payments.manual.integration.test.ts` ("the ledger lists money that moved…") covers the read against dev Postgres. Not deployment evidence.
 
 ### G. Capacity
 

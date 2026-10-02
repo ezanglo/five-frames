@@ -83,7 +83,7 @@ export type CaptureRow = {
 };
 
 export type PaymentSource = "provider" | "manual";
-export type ManualPaymentMethod = "cash" | "bank_transfer" | "other";
+export type ManualPaymentMethod = "cash" | "bank_transfer" | "e_wallet" | "other";
 
 export type PaymentRow = {
   id: string;

@@ -5,7 +5,7 @@ import {
   DEFAULT_GUEST_SESSION_CAP,
   FRAMES,
   HOSTED_ACCESS_LABEL,
-  PAYMENT_METHODS_SENTENCE,
+  PAYMENT_COPY,
   PRICE_LABEL,
   PRICING_FAQ_IDS,
   REFUND_SUMMARY,
@@ -15,7 +15,7 @@ import { marketingMetadata } from "@/lib/marketing/metadata";
 
 export const metadata = marketingMetadata({
   title: "Pricing",
-  description: `FiveFrames is ${PRICE_LABEL} per event, paid once. Guests never pay, every guest gets five frames, and you pay online with ${PAYMENT_METHODS_SENTENCE}.`,
+  description: `FiveFrames is ${PRICE_LABEL} per event, paid once. Guests never pay, every guest gets five frames, and ${PAYMENT_COPY.metaTail}.`,
   path: "/pricing",
 });
 
@@ -60,12 +60,9 @@ const PAYMENT_STEPS = [
   },
   {
     title: "See the breakdown",
-    body: `Before you pay: the event price, processing fees (included — nothing extra), the total, and the refund terms.`,
+    body: PAYMENT_COPY.breakdownStep,
   },
-  {
-    title: "Pay online",
-    body: `${PAYMENT_METHODS_SENTENCE}, handled securely by our payment provider, PayMongo.`,
-  },
+  PAYMENT_COPY.payStep,
   {
     title: "Share right away",
     body: "Your link, QR code and signage are issued as soon as payment is confirmed. Capture opens when you say so.",

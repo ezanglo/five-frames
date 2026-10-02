@@ -381,7 +381,7 @@ describe("payment and shared activation", () => {
     expect(unpaid?.activated_at).toBeNull();
     expect(unpaid?.event_token).toBeNull();
     const latest = await getLatestPaymentForEvent(hostAId, event.id);
-    expect(deriveDraftPaymentState({ checkoutParam: undefined, latestPayment: latest })).toBe(
+    expect(deriveDraftPaymentState({ mode: "online", checkoutParam: undefined, latestPayment: latest })).toBe(
       "checkout_unfinished",
     );
 

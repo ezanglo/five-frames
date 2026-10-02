@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
+import { getDashboardVersion } from "@/lib/dal/dashboard-live";
 import { getLatestPaymentForEvent } from "@/lib/dal/payments";
 import { firstName, formatEventDate } from "@/lib/events/format";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
@@ -25,8 +26,10 @@ import {
   REFUND_POLICY_COPY,
 } from "@/lib/payments/pricing";
 import { DRAFT_PAYMENT_COPY } from "@/lib/payments/draft-payment";
+import { isOnlinePaymentEnabled, SALES_CONTACT } from "@/lib/payments/mode";
 import { saveDetailsStepAction, saveLookStepAction, startCheckoutAction } from "../../actions";
 import { DetailsStepForm } from "../../wizard-forms";
+import { DashboardLive } from "../dashboard-live";
 import { LookStudio } from "@/components/ff/look/look-studio";
 import { getEventThemeForHost } from "@/lib/dal/event-theme";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ff/button";
@@ -167,26 +170,38 @@ export default async function EventSetupPage({
   );
 
   if (!activated) {
-    const latestPayment = await getLatestPaymentForEvent(host.id, eventId);
+    const online = isOnlinePaymentEnabled();
+    const [latestPayment, version] = await Promise.all([
+      online ? getLatestPaymentForEvent(host.id, eventId) : Promise.resolve(null),
+      // Manual mode: the host is often beside the operator who confirms, so this page refreshes
+      // itself into the QR hand-over the moment activation lands (D21's stream, D23).
+      online ? Promise.resolve(null) : getDashboardVersion(host.id, eventId),
+    ]);
     const isPending = hasPendingProviderPayment(latestPayment);
     const name = firstName(host.name);
+    const price = `₱${EVENT_PRICE_PHP.toLocaleString()}`;
 
     return (
       <WizardShell
         {...shared}
         title={`Ready to activate${name ? `, ${name}` : ""}?`}
-        subtitle="Pay once to get your event link and QR code. Capture stays closed until you open it."
+        subtitle={
+          online
+            ? "Pay once to get your event link and QR code. Capture stays closed until you open it."
+            : "Your event link and QR code are issued once FiveFrames confirms your payment. Capture stays closed until you open it."
+        }
         aside={<NextStepsTimeline items={timeline} />}
       >
+        {version && <DashboardLive eventId={eventId} version={version} />}
         <div className="flex flex-col gap-5 lg:rounded-3xl lg:border lg:border-line lg:bg-surface lg:p-6">
           {summary}
 
-          {checkout === "cancelled" && (
+          {online && checkout === "cancelled" && (
             <p role="status" className="rounded-lg border border-line p-4 text-label font-medium text-ink">
               Payment was cancelled. Nothing was charged — you can try again below.
             </p>
           )}
-          {isPending && checkout !== "cancelled" && (
+          {online && isPending && checkout !== "cancelled" && (
             <p role="status" className="flex items-start gap-3 rounded-lg bg-brand-tint p-4 text-label font-medium text-ink">
               <Clock className="mt-0.5 size-4 shrink-0 text-brand" aria-hidden />
               {DRAFT_PAYMENT_COPY.checkout_unfinished.checkoutStatus}
@@ -206,36 +221,83 @@ export default async function EventSetupPage({
           </ul>
 
           <dl className="flex flex-col gap-3 rounded-lg bg-surface-subtle p-4">
-            <PriceRow label="FiveFrames event" value={`₱${EVENT_PRICE_PHP.toLocaleString()}`} />
-            <PriceRow label="Processing fees" value="Included — nothing extra" />
+            <PriceRow label="FiveFrames event" value={price} />
+            {online ? (
+              <PriceRow label="Processing fees" value="Included — nothing extra" />
+            ) : (
+              <PriceRow label="How you pay" value="Directly to FiveFrames" />
+            )}
             <div className="border-t border-line pt-3">
-              <PriceRow label="Total today" value={`₱${EVENT_PRICE_PHP.toLocaleString()}`} strong />
+              <PriceRow label={online ? "Total today" : "Total"} value={price} strong />
             </div>
             <p className="text-caption font-medium text-ink-muted">{REFUND_POLICY_COPY}</p>
           </dl>
         </div>
 
-        <form action={startCheckoutAction.bind(null, eventId)} className="contents">
-          <WizardActions backHref={stepHref(2)}>
-            <div className="flex flex-col gap-2 lg:items-end">
-              <Button type="submit" className="w-full lg:w-auto lg:px-8">
-                Pay online · ₱{EVENT_PRICE_PHP.toLocaleString()}
-                <ArrowRight aria-hidden />
-              </Button>
-              <p className="flex items-center justify-center gap-1.5 text-caption font-medium text-ink-muted">
-                <Lock className="size-3.5" aria-hidden />
-                GCash, Maya or card — handled securely by PayMongo.
-              </p>
-            </div>
-          </WizardActions>
-        </form>
+        {online ? (
+          <>
+            <form action={startCheckoutAction.bind(null, eventId)} className="contents">
+              <WizardActions backHref={stepHref(2)}>
+                <div className="flex flex-col gap-2 lg:items-end">
+                  <Button type="submit" className="w-full lg:w-auto lg:px-8">
+                    Pay online · {price}
+                    <ArrowRight aria-hidden />
+                  </Button>
+                  <p className="flex items-center justify-center gap-1.5 text-caption font-medium text-ink-muted">
+                    <Lock className="size-3.5" aria-hidden />
+                    GCash, Maya or card — handled securely by PayMongo.
+                  </p>
+                </div>
+              </WizardActions>
+            </form>
 
-        {/* Informational only (product.md §7.2) — not a state, and never a way for the host to
-            declare their own payment. Always secondary to "Pay online". */}
-        <p className="text-center text-caption font-medium text-ink-muted lg:text-left">
-          Already arranged payment directly with FiveFrames? Your event will activate once we
-          confirm receipt.
-        </p>
+            {/* Informational only (product.md §7.2) — not a state, and never a way for the host
+                to declare their own payment. Always secondary to "Pay online". */}
+            <p className="text-center text-caption font-medium text-ink-muted lg:text-left">
+              Already arranged payment directly with FiveFrames? Your event will activate once we
+              confirm receipt.
+            </p>
+          </>
+        ) : (
+          <>
+            {/* Manual payment mode (product.md §7.2, D23). A status, never a control: nothing
+                here lets the host declare, flag or request their own payment. */}
+            <p
+              role="status"
+              className="flex items-start gap-3 rounded-lg bg-brand-tint p-4 text-label font-medium text-ink"
+            >
+              <Clock className="mt-0.5 size-4 shrink-0 text-brand-ink" aria-hidden />
+              <span>
+                Waiting for FiveFrames to confirm your payment. Keep this page open if you like —
+                your link and QR code appear here as soon as it’s confirmed.
+              </span>
+            </p>
+            <WizardActions backHref={stepHref(2)}>
+              <ButtonLink
+                href={`/events/${eventId}`}
+                variant="secondary"
+                className="w-full lg:w-auto lg:px-8"
+              >
+                Go to your event
+              </ButtonLink>
+            </WizardActions>
+            <p className="text-center text-caption font-medium text-ink-muted lg:text-left">
+              {SALES_CONTACT ? (
+                <>
+                  Haven’t arranged payment with us yet?{" "}
+                  <a
+                    href={SALES_CONTACT.href}
+                    className="ff-focus rounded-sm font-semibold text-brand-ink underline-offset-4 hover:underline"
+                  >
+                    {SALES_CONTACT.label}
+                  </a>
+                </>
+              ) : (
+                "Haven’t arranged payment yet? Get in touch with FiveFrames — we set up every event with you directly."
+              )}
+            </p>
+          </>
+        )}
       </WizardShell>
     );
   }

@@ -23,6 +23,7 @@ import {
 } from "@/lib/events/lifecycle";
 import { formatEventDateTime, formatEventTime } from "@/lib/events/format";
 import { DRAFT_PAYMENT_COPY, deriveDraftPaymentState } from "@/lib/payments/draft-payment";
+import { PAYMENT_MODE } from "@/lib/payments/mode";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
 import { qrSvgDataUri } from "@/lib/media/qr";
 import {
@@ -74,7 +75,7 @@ export default async function EventDashboardPage({
   const revealed = isGalleryRevealed(event);
   const expiryWarning = getExpiryWarning(event);
   const draftPayment = DRAFT_PAYMENT_COPY[
-    deriveDraftPaymentState({ checkoutParam: checkout, latestPayment })
+    deriveDraftPaymentState({ mode: PAYMENT_MODE, checkoutParam: checkout, latestPayment })
   ];
   const tz = event.timezone;
 

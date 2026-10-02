@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { requireOperator } from "@/lib/auth/operator-session";
 import { AccountMenu } from "@/components/ff/host/account-menu";
 import { Wordmark } from "@/components/ff/wordmark";
+import { OperatorNav } from "./operator-nav";
 
 /**
  * Operator Console chrome. The console is internal and outside the contracted handoff's screen
@@ -23,14 +23,9 @@ export default async function OperatorLayout({
         className="ff-safe-top sticky top-0 z-20 border-b border-line bg-surface"
       >
         <div className="flex h-16 items-center justify-between gap-4 px-5 lg:h-[72px] lg:px-10">
-          <div className="flex items-center gap-6 lg:gap-8">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-6 lg:gap-8">
             <Wordmark operator href="/operator" />
-            <Link
-              href="/operator"
-              className="ff-focus hidden h-9 items-center rounded-full bg-brand-tint px-4 text-label font-semibold text-brand sm:flex"
-            >
-              Events
-            </Link>
+            <OperatorNav />
           </div>
           <div className="flex items-center gap-3">
             <span className="hidden text-caption font-medium text-ink-muted md:inline">

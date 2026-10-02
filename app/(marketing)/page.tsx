@@ -48,7 +48,7 @@ import {
   FRAMES,
   HOME_FAQ_IDS,
   HOSTED_ACCESS_LABEL,
-  PAYMENT_METHODS_SENTENCE,
+  PAYMENT_COPY,
   PRICE_LABEL,
   TESTIMONIALS,
   faqItemsById,
@@ -698,7 +698,7 @@ function PricingSection() {
           <ul className="flex flex-col gap-3">
             {[
               "Guests never pay, and there are no extra frames to buy",
-              `Pay online with ${PAYMENT_METHODS_SENTENCE}`,
+              PAYMENT_COPY.line,
               "Paying activates your event — you still choose when capture opens",
             ].map((line) => (
               <li key={line} className="flex items-start gap-3 text-body font-medium text-ink">

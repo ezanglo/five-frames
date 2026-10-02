@@ -4,7 +4,7 @@ import { ButtonLink } from "@/components/ff/button";
 import {
   FRAMES,
   HOSTED_ACCESS_LABEL,
-  PAYMENT_METHODS_SENTENCE,
+  PAYMENT_COPY,
   PRICE_LABEL,
   type FaqItem,
 } from "@/lib/marketing/content";
@@ -92,7 +92,7 @@ export function PriceCard({ className, headingLevel = "h3" }: { className?: stri
           <ArrowRight aria-hidden />
         </ButtonLink>
         <p className="text-center text-caption font-medium text-ink-muted">
-          Set it up first, pay when you’re ready. {PAYMENT_METHODS_SENTENCE} via PayMongo.
+          {PAYMENT_COPY.priceCardNote}
         </p>
       </div>
     </div>

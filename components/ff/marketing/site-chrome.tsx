@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ButtonLink } from "@/components/ff/button";
 import { Wordmark } from "@/components/ff/wordmark";
-import { PAYMENT_METHODS_SENTENCE } from "@/lib/marketing/content";
+import { PAYMENT_COPY } from "@/lib/marketing/content";
+import { SALES_CONTACT } from "@/lib/payments/mode";
 import { PUBLIC_NAV } from "@/lib/marketing/site";
 import { DesktopNavLinks, MobileMenu } from "./site-nav";
 
@@ -59,11 +60,12 @@ export function SiteFooter() {
             { href: "/signup", label: "Create an event" },
             { href: "/login", label: "Sign in" },
             { href: "/forgot-password", label: "Reset your password" },
+            ...(SALES_CONTACT ? [SALES_CONTACT] : []),
           ]}
         />
       </div>
       <div className="mx-auto mt-12 flex w-full max-w-[1200px] flex-col gap-2 border-t border-line pt-6 text-caption font-medium text-ink-muted sm:flex-row sm:justify-between">
-        <p>Prices in Philippine pesos. Pay online with {PAYMENT_METHODS_SENTENCE}.</p>
+        <p>Prices in Philippine pesos. {PAYMENT_COPY.line}.</p>
         <p>© {new Date().getFullYear()} FiveFrames</p>
       </div>
     </footer>
