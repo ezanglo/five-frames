@@ -1118,3 +1118,63 @@ founder. Under CLAUDE.md, the agent doesn't create provider accounts or enable p
 - release-validation.md marks every case that uploads, displays or downloads media for rerun.
 - A second vendor and secret to operate.
 
+
+---
+
+## D27 — Operator support access: operators run any event through the host's own pages, with every action logged
+
+**Status:** Accepted (2026-10-11), planned. It is Slice 27. It amends D15's scope (not its
+mechanism) and architecture §8b's "the Console never mints a media URL" boundary.
+
+**Context:** FiveFrames is sales-led (D23). Staff sell every event, set it up with the host and
+support it on the day, often from somewhere other than the venue. product.md §5.1.2 was written
+for a self-service product, where staff are outsiders: operators could read state and perform
+three mutations, and nothing else. In practice, "capture didn't open", "the date is wrong" or "hide
+that photo, the host can't get to it" could only be fixed by the host, or by the host sharing their
+login, which is worse than a logged staff tool. The founder asked for operators to have the host's
+view plus more (product.md §5.1.3, 2026-10-11).
+
+**Decision:** An operator can open any event's own host pages in **support access**, from the
+Console, on any plan and without the host's approval:
+- **Allowed:** what a host does to run and configure an event: details, Look, capture open and
+  close, reveal and gallery settings, sharing, links, signage, and viewing and hiding photos.
+- **Not allowed:** what owns the event or can't be undone: plan, payment, refunds, deletion of
+  the event or a photo, original downloads, co-hosts and ownership. Favorites stay the host's.
+- **Logged:** every action, including viewing photos, is a permanent, append-only log entry. The
+  host sees it on their event page as "FiveFrames support"; the Console shows the operator.
+
+Mechanism (architecture §5b):
+- **One event-access check.** `getEventAccess(userId, eventId)` returns the caller's role on the
+  event (`owner` or `support`, later `cohost`, §7f). Owner wins on an operator's own event.
+- **Deny by default.** Each host DAL function admits roles explicitly. Owner-only functions keep
+  their `host_id` predicate and are never touched.
+- **Atomic logging.** A support change and its log entry commit together, the same way the
+  capacity override does (D24).
+
+**Reasoning:**
+- It matches how the company actually works: staff already run these events with the host.
+- The host's own pages are the right tool. A second, Console-side editor would duplicate every
+  form and drift from what the host sees.
+- The host can see the log, so access isn't hidden from the customer. Keeping deletion and
+  downloads out bounds what one compromised operator account can do irreversibly.
+- The shared check is the same change co-host access (§7f) needs, so this slice does that groundwork.
+
+**Alternatives rejected:**
+- **Keep the read-only Console:** forces shared logins.
+- **Impersonating the host (signing in as them):** no attribution, reaches owner-only actions,
+  and is listed as a non-goal.
+- **A blanket "or operator" predicate on every host query:** a single missed function reaches
+  payments or deletion. Explicit per-function roles fail closed instead.
+- **Requiring the host's approval per session:** blocks the on-the-day case it exists for. The
+  visible log is the accountability instead.
+
+**Consequences:**
+- Guest photos are now visible to staff in support access. The terms and privacy policy must say
+  so before launch (product.md §19 open item).
+- An operator account now reaches every event's photos and settings, so it is the most valuable
+  login in the system. The grant stays the checked-in script (D15). The slice decides whether
+  operator accounts need a second factor.
+- CLAUDE.md's "no DAL function an operator route could use to obtain a capture's signed image
+  URL" narrows to the Console's own pages. Support access may sign **display derivatives** only,
+  never originals.
+- Every new host DAL function from here on must state which roles it admits.

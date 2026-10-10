@@ -43,7 +43,8 @@ change, not a refactor.
 7. Activation must succeed before any event link or QR exists: confirmed payment, or the server
    granting the host account's one Free event (product.md §7.2, §15.3).
 8. Media is never at a guessable public URL; an unrevealed gallery is never viewable.
-9. A host can only reach events they own.
+9. A host can only reach events they own. An operator reaches a customer's event only through
+   support access (product.md §5.1.3), within its limits.
 10. Original media is never modified. Derivatives are additional files. The event theme, keepsake
     styles and FiveFrames branding exist only in derived outputs (guest screens, keepsakes,
     signage), never in a stored original, and never during capture/preview/commit.
@@ -51,7 +52,8 @@ change, not a refactor.
 12. The frame count (5 photos) is a constant. Never configurable, purchasable, or extendable.
 13. Privileged operator mutations (confirming a manual payment, recording a manual refund, overriding
     an event's guest capacity) are server-authoritative and auditable, and happen only through
-    the Operator Console — never a host-declared, ad hoc, or undocumented action.
+    the Operator Console — never a host-declared, ad hoc, or undocumented action. Every operator
+   action in support access, including viewing photos, is permanently logged and shown to the host.
 14. A keepsake is a derivative, made only from the requesting guest's own committed, non-hidden
     captures. A **Single-photo keepsake** uses one of them. A **Full Set keepsake** uses exactly
     the five committed captures of the requesting session, all non-hidden, in commit order, with
@@ -110,13 +112,21 @@ change, not a refactor.
   never a count-then-activate check (product.md §7.2).
 - **Manual-payment mutations (confirm, refund) happen only through the Operator Console.** Do not
   add a host-facing route, generic admin endpoint, or script that performs them in production.
-- **The Operator Console shows aggregate counts, never individual guest media.** Do not add a DAL
-  function an operator route could use to obtain a capture's signed image URL.
+- **The Operator Console's own pages show aggregate counts, never individual guest media.** Do not
+  add a DAL function a Console page could use to obtain a capture's signed image URL.
+- **Operator support access (D27, architecture §5b; planned, Slice 27).** Operators run an event
+  on the host's own pages through `getEventAccess(userId, eventId)`, which returns `owner` or
+  `support` (owner wins on an operator's own event). Each host DAL function names the roles it
+  admits. Never add a blanket "or operator" predicate, and never move an owner-only function (plan,
+  checkout, refund request, event or photo deletion, favorite, original/ZIP/Drive downloads,
+  co-hosts) onto it. A support change and its `support_actions` entry commit in one transaction.
+  Support may sign display derivatives only, never originals. Every new host DAL function must
+  state which roles it admits.
 - **Event Theme & Keepsakes (decisions D19, D20; architecture §7a–§7c).**
   - The theme image is public-facing but **not publicly addressable**. It lives in the private
     `event-theme` bucket and reaches a browser only as a signed URL after that surface's own
-    check (owner, valid event token, or granted gallery access). The Operator Console never gets
-    one. Never accept SVG uploads.
+    check (owner or support access, valid event token, or granted gallery access). The Console's
+    own pages never get one. Never accept SVG uploads.
   - There is **one sharing system**: keepsakes in two families (five Single-photo styles, five
     Full Set styles) in one closed registry, rendered on demand and never persisted. Do not
     reintroduce a share-card path, `share_path`, or a stored keepsake cache without a new

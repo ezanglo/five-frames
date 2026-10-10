@@ -4,7 +4,10 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-10-11 (plans, decision D24: a plan registry (`lib/plans/`), `events.plan` set
+Last updated: 2026-10-11 (operator support access, decision D27, planned as Slice 27: one
+event-access check with per-function roles, operators running any event through the host's own
+pages, an append-only `support_actions` log shown to the host, display derivatives only — §4,
+§5b, §7a, §7f, §8b, §10, §11, §13. Earlier the same day: plans, decision D24: a plan registry (`lib/plans/`), `events.plan` set
 by activation from what was bought, Free as a third `activateEvent` source behind a
 once-per-account claim, per-plan cap and hosted access stamped at activation, an append-only
 operator capacity-override log, time sections in the revealed gallery, table-number cards, and
@@ -156,6 +159,8 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   in Draft, fixed by activation), `gallery_time_sections` (§7d, default true).
 - **`capacity_overrides`** — append-only log of operator capacity overrides (§6a, D24): event,
   previous and new cap, reason, operator, time. Never updated or deleted by the application.
+- **`support_actions`** — append-only log of operator support access (§5b, D27): event,
+  operator, action key, old and new value, time. Planned, Slice 27.
 - **`guest_sessions`** — `event_id`, display name, created/last-seen. One row per browser
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
@@ -183,9 +188,9 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
     for a manual refund; null for a provider refund executed through PayMongo's own dashboard),
     `refund_note`.
   - The row itself **is** the audit record product.md §7.2.1 and invariant 13 require — no
-    separate audit-log table. product.md §5.1 is explicit that view-level audit logging is not
-    required for MVP; only the mutations (confirm, refund) need a durable trace, and
-    `confirmed_by`/`refunded_by` plus their timestamps already provide it.
+    separate audit-log table. Console page views aren't logged; only the mutations (confirm,
+    refund) need a durable trace, and `confirmed_by`/`refunded_by` plus their timestamps
+    already provide it. Support access (§5b) is the exception: it logs photo views too.
 
 ### Lifecycle state is derived, not stored as a mutable enum
 
@@ -207,7 +212,8 @@ D18's recorded launch prerequisite).
 
 Supabase Auth. Every DAL function that touches an event takes the authenticated host id and
 scopes the query by ownership. There is no code path that loads an event for a host without
-an ownership predicate (product invariant 9).
+an ownership predicate (product invariant 9). Support access (§5b, planned) moves selected
+functions to a role check that also admits operators; owner-only functions keep this predicate.
 
 ### Guests
 
@@ -267,6 +273,66 @@ flag is needed — the check is structural, not a policy that must be remembered
 
 **RLS treatment matches hosts and guests:** deny-all, bypassed entirely by the service-role key the
 DAL uses (§10). The `operators` table carries no data an anon key should ever reach either way.
+
+### 5b. Operator support access (D27) — planned, Slice 27
+
+product.md §5.1.3. Planned, not built. Until Slice 27 lands, §5 "Hosts" and §8b describe the
+system as built.
+
+**One event-access check.** `lib/dal/event-access.ts` (server-only):
+
+```ts
+type EventRole = 'owner' | 'support'            // 'cohost' joins with §7f
+getEventAccess(userId, eventId): Promise<{ event, role: EventRole } | null>
+//   owner   — events.host_id = userId (wins on an operator's own event)
+//   support — a fresh operators row for userId (requireOperator's read), any event
+//   null    — anything else; callers treat it as not found
+```
+
+- **Each DAL function admits roles explicitly.** A function on product.md §5.1.3's "can" list
+  takes `userId`, calls `getEventAccess` and refuses any role it doesn't name. Functions on the
+  "can't" list (plan, checkout, refund request, event deletion, capture delete and favorite,
+  original downloads, D25 ZIP, Drive export, co-hosts) keep their `host_id = hostId` predicate
+  and are not migrated. They stay unreachable to support because nobody changed them.
+- **No blanket predicate.** There is never an `or operator` added to an existing query. Moving a
+  function to `getEventAccess` is a deliberate, reviewed change, one function at a time.
+- **Pages are the host's own.** Support access reuses the host event routes and components,
+  not a fork in `(operator)`. The host group's gate admits an operator on event routes only (not
+  the host's event list, account or Share/checkout step). The Console's event page links in. Every
+  page shows a support banner naming the host. The slice settles the exact gate after reading
+  the host layout and the Next 16 docs.
+- **Live dashboard (D21).** The SSE route's ownership re-read becomes `getEventAccess`, admitting
+  `support`.
+
+**The log.** Same shape and guarantees as `capacity_overrides` (§6a):
+
+```sql
+create table public.support_actions (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events (id) on delete cascade,
+  operator_id uuid not null references public.operators (user_id),
+  action text not null,            -- closed set of keys, e.g. 'capture_opened', 'photos_viewed'
+  old_value jsonb,
+  new_value jsonb,
+  created_at timestamptz not null default now()
+);
+revoke update, delete on public.support_actions from anon, authenticated, service_role;
+```
+
+- **A change and its entry commit together.** Each support-capable mutation runs as one SQL
+  function (or one allowlisted patch function for event settings) that checks the operator,
+  applies the change and inserts the entry in a single transaction, as
+  `override_guest_capacity` does. Never "update, then log" as two DAL calls: a failed second
+  call would leave an unlogged change.
+- **Photo views.** The support moderation view's DAL function logs `photos_viewed` before it
+  signs anything: at most one entry per operator, event and 30 minutes, so live dashboard
+  refreshes don't flood the log. It signs **display derivatives only**. Original signing stays
+  owner-only.
+- **Host-facing list.** The host's event page reads the event's entries and renders each through
+  a label map ("Opened capture", "Viewed photos"), never the raw key, and never the operator's
+  identity. The Console's event page shows the same entries with the operator's email.
+- **Datetimes.** A support change to the event date or reveal time goes through
+  `lib/events/timezone.ts` exactly as the host's does. The log stores the UTC values.
 
 ---
 
@@ -688,7 +754,8 @@ URLs minted by the DAL **after the surface's own access check**:
 | Guest event screens (`/e/[token]`) | Valid, current `event_token` (so it is only reachable after activation, and a rotated or revoked token stops it) |
 | Gallery pages (`/g/[token]`) | Only in the branch where gallery access is actually granted. The locked/"only me" branch never loads it (criterion 43) |
 | Keepsake and signage renderers | None to the browser; the server reads bytes with the service client |
-| Operator Console | **Never.** No operator DAL function selects or signs it |
+| Operator Console pages | **Never.** No Console DAL function selects or signs it |
+| Support access (§5b) | `getEventAccess` admits `support`, same as host event pages (planned, Slice 27) |
 
 A signed URL copied out of a page expires on the existing short TTL. Replacing or removing the
 image deletes the object on prune, so a URL minted earlier stops resolving then, not just at
@@ -1299,13 +1366,13 @@ Recorded here so the later slice starts from settled constraints:
 Not built in this update. product.md §11.2.2 defines it, with the same "coming soon" rule as
 §7e. Starting constraints for that slice:
 
-- **It changes the core access rule.** Today every host DAL function scopes by
-  `events.host_id = hostId`. Co-hosts need one shared check, `getEventForHostOrCohost(userId,
-  eventId, capability)`, where capability is `run` or `own`.
-  - `own` stays owner-only: plan, payment, refund, invites, deletion.
-  - `run` admits an accepted, unrevoked co-host on a Premium event.
-  - Every existing host query moves to it deliberately, one by one. There is no blanket "or
-    co-host" predicate.
+- **It reuses the event-access check from support access (§5b, Slice 27).** Co-host adds a
+  `cohost` role to `getEventAccess` for an accepted, unrevoked co-host on a Premium event.
+  - Owner-only functions (plan, payment, refund, invites, deletion) stay as they are.
+  - Each function on product.md §11.2.2's "can run" list admits `cohost` deliberately. That list
+    is wider than support's: it includes delete, favorite and original downloads. There is no
+    blanket "or co-host" predicate.
+  - If co-host ships before Slice 27, it builds `getEventAccess` itself, with the same rules.
 - **Shape:** an `event_cohosts` table (`event_id`, `user_id`, invited email, `invited_at`,
   `accepted_at`, `revoked_at`), with at most one active row per event (a partial unique index).
   Invites go by email with a single-use token. Accepting requires signing in as the invited
@@ -1423,7 +1490,7 @@ route and every server action — never by page-level UI hiding alone.
   visibility is explicitly cross-host (product.md §5.1). This is a separate DAL module
   (`lib/dal/operator-events.ts`) rather than reusing the host-scoped queries, so the "no ownership
   predicate" case is never accidentally reachable from a host-facing code path, and vice versa.
-- **Aggregate counts only, never guest media.** The Console queries `count(*)`-shaped aggregates
+- **Aggregate counts only, never guest media, on the Console's own pages.** The Console queries `count(*)`-shaped aggregates
   over `captures` (per product.md §5.1.2) and never selects or signs a URL for an individual
   capture's storage object. There is no DAL function an operator route could call to obtain a
   capture's signed image URL — the capability simply does not exist on that code path, rather than
@@ -1439,10 +1506,12 @@ route and every server action — never by page-level UI hiding alone.
   use Asia/Manila. The CSV route (`/operator/payments/export`) runs `requireOperator()` itself.
   Read-only, and no new table (D17).
 - **Confirm manual payment / record manual refund / override guest capacity** are the only
-  mutations the Console exposes (§8a, §6a). Every other field the Console displays is read-only from this surface — editing an
-  event's configuration, moderating captures, or changing ownership all remain host-only or
-  unavailable entirely (product.md §5.1.2), so the Console cannot become the "god mode" admin tool
-  product.md explicitly excludes.
+  mutations the Console exposes (§8a, §6a). Every other field the Console displays is read-only from this surface. Changing an
+  event's settings or hiding photos happens in support access on the host's own pages (§5b,
+  planned), never in a Console-side editor. Ownership, plan, deletion and original downloads stay
+  host-only (product.md §5.1.2).
+- **Support access entry (D27, planned):** the event page gains "Open in support access" and the
+  event's `support_actions` log with each operator's email, newest first.
 
 - **Capacity on the event page (D24):** plan, `guest_session_count` of `guest_session_cap`, a
   "Raise capacity" form (new cap and a required reason, refused for the operator's own event),
@@ -1629,10 +1698,11 @@ Browser (EventSource) ──▶ GET /events/[eventId]/live ──▶ DAL getDash
 | Host owns event | DAL ownership predicate on every event query |
 | Operator authorization | `requireOperator()` reads the `operators` table for the authenticated Supabase Auth user on every Console route/action (§5a); never a client-asserted role |
 | Operator/host conflict of interest | DAL equality check (`event.host_id !== operatorUserId`) on manual-payment confirm and manual-refund mutations (§5a) |
+| Operator support access (planned) | `getEventAccess` role check per DAL function, owner-only functions untouched; each change and its `support_actions` entry in one transaction; display derivatives only, never originals; log visible to the host (§5b, D27) |
 | Guest scoped to one event | Signed cookie bound to `guest_session_id` + `event_id` |
 | Capture gate | Server-side re-check of paid/active/open on **reserve and commit**, not just page render |
 | Media privacy | Short-lived signed URLs minted after an access check; private buckets (`captures`, `event-theme`) |
-| Theme image | Private bucket; signed URL only after the surface's own check (§7a table); never for the Operator Console; server-chosen paths; SVG never accepted |
+| Theme image | Private bucket; signed URL only after the surface's own check (§7a table); never for the Console's own pages; server-chosen paths; SVG never accepted |
 | Keepsake isolation | Per-request check of own committed, non-hidden capture (Single-photo) or the server-derived five eligible captures of the cookie's own session (Full Set), + sharing toggle + lifecycle, re-confirmed before responding (§7b); closed render inputs (no display name, links, tokens; no message in a Full Set) |
 | Signage / preview QR | Live QR only from an activated event's token; Draft previews use the URL-less `preview` type (§7c) |
 | Live dashboard stream | Host session + DAL ownership predicate on connect, ownership re-read on every server tick; sends only an opaque version hash; no browser Supabase client (§9, D21) |
@@ -1732,6 +1802,19 @@ Weighted toward the invariants, not toward coverage percentage.
   - raise-only, blank reason, own event, unactivated event and > 5,000 are all refused;
   - the service role can't update or delete a log row, and a host-account cascade still removes
     it.
+- **Support access (D27, planned), integration tests against real Postgres:**
+  - every function on the "can" list works for an operator, and writes exactly one entry in the
+    same transaction (a forced log failure leaves the change unapplied);
+  - every function on the "can't" list refuses an operator, called directly, not just hidden in
+    the UI: plan, checkout, refund request, event and photo deletion, favorite, original and ZIP
+    signing;
+  - a non-operator, non-owner gets not-found from every migrated function;
+  - an operator on their own event gets `owner`, and nothing is logged;
+  - the photo view signs display derivatives only, and logs once per 30-minute window;
+  - a support change to the event date that crosses a UTC day boundary round-trips in the
+    event's timezone;
+  - the host's list shows labels and no operator identity; the log is append-only like
+    `capacity_overrides`.
 - **Time sections (D24), unit tests:**
   - hour buckets in a non-Manila zone;
   - a photo just before and just after local midnight, which must land in different sections
@@ -1785,6 +1868,7 @@ traffic to track, not before.
 | In-app browsers (FB/Messenger/IG) restrict camera, file picker, or direct storage upload | Core guest flow broken for a large share of PH users | Validated inside the first capture slice, on real devices, as an exit condition — not deferred to final QA |
 | HEIC conversion needed and expensive or lossy | Photo pipeline rework | Materialized in Slice 15: the prebuilt `sharp` can't decode HEVC HEIC. MVP accepts JPEG/PNG/WebP directly and relies on browser conversion where it happens (§7 "HEIC/HEIF"); no client conversion or custom image stack. Originals stay untouched; the derivative path is isolated behind `lib/media/` |
 | Venue network worse than resumable upload can absorb | Guests lose captures | Reservation TTL guarantees no permanently lost frame; measure real failure rates during capture-slice device testing |
+| Operator account compromised (once support access lands, §5b) | One login reaches every event's settings and display photos | Few operators, granted only by the checked-in script (D15); no deletion or original downloads in support access; every action and photo view logged and shown to the host. Slice 27 decides whether operator accounts need a second factor |
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
 | Plan capacities (up to 300 sessions, 1,500 captures) not yet load-tested; no load test has run at any size | Join/reserve contention or storage throughput surprises at a big Premium event | Load-test the Premium cap (300 joins, then captures) against a preview deployment before launch. Operators can raise a cap, so the test also covers a few hundred above 300 |
 | Free event abused through new accounts | Free storage and hosting for repeat users | Email-confirmed sign-up, 10 sessions and 7 days bound the value. Accepted (product.md §19) |

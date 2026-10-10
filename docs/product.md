@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-10-11 (table-number cards are on Standard as well as Premium, §11.3, criterion 78. Earlier the same day: Free events get the full theme and live dashboard counts, §15.3.1; criteria 83 and 85 withdrawn. Earlier the same day: the paid plans are renamed Standard and Premium, §15.3. Earlier: "Download all" saves ZIP files of up to 500 photos each, on every plan, in MVP, §11.2.3; criteria 33 and 88. Earlier the same day: Premium adds co-host access after launch, §11.2.2; Send to Google Drive and co-host access may be shown as "coming soon" on Premium, §11.2.1–§11.2.2; criterion 87. Earlier the same day: Free is a lighter event: link and on-screen QR only, accent color only, one keepsake style per family, no live counts, §15.3.1; invariant 15 and criteria 75, 82–86 amended. Earlier the same day: plans: a host's first event is Free, then Standard ₱499 or Premium ₱999, one-time fees with no renewals, differing only in guest capacity, hosted access and a few Premium extras, §15.3; Free activation without payment, §7.2; operators may override any event's guest capacity upwards, on any plan, §5.1; Google Drive export, §11.2.1; table-number cards, §11.3; time sections as the default gallery view, §7.5; criteria 70–86). Previously 2026-10-02 (sales-led launch: self-service online payment is built but switched off at launch, so every sale is arranged in conversation and confirmed by a FiveFrames operator, §7.2; e-wallet transfers as a manual payment method, §7.2.1; an Operator Console payment ledger, §5.1.1; criteria 17 and 69). Previously 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
+Last updated: 2026-10-11 (operator support access: FiveFrames staff can open any event's host pages remotely, change its settings, and view and hide its photos, with every action logged and visible to the host. Plan, payment, deletion, ownership, deleting photos and downloading originals stay with the host, §5.1.3; §5, §5.1.1–§5.1.2, §10.1, §15.3, §18, invariants 9 and 13, criteria 22, 23, 43 amended, criteria 89–93 added. Earlier the same day: table-number cards are on Standard as well as Premium, §11.3, criterion 78. Earlier the same day: Free events get the full theme and live dashboard counts, §15.3.1; criteria 83 and 85 withdrawn. Earlier the same day: the paid plans are renamed Standard and Premium, §15.3. Earlier: "Download all" saves ZIP files of up to 500 photos each, on every plan, in MVP, §11.2.3; criteria 33 and 88. Earlier the same day: Premium adds co-host access after launch, §11.2.2; Send to Google Drive and co-host access may be shown as "coming soon" on Premium, §11.2.1–§11.2.2; criterion 87. Earlier the same day: Free is a lighter event: link and on-screen QR only, accent color only, one keepsake style per family, no live counts, §15.3.1; invariant 15 and criteria 75, 82–86 amended. Earlier the same day: plans: a host's first event is Free, then Standard ₱499 or Premium ₱999, one-time fees with no renewals, differing only in guest capacity, hosted access and a few Premium extras, §15.3; Free activation without payment, §7.2; operators may override any event's guest capacity upwards, on any plan, §5.1; Google Drive export, §11.2.1; table-number cards, §11.3; time sections as the default gallery view, §7.5; criteria 70–86). Previously 2026-10-02 (sales-led launch: self-service online payment is built but switched off at launch, so every sale is arranged in conversation and confirmed by a FiveFrames operator, §7.2; e-wallet transfers as a manual payment method, §7.2.1; an Operator Console payment ledger, §5.1.1; criteria 17 and 69). Previously 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
 Initial market: Philippines
 
 ---
@@ -63,9 +63,9 @@ These principles constrain feature decisions and UI copy. They are product requi
 | **Guest** | Anonymous browser session + display name, scoped to one event | Join via QR/link, capture/select and commit up to 5 photos, add an optional short message per capture, view and download **their own** captures (originals), make and share or save keepsakes of their own captures when the host allows sharing — a Single-photo keepsake of any one capture in one of five Single-photo styles, or, once their session has five committed captures, a Full Set keepsake of all five in one of five Full Set styles (§10.2), view the revealed gallery if the host shared the gallery link and visibility permits |
 | **Gallery viewer** | Possession of the gallery link (no session required) | View the revealed gallery when visibility is "anyone with the link" |
 | **Demo visitor** | No identity, no session, nothing persisted | Try the five-frame capture interaction and a resulting sample gallery using sample/demo or non-persistent local content only (see §7.1). Cannot create, pay for, or distribute a real event. |
-| **Operator** | An internal FiveFrames administrator or staff account, explicitly authorized by FiveFrames; not tied to a single event or host account | Via the Operator Console (§5.1): list/search events and inspect operational state across all events for support purposes; confirm a supplier-assisted/manual payment (§7.2, §7.2.1) only after actually receiving and verifying funds; execute and record manual refunds for manually collected payments (§15.1); override an event's guest capacity upwards, on any plan (§9.5). Cannot confirm payment, record a refund or raise capacity for an event they themselves own. |
+| **Operator** | An internal FiveFrames administrator or staff account, explicitly authorized by FiveFrames; not tied to a single event or host account | Via the Operator Console (§5.1): list/search events and inspect operational state across all events for support purposes; confirm a supplier-assisted/manual payment (§7.2, §7.2.1) only after actually receiving and verifying funds; execute and record manual refunds for manually collected payments (§15.1); override an event's guest capacity upwards, on any plan (§9.5); open any event in support access to troubleshoot it remotely: change its settings, and view and hide its photos, with every action logged (§5.1.3). Cannot confirm payment, record a refund or raise capacity for an event they themselves own. |
 
-The operator role is internal to FiveFrames, not a customer-facing account type, and is not part of the host/guest permission model — it exists solely to keep payment confirmation for manual sales outside the host's own control. Operator status is granted explicitly by FiveFrames; it is never acquired automatically. Being a paying customer or an event host never grants manual-payment confirmation authority on its own — a host who is separately and explicitly authorized as an operator still cannot confirm or refund payment for an event they themselves own. At launch, FiveFrames expects to have only one or a very small number of operator accounts (see Open Questions).
+The operator role is internal to FiveFrames, not a customer-facing account type, and is not part of the host/guest permission model. It exists to keep payment confirmation for manual sales outside the host's own control, and to let FiveFrames staff, who sell, set up and support every event, fix an event without being at the venue (§5.1.3). Operator status is granted explicitly by FiveFrames; it is never acquired automatically. Being a paying customer or an event host never grants manual-payment confirmation authority on its own — a host who is separately and explicitly authorized as an operator still cannot confirm or refund payment for an event they themselves own. At launch, FiveFrames expects to have only one or a very small number of operator accounts (see Open Questions).
 
 **Co-hosts arrive after launch, on Premium only (§11.2.2).** At launch there is one owning host account per event. Shared logins are not an intended workflow; until co-host access ships, the "my partner and our coordinator both need access" case is a known gap.
 
@@ -77,13 +77,13 @@ FiveFrames requires a small internal tool — the **Operator Console** — so au
 
 **What it is not:** a customer-facing host dashboard, and not a general-purpose admin/BI platform. It is not CRM software, accounting software, a POS/cash-drawer system, a marketing dashboard, a general BI/analytics suite, infrastructure monitoring, a replacement for the payment provider's, Supabase's, or Vercel's own operational dashboards, or a general RBAC/organization-management product. It must not accumulate speculative charts or metrics merely because it is shaped like a dashboard.
 
-**The Console is the required interface for privileged operator actions.** Confirming a supplier-assisted/manual payment (§7.2, §7.2.1), recording a manual refund (§15.1) and raising an event's guest capacity (§9.5) happen through the Operator Console — there is no other sanctioned, undocumented way to perform them. This keeps those mutations server-authoritative and auditable (Invariant §12.13), consistent with how activation and payment confirmation already work.
+**The Console is the required interface for privileged operator actions.** Confirming a supplier-assisted/manual payment (§7.2, §7.2.1), recording a manual refund (§15.1) and raising an event's guest capacity (§9.5) happen through the Operator Console — there is no other sanctioned, undocumented way to perform them. This keeps those mutations server-authoritative and auditable (Invariant §12.13), consistent with how activation and payment confirmation already work. Support access (§5.1.3) is entered from the Console's event page and works on the event's own host pages; it is the only sanctioned way for an operator to change anything else about an event.
 
 **Operator visibility spans all events, all hosts.** Ordinary customer-support questions ("what's the status of this guest's event", "did this payment go through", "is capture still open") are not limited to events on the manual-payment path, so operator list/search and detail visibility is not restricted to a payment-related subset.
 
 #### 5.1.1 MVP capabilities
 
-Prefer read-only visibility except for the explicitly authorized mutations below. An authorized operator can:
+The Console's own pages prefer read-only visibility except for the explicitly authorized mutations below; changes to an event's settings happen in support access (§5.1.3). An authorized operator can:
 
 - List and search events, across all hosts.
 - Identify the host and the basic event information needed for support (event name, date, owning host).
@@ -100,26 +100,51 @@ Prefer read-only visibility except for the explicitly authorized mutations below
 - Override an event's guest capacity upwards, on any plan, with a required reason (mutation; same ownership restriction; rules in §9.5).
 - See an event's capacity history: its plan's default capacity and every override, each with its old and new capacity, reason, operator and time (read-only).
 - See a ledger of every payment that took money and every recorded refund, across all events, with totals for a chosen month and an export for FiveFrames' own bookkeeping. Read-only: it is a view of the payment records (§7.2.1, §15.1), not accounting software.
+- Open any event in support access (§5.1.3), and see the event's support log: every support action taken on it, by which operator, and when (read-only).
 
 This list is expected to grow incrementally as later MVP capabilities (e.g. retention/expiry) are implemented, rather than the Console being designed as a complete future back office up front (see Roadmap, out of scope for this document).
 
 #### 5.1.2 Privilege boundaries
 
-The Operator Console must not become a general "god mode" over customer events. Being an authorized operator, and having access to the Console, does not by itself grant the ability to:
+Operators can run any event through support access (§5.1.3), but the Console must not become an unlogged "god mode" over customer events. Being an authorized operator does not grant the ability to:
 
-- impersonate a host;
+- impersonate a host. Support access acts as the operator, attributed and logged, never as the host's account;
 - change event ownership;
 - grant a guest additional frames, or otherwise change the five-frame invariant (§12.12);
 - bypass payment confirmation — the existing rule that a host can never self-declare payment (§7.2) is unchanged;
 - arbitrarily force an event active outside the confirmed-payment paths already defined in §7.2;
-- edit a customer's event configuration merely because the actor is an operator. Raising guest capacity (§9.5) is the one named exception, and it only ever raises the cap;
+- change anything about an event beyond what support access allows (§5.1.3), or raising guest capacity (§9.5), which only ever raises the cap;
 - change an event's plan, hosted access period, or price;
-- delete customer media as an ordinary support action — this differs from the host's own moderation capability (§11.2), which remains host-only;
-- browse private guest photography by default. The Console shows aggregate capture/moderation counts and operational metadata, not guest media.
-
-**Operator access to actual guest media is explicitly out of scope for this addition.** If staff access to private media is ever needed for customer support, that is a separate, consequential privacy/product decision requiring its own explicit authorization and audit requirements — it is not something this change, or a future incremental Console update, introduces on its own.
+- delete an event, or delete customer media. Deleting a capture stays with the host (§11.2), because it can't be undone;
+- download guest originals, individually or in bulk;
+- see guest photos anywhere except in support access, where each viewing is logged and shown to the host. The Console's own pages show aggregate capture/moderation counts and operational metadata, not guest media.
 
 The existing rule that an operator cannot confirm a manual payment or execute a refund for an event they themselves own is unchanged (§5, §15.1).
+
+#### 5.1.3 Support access
+
+FiveFrames staff sell, set up and support every event, often without being at the venue. Support access lets an operator open any event's own host pages from the Console and fix what the host would otherwise have to fix themselves.
+
+- **Any event, any plan, any time.** It doesn't wait for the host's approval. On an event the operator owns, they are simply its host, and support access doesn't apply.
+- **Clearly marked.** While in support access, every page says so and names the event's host, so an operator never mistakes a customer's event for their own.
+- **An operator in support access can:**
+  - change the event's name, date, timezone and host message (§11.1);
+  - change its Look: theme image, accent color and hashtag (§10.1), and preview and download its signage (§11.3);
+  - open and close capture, and reveal the gallery;
+  - change the reveal, visibility, layout, time sections and sharing settings;
+  - see the capture and gallery links and the on-screen QR, and rotate or turn off a link;
+  - see the event's photos in the host's moderation view, and hide or unhide them.
+- **An operator in support access can't:**
+  - choose or change the plan, pay, confirm a payment, request a refund or cancellation, or change hosted access or price (payment confirmation, refunds and capacity stay in the Console, §5.1.1);
+  - delete the event, delete a photo, or favorite one (favorites are the host's own picks);
+  - download originals, individually, as ZIP files, or to Google Drive;
+  - invite or remove a co-host, or transfer ownership;
+  - change anything about a guest's frames.
+- **Every action is logged.** Each change is a permanent entry: the event, the operator, what changed, its old and new value, and when. Viewing the event's photos is logged too, once per visit rather than once per photo. Nobody can edit or delete an entry, including the operator who made it.
+- **The host can see it.** The host's event page lists what FiveFrames support changed and when, including when support viewed the photos. It names "FiveFrames support", not the individual operator; the Console's support log names the operator.
+- **Guests and hosts are told.** The terms and privacy policy say that FiveFrames staff may view and change an event, including viewing its photos, to support it.
+
+Support access is a support tool, not a second host. It doesn't add an owner, a co-host or a host account to the event.
 
 ---
 
@@ -409,7 +434,7 @@ Themed outputs also use the event's existing name and date. The existing **welco
 - **Gallery link pages:** only when that viewer is permitted to see the gallery. A gallery link that currently grants nothing (before reveal, or visibility "only me") shows no theme image.
 - **Keepsakes** (§10.2) and **signage** (§11.3).
 - **The host's own event pages** may use the theme image as the event's cover.
-- **Never:** the Operator Console, which shows no theme media.
+- **Never:** the Operator Console's own pages, which show no theme media. An operator in support access (§5.1.3) sees the host's own event pages, theme included.
 - Theme presentation never makes any surface reachable that otherwise wouldn't be, and never shows captures on any surface beyond what its viewer is already allowed to see.
 
 **Configuring and previewing**
@@ -700,11 +725,11 @@ These must hold regardless of architecture. How they are enforced is an engineer
 6. Guest capture is possible **only** while the event is activated (paid, or the account's one Free event), active, and capture has been explicitly opened by the host and not yet closed.
 7. An event must be activated before an event link or QR exists. Unpaid or unconfirmed paid events are not distributable. Activation comes from the payment provider's own trusted flow for self-service payments, from an authorized FiveFrames operator verifying actual receipt for manual payments, or from the server granting the host account's one Free event on the Free plan — **never from the host self-declaring payment** (§7.2).
 8. Media is never served from guessable public URLs, and a hidden or unrevealed gallery is never viewable by an unauthorized party.
-9. A host can only access, moderate or download events they own.
+9. A host can only access, moderate or download events they own. An operator reaches a customer's event only through support access (§5.1.3), within its limits.
 10. Original media is never modified. Derived assets are additional files. Event theme, keepsake styles (Single-photo and Full Set), and FiveFrames branding exist only in derived outputs, never in the stored original. A Full Set never replaces or alters the individual captures it combines.
 11. The host can download their media at any point before permanent deletion.
 12. The frame count (5 photos) is a product constant and is not configurable per event.
-13. Privileged operator mutations (confirming a supplier-assisted/manual payment, recording a manual refund, overriding an event's guest capacity) are server-authoritative and auditable, and occur only through the Operator Console (§5.1) — never as a host-declared, ad hoc, or undocumented action.
+13. Privileged operator mutations (confirming a supplier-assisted/manual payment, recording a manual refund, overriding an event's guest capacity) are server-authoritative and auditable, and occur only through the Operator Console (§5.1) — never as a host-declared, ad hoc, or undocumented action. Every operator action in support access (§5.1.3), including viewing an event's photos, is permanently logged and visible to the host.
 14. A keepsake is made only from the requesting guest's own committed, non-hidden captures: one capture for a Single-photo keepsake, or exactly the five committed captures of the requesting guest's own session, all non-hidden, for a Full Set keepsake. It never contains another guest's capture, name, or message, never contains the guest's display name, and never contains the event capture link/QR or the gallery link. A Full Set never contains any guest message. Making or sharing a keepsake never changes gallery visibility or access, never consumes a frame, and never adds a gallery item (§10.2, §10.3).
 15. Plan limits — guest capacity, hosted access period, Free once per account, Free's lighter feature set (§15.3.1), and the Premium-only features — are enforced server-side. A host can never obtain a capacity, access period or feature their event's plan doesn't include (the only exception is capacity an operator raised, §9.5). No plan changes the five-frame allowance, the capture flow, gallery access and privacy, downloads (§12.11), or the FiveFrames brandmark (§15.3).
 
@@ -813,8 +838,8 @@ These limits are enforced on the server for Free events (Invariant §12.15), not
 
 **Set-up together** and **Help on the day** are human services from FiveFrames, not product features:
 
-- **Set-up together:** someone from FiveFrames sets up the theme and signage *with* the host, typically during the sales conversation, from a photo and the event details the host provides. It happens in the host's own account, with the host present and signed in. It gives operators no ability to edit a customer's event (§5.1.2).
-- **Help on the day:** a direct contact channel to FiveFrames during the event. FiveFrames can answer questions, help a guest or the host, and, if the event fills up, raise its capacity through the Operator Console (§9.5). It grants no operator ability beyond §5.1.
+- **Set-up together:** someone from FiveFrames sets up the theme and signage *with* the host, typically during the sales conversation, from a photo and the event details the host provides. It happens in the host's own account with the host signed in, or remotely through support access (§5.1.3).
+- **Help on the day:** a direct contact channel to FiveFrames during the event. FiveFrames can answer questions, help a guest or the host, fix the event's settings through support access (§5.1.3), and, if the event fills up, raise its capacity through the Operator Console (§9.5). Support access is available on every plan; these services are only the human help around it.
 
 **Branding is the same on every plan.** No plan, price or arrangement removes the FiveFrames brandmark from keepsakes or FiveFrames identity from signage (§10.2, §10.5).
 
@@ -845,7 +870,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Direct-to-storage upload for large media.
 - Private, access-checked media delivery.
 - Support for GCash, Maya and cards in the Philippines on the self-service path once it is switched on (§7.2), plus an auditable manual payment record and operator-only confirmation for the supplier-assisted path (§7.2.1).
-- An internal Operator Console (§5.1) as the sole, server-authoritative and auditable path for operator mutations (manual payment confirmation, manual refund recording), with read-only operational visibility into events across all hosts for support purposes.
+- An internal Operator Console (§5.1) as the sole, server-authoritative and auditable path for operator mutations (manual payment confirmation, manual refund recording, capacity override), with operational visibility into events across all hosts, and logged support access to any event (§5.1.3).
 
 **Technical recommendations (preferred, replaceable)**
 - Next.js, React, TypeScript, Tailwind, shadcn/ui, Vercel.
@@ -898,7 +923,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Event capacity (§9.5) set by plan (10, 100 or 300 guest sessions), with a calm at-capacity state for new joins once reached, and an operator capacity override on any plan.
 - Event signage (§11.3): printable QR, table card, poster, and digital/phone-screen formats, plus table-number cards on Standard and Premium, each carrying event name, QR, guest instruction, "No app. No account." reassurance and FiveFrames identity. All are themed with the event's accent color and hashtag, and with the theme image where it fits, while the QR stays the priority. The host can preview every format before download, and can preview before activation with a placeholder QR.
 - Guest trust cues on the join screen (§4 principle 9): no app required, no account required, captures follow this event's access rules.
-- Operator Console (§5.1): event list/search and per-event operational detail view across all events, plus the three operator mutations — confirm a supplier-assisted/manual payment, record a manual refund, override an event's guest capacity — each performed only through the Console rather than an ad hoc or undocumented process. A read-only payment ledger with monthly totals and an export (§5.1.1).
+- Operator Console (§5.1): event list/search and per-event operational detail view across all events, plus the three operator mutations — confirm a supplier-assisted/manual payment, record a manual refund, override an event's guest capacity — each performed only through the Console rather than an ad hoc or undocumented process. A read-only payment ledger with monthly totals and an export (§5.1.1). Support access to any event's host pages, with a permanent support log shown to the host (§5.1.3).
 
 ### MVP optional (ship if cheap, not launch-blocking)
 - Realtime dashboard updates (fallback to refresh/polling is acceptable).
@@ -921,7 +946,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Physical prints of keepsakes, including Full Sets (physical fulfillment). Not in MVP.
 
 ### Explicitly excluded
-Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free events beyond one per host account · self-service plan upgrades or paid capacity add-ons · renewals, extensions of hosted access, or subscriptions · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · removing FiveFrames branding on any plan · operator impersonation of hosts · operator-initiated event ownership changes · operators granting extra guest frames · operators bypassing payment confirmation or forcing an event active · operators editing customer event configuration merely by virtue of being operators · operator deletion of customer media as a routine support action · operator (staff) access to actual guest media by default · a general CRM, accounting, POS, marketing-analytics, or infrastructure-monitoring product · a general RBAC/organization-management product · a freeform canvas, keepsake, or signage design editor, and the rest of the Event Theme & Keepsakes exclusions listed in §10.5 (custom fonts, stickers, host template layouts, own frame overlays, multiple theme images, guest filters or text, animated/video or AR templates, paid template packs, removable attribution, per-guest branding, social publishing, AI-generated graphics, and the Full Set exclusions: guest captions, reordering, hero selection, crop controls, host Full Set templates, gallery-wide or multi-guest collages, host-generated Full Sets, physical print ordering).
+Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free events beyond one per host account · self-service plan upgrades or paid capacity add-ons · renewals, extensions of hosted access, or subscriptions · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · removing FiveFrames branding on any plan · operator impersonation of hosts · operator-initiated event ownership changes · operators granting extra guest frames · operators bypassing payment confirmation or forcing an event active · operator changes to an event beyond support access (§5.1.3) or capacity override · unlogged operator actions · operator deletion of events or customer media · operator downloads of guest originals · a general CRM, accounting, POS, marketing-analytics, or infrastructure-monitoring product · a general RBAC/organization-management product · a freeform canvas, keepsake, or signage design editor, and the rest of the Event Theme & Keepsakes exclusions listed in §10.5 (custom fonts, stickers, host template layouts, own frame overlays, multiple theme images, guest filters or text, animated/video or AR templates, paid template packs, removable attribution, per-guest branding, social publishing, AI-generated graphics, and the Full Set exclusions: guest captions, reordering, hero selection, crop controls, host Full Set templates, gallery-wide or multi-guest collages, host-generated Full Sets, physical print ordering).
 
 **On competitor feature creep:** none of the items above — nor guest video capture or a live photo wall/slideshow (both already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
 
@@ -947,7 +972,7 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - Exact safety-net close duration after the event (48–72 hours).
 - Exact expiry grace period before permanent deletion (~30 days).
 - Final payment provider selection, and when to switch self-service online payment on (needs a live provider account with KYC complete, and a business decision once direct sales show demand).
-- Copy and legal text for refunds, retention and deletion (needs a business/legal decision before launch).
+- Copy and legal text for refunds, retention and deletion, and for FiveFrames staff viewing and changing events in support access (§5.1.3) (needs a business/legal decision before launch).
 - Whether hosts may pick a free custom accent color in addition to FiveFrames' curated set (§10.1). This is a design decision; the contrast safeguard applies either way.
 - Exact theme image maximum file size (§10.1) — left to architecture/design.
 - Whether the 10-guest Free event, once real hosts use it, should change in capacity or length (§15.3).
@@ -996,8 +1021,8 @@ Observable behavior that defines launch readiness.
 **Operator Console**
 20. An authorized operator can list and search events across all hosts, and open an event's detail to see its lifecycle state, payment state and source, activation status, plan, joined guest-session count and configured capacity, aggregate capture/moderation counts, capture open/closed state, and gallery reveal/visibility state — without directly querying the database or an external provider dashboard.
 21. Confirming a supplier-assisted/manual payment, recording a manual refund and overriding an event's guest capacity happen only through the Operator Console; there is no other sanctioned path for these actions.
-22. The Operator Console grants no ability to impersonate a host, change event ownership, grant a guest extra frames, bypass payment confirmation, force an event active outside the defined payment paths, change an event's plan, hosted access or price, edit a customer's event configuration (beyond overriding an event's guest capacity upwards, §9.5), or delete customer media as a routine action.
-23. The Operator Console does not expose guest media/photography by default; only aggregate counts and operational metadata are visible.
+22. Being an operator grants no ability to impersonate a host, change event ownership, grant a guest extra frames, bypass payment confirmation, force an event active outside the defined payment paths, change an event's plan, hosted access or price, delete an event or a photo, download guest originals, or change an event in any way beyond support access (§5.1.3) and overriding its guest capacity upwards (§9.5).
+23. The Operator Console's own pages show no guest photos or theme image, only aggregate counts and operational metadata. An operator sees an event's photos only in support access (§5.1.3), and each viewing is logged.
 
 **Gallery, privacy and sharing**
 24. Before reveal, the gallery is not viewable by anyone holding the gallery link.
@@ -1026,7 +1051,7 @@ Observable behavior that defines launch readiness.
 40. An event with no theme image, the default violet, and no hashtag shows polished guest screens, keepsakes, and signage, with no empty slots or placeholders. A host can activate and run an event without ever opening the theme settings.
 41. For any accent color the host selects, themed text and controls on guest screens, keepsakes, and signage stay legible (adjusted automatically where needed), and QR contrast is never reduced.
 42. A host can configure and preview the theme while the event is Draft or pending payment. Those previews create no working link, QR, or downloadable signage, and theming never changes payment or activation state.
-43. The theme image never appears in the gallery, capture counts, host capture downloads, or the Operator Console. It is never reachable at a guessable public URL, and a gallery link that currently grants no access shows no theme image.
+43. The theme image never appears in the gallery, capture counts, host capture downloads, or the Operator Console's own pages (support access shows the host's event pages, theme included, §5.1.3). It is never reachable at a guessable public URL, and a gallery link that currently grants no access shows no theme image.
 
 **Keepsakes**
 
@@ -1103,6 +1128,13 @@ Observable behavior that defines launch readiness.
 84. On a Free event, a guest's Single-photo keepsake uses the preselected style and a Full Set uses the signature style, with no style choice. Requesting any other style is refused by the server. A guest with fewer than five photos still sees the Single-photo keepsake, and nothing presents the Full Set as a goal.
 85. *(Withdrawn 2026-10-11: Free events show live dashboard counts, like every plan.)*
 86. A Free event's gallery, reveal, visibility, layouts, time sections, moderation, guests' own downloads and the host's individual and bulk downloads work exactly as on a paid plan.
+
+**Operator support access (§5.1.3)**
+89. From the Console, an authorized operator can open any event's host pages in support access, on any plan, without the host's approval. Every page says it is support access and names the host. An account without an operator grant can't open support access, including by requesting its address.
+90. In support access, an operator can change the event's name, date, timezone, host message, Look, reveal, visibility, layout, time sections and sharing; open and close capture; reveal the gallery; rotate or turn off links; and hide or unhide photos. Each change behaves exactly as if the host had made it, and a change to a date or time round-trips in the event's timezone.
+91. In support access, an operator has no way to change the plan, pay, confirm a payment, request a refund or cancellation, delete the event or a photo, favorite a photo, download originals in any form, manage co-hosts or transfer ownership, and the server refuses each of these if requested directly.
+92. Every support-access change is a permanent entry recording the event, the operator, what changed, its old and new value, and when, and each visit to the event's photos is logged. Nobody can edit or delete an entry. The Console's event page shows the log with the operator's name, newest first.
+93. The host's event page lists what "FiveFrames support" changed and when, including when support viewed the photos, without naming the operator.
 
 ---
 

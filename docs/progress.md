@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 20, the plan model (D24), is complete: human verification passed. Slice 21 (Free first event) is next, and Slice 20 can't deploy without it. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.**)
+Last updated: 2026-10-11 (**Operator support access (D27) is planned as Slice 27, not started.** **Slice 20, the plan model (D24), is complete: human verification passed. Slice 21 (Free first event) is next, and Slice 20 can't deploy without it. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.**)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -10,6 +10,17 @@ Last updated: 2026-10-11 (**Slice 20, the plan model (D24), is complete: human v
   - 22 capacity override;
   - 23 time sections;
   - 24 table-number cards.
+- **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
+  founder's request. Operators open any event's host pages from the Console, change its
+  settings, and view and hide its photos. Plan, payment, deletion, ownership and original
+  downloads stay with the host. Every action is logged and shown to the host (product.md §5.1.3,
+  architecture §5b, criteria 89–93).
+  - It isn't on the marketing site, so it doesn't block the site deploy.
+  - Before launch it needs the terms and privacy copy to say staff may view photos (a legal
+    follow-up).
+  - It builds the event-access check co-host access will reuse. Each slice built before it adds
+    host DAL functions that Slice 27 must classify one by one.
+  - Its release-validation cases go into release-validation.md when it lands.
 - **Deferred to the first update after launch: Co-host access** (D24, product.md §11.2.2,
   architecture.md §7f). It's on the site as "coming soon". To test it when it ships, use
   criterion 87: the co-host can run the event but not own it, and other hosts and revoked
@@ -2530,6 +2541,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **`payments.plan` NOT NULL and drop `begin_provider_checkout()`** once no deployment runs pre-plans code (architecture §8c "As built"). Backfill any null `payments.plan` to `celebration` first | Deployment-order dependency | After Slice 20 is deployed everywhere this database is served |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
+| **Support-access disclosure in the terms and privacy policy** (product.md §5.1.3, §19): FiveFrames staff may view and change an event, including viewing its photos, to support it. Required before Slice 27 ships to real customers | Business/legal decision | Pre-launch, with Slice 27 |
 | **Advance-expiry warning channel.** The warning is in-product only; no outbound email or SMS exists (D18 launch prerequisite) | Product decision | Pre-launch |
 | **Sales contact channel.** `SALES_CONTACT` (`lib/payments/mode.ts`) is `null`, so the Share step and footer have no "contact us" link. Choose the channel (Messenger, email or phone) and set it | Business decision + one-line change | Before hosts who weren't sold in person can sign up |
 | **Manual-payment receiving account(s)** for bank and GCash/Maya transfers, and whether discounted sales are allowed. The host's Share step always shows the list price; the Console records the real amount (D23) | Business decision | Before the first sale |

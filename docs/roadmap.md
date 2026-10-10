@@ -3,7 +3,7 @@
 Vertical slices, each delivering observable capability. Acceptance criteria numbers refer to
 [docs/product.md §20](./product.md) as renumbered for the five-photo, no-video MVP.
 
-> **Status (2026-10-11): plans (D24) in progress, Slices 20–24 below. Release validation pending.**
+> **Status (2026-10-11): plans (D24) in progress, Slices 20–27 below (27: operator support access, D27). Release validation pending.**
 >
 > - Every feature slice is complete: Slices 1–13 and 15–18.
 > - No feature slice remains.
@@ -648,12 +648,13 @@ homepage. Human: GAL-07, VIS-05.
 
 ---
 
-## Plans (D24), R2 storage (D26) and ZIP downloads (D25): Slices 20–26
+## Plans (D24), R2 storage (D26), ZIP downloads (D25) and support access (D27): Slices 20–27
 
 A product change requested on 2026-10-11 (product.md §15.3, decision D24, architecture §6a,
 §7c–§7e, §8c): a Free first event, Standard ₱499 and Premium ₱999, an operator capacity
 override, time sections and table-number cards. Send to Google Drive is deferred to the first
-update after launch (architecture §7e) and is not a slice here.
+update after launch (architecture §7e) and is not a slice here. Operator support access (Slice
+27) is a separate product change requested the same day (product.md §5.1.3, D27).
 
 | Slice | Scope | Criteria | Status |
 |---|---|---|---|
@@ -665,6 +666,7 @@ update after launch (architecture §7e) and is not a slice here.
 
 | 25 — Storage on Cloudflare R2 | Move captures and theme images from Supabase Storage to private R2 buckets: presigned reads and uploads behind `lib/storage/`, a new resumable or restartable upload in place of TUS, deletion by prefix, CORS, dev-object decision (D26, architecture §7h). Needs the founder's Cloudflare account and keys first | 3, 4, 27, 33 (unchanged behavior on new storage) | `not started` |
 | 26 — Download all as ZIP files | Browser-built ZIP parts of up to 500 photos, with the one-by-one fallback (D25, architecture §7 "Bulk download"). Built on R2 (Slice 25). Already on the site, so it must land before the site deploys | 33, 88 | `not started` |
+| 27 — Operator support access | One event-access check (`getEventAccess`, owner or support) with explicit roles per host DAL function; operators open any event's host pages from the Console, change settings and hide/unhide photos; display derivatives only; append-only `support_actions` log written in the same transaction, shown to the host by label and in the Console with the operator (D27, architecture §5b). Not on the site, so not a deploy blocker. Lays the groundwork for co-host access. Needs the support-access legal copy before real customers | 89–93, 22, 23, 43 | `not started` |
 
 **After launch (first update), shown on the site as "coming soon":** Send to Google Drive
 (architecture §7e, criterion 77) and Co-host access (architecture §7f, criterion 87). Both are
