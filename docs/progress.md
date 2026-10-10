@@ -2,6 +2,11 @@
 
 Last updated: 2026-10-02 (**Sales-led manual payment (D23) implemented and verified locally, on top of Slice 19, gallery layouts. Both await a new RC, their targeted reruns and human verification.**)
 
+- **Plans (D24), specified, not implemented.** Free first event (10 guests, 7 days), Intimate
+  ₱499 (100, 6 months), Celebration ₱999 (300, 12 months), one-time fees with no renewals,
+  operator capacity override (any plan), Send to Google Drive, table-number cards, and default
+  time sections (product.md §15.3). Six slices are suggested in D24. architecture.md isn't updated yet, and the Drive export worker needs
+  infrastructure approval first.
 - **Sales-led manual payment (D23)** switches online payment off for launch. Every sale is
   arranged in conversation and confirmed in the Operator Console, which also gains a payments
   ledger. `awaiting human verification`. See

@@ -877,3 +877,59 @@ and a view of all money received for bookkeeping.
   person confirms.
 - Provider rows have no paid time of their own, so the ledger dates them by confirmation or
   creation time.
+
+---
+
+## D24 — Plans: Free first event, Intimate ₱499, Celebration ₱999
+
+**Status:** Accepted as a product change (2026-10-11). Technical design is open and is settled in
+the implementation slices below. Amends the single launch price (D23 consequences,
+`lib/payments/pricing.ts`), D13's single default cap, and D16's list of activation sources.
+**Context:** Launch had one price (₱999, aiming for ₱1,490), one capacity (250 sessions) and 12
+months of access, and product.md excluded a free tier and multiple tiers. The founder wants an
+entry price for small events, a plan for big ones, and a way to let a host try FiveFrames for
+real before paying.
+**Decision (product.md §15.3):**
+1. **Three plans, one guest experience.** Free (10 sessions, 7 days, once per host account,
+   ever), Intimate ₱499 (100 sessions, 6 months), Celebration ₱999 (300 sessions, 12 months).
+   Plans differ only in capacity, hosted access and Celebration extras. Five frames, keepsakes,
+   theme, gallery and the brandmark are identical on every plan. Every plan is a one-time fee:
+   no renewals, extensions or subscriptions. The ₱1,490 target and the ₱499/year renewal
+   hypothesis are retired.
+2. **Free is a third activation source**, not a payment. It goes through `activateEvent`, and
+   "once per account" is an atomic guard, the same pattern as D5/D13/D16.
+3. **Operators can override any event's capacity**, on any plan including Free, in the
+   Console, raise-only, with a required reason. Each override is an append-only log entry
+   (event, old and new cap, reason, operator, time), never updated or deleted, shown as history
+   on the event's Console page. It has the same no-own-event rule as D17 confirmations and
+   refunds. Unlike them, it is its own record, since it isn't a payment.
+   This is the overflow answer at the venue, since there's no self-service upgrade and payment
+   is manual at launch (D23).
+4. **Celebration extras that take no host time:** Send to Google Drive (host-initiated, after
+   the event), table-number cards, and two human services (set-up together, help on the day)
+   that grant operators nothing new.
+5. **Time sections are the default gallery view on every plan.** Presentation only, under
+   D22's rules.
+6. **Branding is never removable**, on any plan or for any price.
+**Reasoning:** Capacity and time are the costs that scale, and they separate a test dinner from
+a wedding. Feature-gating the guest experience would make the cheaper plans feel broken and
+undercut the brandmark's discovery loop (§19). "First event free" over a repeatable small
+free event was the founder's call. It is simpler to explain, and accounts are email-confirmed.
+**Open technical questions (to settle when implementing, not decided here):**
+- **Drive export needs background work.** Google Drive has no import-from-URL. Its documented
+  upload types (simple, multipart, resumable) all send the bytes from the app
+  ([Drive uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads)),
+  so FiveFrames must stream GBs out of Storage. D11's reasoning rules out one serverless
+  request, so this needs a queue/worker, which is new infrastructure and needs approval first.
+  It is D11's "server-side follow-up" in a different form.
+- **Google scope:** `drive.file` is classed as non-sensitive and limited to files the app
+  creates or the user opens with it
+  ([Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)).
+  Restricted Drive scopes would need a security assessment, so don't use them. An OAuth
+  consent-screen setup and brand verification are still needed. The refresh-token lifetime and
+  encryption are to be designed, and the token is revoked when the export completes (§11.2.1).
+- **Capacity at 300** must be load-tested before launch. None has run at any size yet.
+**Suggested slices:** (a) plan model: per-plan cap, `expires_at` and the price map, with the
+plan on the Share step and the Console; (b) Free activation and its once-per-account guard;
+(c) operator capacity override; (d) time sections; (e) table-number cards through
+`signage-layout.ts`; (f) Send to Google Drive.

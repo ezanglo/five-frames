@@ -38,8 +38,10 @@ change, not a refactor.
 3. Retries are idempotent. Never two captures from one submission.
 4. Commitment is final for the guest. Host moderation never restores a frame.
 5. Limits are enforced server-side. Client state is never the source of truth.
-6. Capture is possible only while the event is paid, active, and explicitly opened by the host.
-7. Payment must succeed before any event link or QR exists.
+6. Capture is possible only while the event is activated (paid, or the account's one Free event),
+   active, and explicitly opened by the host.
+7. Activation must succeed before any event link or QR exists: confirmed payment, or the server
+   granting the host account's one Free event (product.md §7.2, §15.3).
 8. Media is never at a guessable public URL; an unrevealed gallery is never viewable.
 9. A host can only reach events they own.
 10. Original media is never modified. Derivatives are additional files. The event theme, keepsake
@@ -47,9 +49,9 @@ change, not a refactor.
     signage), never in a stored original, and never during capture/preview/commit.
 11. The host can download their media at any point before permanent deletion.
 12. The frame count (5 photos) is a constant. Never configurable, purchasable, or extendable.
-13. Privileged operator mutations (confirming a manual payment, recording a manual refund) are
-    server-authoritative and auditable, and happen only through the Operator Console — never a
-    host-declared, ad hoc, or undocumented action.
+13. Privileged operator mutations (confirming a manual payment, recording a manual refund, overriding
+    an event's guest capacity) are server-authoritative and auditable, and happen only through
+    the Operator Console — never a host-declared, ad hoc, or undocumented action.
 14. A keepsake is a derivative, made only from the requesting guest's own committed, non-hidden
     captures. A **Single-photo keepsake** uses one of them. A **Full Set keepsake** uses exactly
     the five committed captures of the requesting session, all non-hidden, in commit order, with
@@ -101,10 +103,11 @@ change, not a refactor.
 - **An operator cannot confirm a manual payment or refund for an event they own.** Enforce this as
   a DAL equality check (`event.host_id !== operatorUserId`) on those two mutations, not a UI-only
   restriction (architecture §5a).
-- **Provider and manual payment activate through one shared `activateEvent` function**, guarded by
-  a single atomic `WHERE activated_at IS NULL` update (decision D16) — the same pattern as the
-  frame slot mechanism and event-join capacity. Never write a second, payment-source-specific
-  activation code path.
+- **Provider payment, manual payment and Free activation go through one shared `activateEvent`
+  function**, guarded by a single atomic `WHERE activated_at IS NULL` update (decision D16) — the
+  same pattern as the frame slot mechanism and event-join capacity. Never write a second,
+  payment-source-specific activation code path. "One Free event per host account, ever" needs its own atomic guard too,
+  never a count-then-activate check (product.md §7.2).
 - **Manual-payment mutations (confirm, refund) happen only through the Operator Console.** Do not
   add a host-facing route, generic admin endpoint, or script that performs them in production.
 - **The Operator Console shows aggregate counts, never individual guest media.** Do not add a DAL
