@@ -294,6 +294,22 @@ unit tests, and `payments.manual.integration.test.ts` / `payments.integration.te
 keepsake, signage, capacity, cron and network case. Capture gating doesn't depend on the payment
 source.
 
+### Storage move to Cloudflare R2 (D26, planned) — invalidates media cases
+
+Not built yet (roadmap Slice 25). When it lands, every case that **uploads, displays or downloads
+media** reruns on the new RC, because the storage provider, signed URLs and the upload mechanism
+all change:
+- guest capture and upload: section C, the in-app cases in D, and every NET-* case in section I,
+  especially NET-02's dropped-connection retry;
+- gallery and the guest's own photos (E, GAL-*);
+- host downloads (HOST-10);
+- keepsakes and theme image;
+- signage downloads;
+- lifecycle deletion (H).
+
+Record the RC and results in the usual run record. Earlier evidence for these cases doesn't carry
+over.
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.

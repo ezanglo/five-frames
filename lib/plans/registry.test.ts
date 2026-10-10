@@ -25,6 +25,14 @@ describe("plan registry (product.md §15.3, D24)", () => {
     expect(PLANS.celebration.hostedAccessLabel).toBe("12 months");
   });
 
+  it("makes Free the lighter event and gives paid plans every feature (product.md §15.3.1)", () => {
+    expect(Object.values(PLANS.free.features).every((on) => on === false)).toBe(true);
+    const { tableNumberCards, ...shared } = PLANS.intimate.features;
+    expect(Object.values(shared).every((on) => on === true)).toBe(true);
+    expect(PLANS.celebration.features).toEqual({ ...PLANS.intimate.features, tableNumberCards: true });
+    expect(tableNumberCards).toBe(false);
+  });
+
   it("only sells paid plans; Free is never a payment", () => {
     expect(PAID_PLANS.map((p) => p.id)).toEqual(["intimate", "celebration"]);
     expect(isPaidPlanId("free")).toBe(false);

@@ -3,9 +3,10 @@
  * by the Share step, the dashboard, the Operator Console, marketing and the DAL. No secrets, so
  * no `server-only` import, the same as the old single price constant it replaces.
  *
- * Plans differ only in guest capacity, hosted access and Celebration extras. The guest
- * experience, the five frames and the FiveFrames brandmark are the same on every plan, so
- * nothing about them lives here.
+ * Paid plans differ only in guest capacity, hosted access and Celebration extras. Free is a
+ * lighter event (product.md §15.3.1), described by `features`. The five frames, capture flow,
+ * gallery, downloads and the FiveFrames brandmark are the same on every plan, so nothing about
+ * them lives here.
  *
  * Capacities and durations are launch hypotheses (product.md §19), not invariants. Activation
  * stamps them onto the event (`guest_session_cap`, `hosted_until`), so changing a value here
@@ -19,6 +20,31 @@ export type PlanId = (typeof PLAN_IDS)[number];
 export const PAID_PLAN_IDS = ["intimate", "celebration"] as const satisfies readonly PlanId[];
 export type PaidPlanId = (typeof PAID_PLAN_IDS)[number];
 
+/**
+ * What a plan's event can do beyond the shared core (product.md §15.3.1). Enforced on the
+ * server for Free events in Slice 21 (Invariant 15); marketing reads the same flags.
+ */
+export type PlanFeatures = {
+  /** Printable QR, table card and poster. Without it: link, on-screen QR and phone-screen only. */
+  printSignage: boolean;
+  /** Theme image and hashtag. Without it: accent color only. */
+  themeImageAndHashtag: boolean;
+  /** Every keepsake style in both families. Without it: the preselected style of each. */
+  allKeepsakeStyles: boolean;
+  /** Guests-joined and photos-taken counts on the host dashboard. */
+  liveCounts: boolean;
+  /** Numbered table cards with the event QR (product.md §11.3; built in Slice 24). */
+  tableNumberCards: boolean;
+};
+
+const PAID_FEATURES: PlanFeatures = {
+  printSignage: true,
+  themeImageAndHashtag: true,
+  allKeepsakeStyles: true,
+  liveCounts: true,
+  tableNumberCards: false,
+};
+
 export type Plan = {
   id: PlanId;
   /** Human-readable name. Plan ids never reach the UI raw. */
@@ -30,6 +56,7 @@ export type Plan = {
   hostedAccessDays: number;
   /** Shorthand for copy ("6 months"). Derived from the duration so the two can't drift. */
   hostedAccessLabel: string;
+  features: PlanFeatures;
 };
 
 function accessLabel(days: number): string {
@@ -50,6 +77,13 @@ export const PLANS: Record<PlanId, Plan> = {
     pricePhp: 0,
     guestSessionCap: 10,
     hostedAccessDays: 7,
+    features: {
+      printSignage: false,
+      themeImageAndHashtag: false,
+      allKeepsakeStyles: false,
+      liveCounts: false,
+      tableNumberCards: false,
+    },
   }),
   intimate: plan({
     id: "intimate",
@@ -58,6 +92,7 @@ export const PLANS: Record<PlanId, Plan> = {
     pricePhp: 499,
     guestSessionCap: 100,
     hostedAccessDays: 183,
+    features: PAID_FEATURES,
   }),
   celebration: plan({
     id: "celebration",
@@ -66,6 +101,7 @@ export const PLANS: Record<PlanId, Plan> = {
     pricePhp: 999,
     guestSessionCap: 300,
     hostedAccessDays: 365,
+    features: { ...PAID_FEATURES, tableNumberCards: true },
   }),
 };
 

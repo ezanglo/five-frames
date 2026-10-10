@@ -429,7 +429,8 @@ function HostSection() {
           off either link at any time.
         </FeatureCard>
         <FeatureCard icon={<Download />} title="Every original">
-          Download the untouched originals one by one or all at once, whenever you like.
+          Download the untouched originals one by one, or all at once as ZIP files, whenever you
+          like.
         </FeatureCard>
         <FeatureCard icon={<Share2 />} title="Sharing is your call">
           Guests can make keepsakes of their own photos to share or save. Turn it off if you’d

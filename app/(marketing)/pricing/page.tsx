@@ -59,8 +59,8 @@ export default function PricingPage() {
           <SectionHeader
             id="compare-title"
             eyebrow="Compare plans"
-            title="Everything, on every plan."
-            lead="Every event gets the same frames, look, keepsakes, gallery and downloads — even a free one. Plans differ only in how many guests can join, how long your gallery is hosted, and Celebration’s help from us."
+            title="See what each plan includes."
+            lead="Every plan gets five photos per guest and a private gallery. Free keeps it simple. Paid plans add the extras."
           />
           <PlanComparison />
         </div>

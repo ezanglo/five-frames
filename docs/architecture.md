@@ -73,7 +73,7 @@ solving any requirement in the spec.
 | Database | Supabase Postgres, region `ap-southeast-1` | Provisioned (Slice 1): `five-frames-dev` |
 | Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
 | Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
-| Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`) |
+| Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`). **Moving to Cloudflare R2 before launch** (D26, §7h, Slice 25) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit); also normalizes the theme image (D19, planned) |
 | Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built — Slice 16: both keepsake families (D19, D20); the Slice 10 share card is retired |
@@ -576,6 +576,28 @@ only ever resumes into the same reservation's object.
   (§7a). The capture path still accepts a raw HEIC upload and then fails at derivative
   processing (commit fails, no frame consumed); an early rejection there is a tracked maintenance
   follow-up (docs/progress.md).
+
+### Bulk download (D25)
+
+"Download all" (product.md §11.2.3) builds ZIP parts in the host's browser:
+- **Parts:** `listOriginalDownloadUrlsForEventHost`'s set (committed, non-deleted, hidden
+  included) in gallery order, split into parts of up to 500.
+- **Fresh URLs per part:** each part asks the server for that part's signed URLs right before
+  it starts, so URLs never expire mid-part. This is the same owner check as today, scoped by
+  part index.
+- **Building the ZIP:** each response body streams into a stored-entry, ZIP64-capable streaming
+  ZIP (a small dependency chosen in the slice). CRC-32 is computed on the fly, and names are
+  `NNNN-<guest>.<ext>`, unique within the part.
+- **Writing it out:** feature-detected. File System Access (`showSaveFilePicker`) where present;
+  otherwise a scoped service worker that answers a one-time download URL with the ZIP stream as
+  an attachment. If neither works, `save-files.ts`'s one-by-one path, unchanged.
+- **Copy and state:** copy follows the HOST-10 rule (sent to the browser, never "saved"). A part
+  that fails can be retried alone. Nothing is stored server-side, and no new route returns
+  media bytes, so the 4.5 MB function limit doesn't apply.
+- **Tests:** the parts split; unique names; a ZIP built from fixtures re-extracts byte-identical
+  (real unzip); ZIP64 headers above the classic limits in a synthetic case; the fallback chosen
+  when the APIs are missing. Real-device checks (iPhone Safari, Android Chrome, desktop) go into
+  release-validation.md when the slice lands.
 
 ### Private delivery
 
@@ -1253,7 +1275,8 @@ product.md §7.5: on by default for every event, display only.
 
 ## 7e. Send to Google Drive (D24) — deferred to the first update
 
-Not built in this update. product.md §11.2.1 defines it, and nothing may offer it until it ships.
+Not built in this update. product.md §11.2.1 defines it. Until it ships, the site may list it on
+Celebration only as "coming soon", and no host screen offers it.
 Recorded here so the later slice starts from settled constraints:
 
 - **Source set:** the same rows as `listOriginalDownloadUrlsForEventHost` (committed,
@@ -1270,7 +1293,56 @@ Recorded here so the later slice starts from settled constraints:
 - **Token:** the refresh token is encrypted at rest, server-only, deleted and revoked when the
   export ends.
 
+## 7f. Co-host access (D24) — deferred to the first update
+
+Not built in this update. product.md §11.2.2 defines it, with the same "coming soon" rule as
+§7e. Starting constraints for that slice:
+
+- **It changes the core access rule.** Today every host DAL function scopes by
+  `events.host_id = hostId`. Co-hosts need one shared check, `getEventForHostOrCohost(userId,
+  eventId, capability)`, where capability is `run` or `own`.
+  - `own` stays owner-only: plan, payment, refund, invites, deletion.
+  - `run` admits an accepted, unrevoked co-host on a Celebration event.
+  - Every existing host query moves to it deliberately, one by one. There is no blanket "or
+    co-host" predicate.
+- **Shape:** an `event_cohosts` table (`event_id`, `user_id`, invited email, `invited_at`,
+  `accepted_at`, `revoked_at`), with at most one active row per event (a partial unique index).
+  Invites go by email with a single-use token. Accepting requires signing in as the invited
+  email.
+- **Tests:** every `run` action is allowed for the co-host; every `own` action, another host and
+  a revoked co-host are refused; and invite races yield at most one active co-host.
+
 ---
+
+## 7h. Storage on Cloudflare R2 (D26) — planned, Slice 25
+
+Planned, not built. Until Slice 25 lands, §7, §7a and the CLAUDE.md storage gotchas describe
+Supabase Storage as built. Target shape:
+
+- **Buckets:** private R2 buckets for captures (originals and derivatives, same key layout as
+  today) and for theme images. No public bucket, no `r2.dev` public access, and no custom
+  domain that serves objects without a signature.
+- **One storage module**, `lib/storage/` (server-only, behind the DAL's checks), wrapping the
+  S3 API:
+  - presign GET (short expiry);
+  - presign PUT / multipart parts;
+  - get and put for server work;
+  - delete by prefix (D18 permanent deletion: list, then batch delete).
+
+  Every current Supabase Storage call moves behind it. No route talks to R2 directly.
+- **Guest upload** keeps the reserve → upload → commit sequence (§6) and its idempotency rules
+  unchanged. Only the upload step changes. The server issues a presigned authorization for
+  exactly the reserved object key, and commit verifies the object exists (HEAD) before
+  committing, as today. The resumable-versus-restartable choice is the slice's first decision
+  (D26). `lib/media/tus.ts` and its integration test are replaced by the chosen mechanism's own
+  real-R2 integration test.
+- **Theme image upload** (D19) and **D25 ZIP fetches** use the same presigned paths. The bucket
+  CORS allows the app's origins for PUT and GET only.
+- **Credentials:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and bucket names,
+  server-only, read only in `lib/storage/`. They are listed in `.env.example` by name.
+- **Tests:** integration tests that touch Storage today (captures, resumable upload, theme,
+  keepsakes, signage, lifecycle deletion) run against a dev R2 bucket. Unit tests mock nothing
+  new.
 
 ## 8. Payment
 
@@ -1488,6 +1560,13 @@ lowers a live event's cap.
   operator agreed an amount for a specific plan.
 - `setEventPlan` (`lib/dal/events.ts`) is owner-scoped with `activated_at IS NULL` in the same
   statement. The Share step's `PlanPicker` saves on change, with a no-JS submit.
+- `Plan.features` (`printSignage`, `themeImageAndHashtag`, `allKeepsakeStyles`, `liveCounts`)
+  describes Free's lighter event (product.md §15.3.1, D24 amendment). Marketing reads it now.
+  Slice 21 enforces it on the server for Free events, each at the existing gate:
+  - the signage download route refuses print formats;
+  - theme reads drop the image and hashtag for Free;
+  - keepsake render routes refuse non-preselected styles;
+  - the dashboard and its D21 version omit counts.
 - Marketing reads `MARKETING_PLANS` (Free, Intimate, Celebration). It shows Free ahead of Slice
   21 at the user's request, so the site must not be deployed until Slice 21 lands.
   `content.test.ts` forbids literal guest counts, "one price"/"no tiers", "renew" and
@@ -1711,7 +1790,7 @@ traffic to track, not before.
 | Plan capacities (up to 300 sessions, 1,500 captures) not yet load-tested; no load test has run at any size | Join/reserve contention or storage throughput surprises at a big Celebration event | Load-test the Celebration cap (300 joins, then captures) against a preview deployment before launch. Operators can raise a cap, so the test also covers a few hundred above 300 |
 | Free event abused through new accounts | Free storage and hosting for repeat users | Email-confirmed sign-up, 10 sessions and 7 days bound the value. Accepted (product.md §19) |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |
-| Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | MVP ships sequential signed-URL downloads (host "Download all" and guest "Download my photos" share `lib/media/save-files.ts`: each original is fetched in full and saved from a blob before the next starts, because a link navigation per file let later ones cancel earlier ones, HOST-10); server-side archive is a known follow-up |
+| Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | D25: ZIP parts of up to 500 built in the browser (§7 "Bulk download"), with the one-by-one fallback below. Previously: MVP ships sequential signed-URL downloads (host "Download all" and guest "Download my photos" share `lib/media/save-files.ts`: each original is fetched in full and saved from a blob before the next starts, because a link navigation per file let later ones cancel earlier ones, HOST-10); server-side archive is a known follow-up |
 | Keepsake render latency/cost higher than assumed (Single-photo target: p95 well under ~2 s, output a few hundred KB; Full Set gate in §7b: p95 ≤ 2.5 s warm, ≤ 5 s cold, ≤ ~800 KB) | Slow share/save on venue networks | Slice 16 measurement gate (§7b). If the Full Set misses it after tuning, add content-addressed persistence for that family (D19's runner-up) via a new decision; the render input is already deterministic |
 | Geometric Full Set crops cut people out (a portrait photo in a landscape slot keeps about half its height, or less at extreme ratios) | Full Sets look careless | Deterministic cover crop with a top-biased focus (§7b); design avoids extreme slot ratios and compositions that need a perfect crop; human review of mixed-orientation renders in Slice 16. No content analysis in MVP |
 | DOM preview ≠ Satori export for a style | Guest/host sees one thing, gets another | Satori-subset CSS only; per-style visual parity check in Slice 16; fallback to small server-rendered previews from the same templates |

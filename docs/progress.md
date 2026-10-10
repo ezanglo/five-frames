@@ -10,6 +10,10 @@ Last updated: 2026-10-11 (**Slice 20, the plan model (D24), is complete: human v
   - 22 capacity override;
   - 23 time sections;
   - 24 table-number cards.
+- **Deferred to the first update after launch: Co-host access** (D24, product.md §11.2.2,
+  architecture.md §7f). It's on the site as "coming soon". To test it when it ships, use
+  criterion 87: the co-host can run the event but not own it, and other hosts and revoked
+  co-hosts are refused.
 - **Deferred to the first update after launch: Send to Google Drive** (D24, architecture.md §7e).
   Not in this release, and nothing may offer it until it ships. To test it when it ships:
   product.md criterion 77. A Celebration export is complete, matches "Download all", survives
@@ -45,9 +49,13 @@ Intimate ₱499 (100 guests, 6 months) and Celebration ₱999 (300 guests, 12 mo
 (product.md §15.3, D24, architecture §8c "As built"). Free activation arrives in Slice 21. Not
 committed, not deployed.
 
-**Deploy blocker:** the marketing site already shows the Free first event (at the user's
-request, 2026-10-11), but nothing in the product can activate it until Slice 21. Don't deploy
-Slice 20 on its own; deploy it together with Slice 21.
+**Deploy blocker:** the marketing site already shows three things the product doesn't provide
+yet (at the user's request, 2026-10-11):
+- the Free first event, until Slice 21;
+- Celebration's numbered table cards, until Slice 24;
+- "Download all as ZIP files", until Slice 26 (which needs Slice 25, R2 storage, first).
+
+Don't deploy Slice 20 until all three have landed.
 
 **Built:**
 - `lib/plans/registry.ts`: one registry for prices, caps and hosted access, plus labels. It
@@ -115,6 +123,62 @@ home pricing card.
    - nothing says "one price" or "no tiers", or mentions Google Drive.
 5. An existing activated event (before plans): dashboard reads "Celebration · up to 250 guests"
    with its original expiry. Nothing about it changed.
+
+**Follow-up after verification (2026-10-11, user request):** the plan cards now build on each
+other. Free lists everything it includes, Intimate says "Everything in Free, plus" (more guests,
+longer hosting, any event), and Celebration says "Everything in Intimate, plus" (more guests, 12
+months, set up with you, help on the day). The "plus" lines come from the registry
+(`planFeatures` in content.ts, with a unit test). The comparison table gains a "Which events"
+row (Free: your first; paid: any). Free still has every feature, limited by guests, time and
+once per account (product.md §15.3). Automated checks pass. **Needs a quick visual look at
+/pricing** at phone and desktop width.
+
+**Product change after verification (2026-10-11, founder's call): Free is a lighter event**
+(product.md §15.3.1, D24 amendment, criteria 82–86):
+- link, on-screen QR and the phone-screen format only;
+- accent color only;
+- one keepsake style per family (Print and Signature);
+- no dashboard counts.
+
+The gallery, moderation, downloads and five frames are unchanged. The limits are recorded as
+`features` in the registry. Marketing now reflects them:
+- the Free card lists the essentials;
+- Intimate's "plus" adds printable signage, theme photo and hashtag, every keepsake style, and
+  counts;
+- the comparison table shows "1 style" vs "5 styles";
+- downloads stay in the table but are no longer featured on the cards.
+
+**Enforcing the limits in the app is part of Slice 21**, since no Free event can exist before
+it. Automated checks pass (unit 444/444, build). **Needs a quick visual look at /pricing.**
+
+**Pricing copy follow-ups (2026-10-11, founder's requests):**
+- The cards share one structure, one icon and one button, and Free shows as ₱0.
+- Lines are short and plain: "Up to 300 guests", "Live guest and photo counts", and so on.
+- Celebration's "plus" now lists:
+  - photo room (up to 1,500);
+  - set-up with you, signage prepared with you, direct help on the day;
+  - numbered table cards;
+  - Save to Google Drive and Add a co-host, both marked "Coming soon".
+- Intimate lists "Download all your photos".
+- The comparison table is simplified to match.
+
+**Product changes behind these:**
+- co-host access for Celebration after launch (product.md §11.2.2, criterion 87, architecture
+  §7f);
+- Drive and co-host may be shown as "coming soon";
+- table-number cards are listed now, so **Slice 24 must land before deploying too**.
+
+**"Download all" as ZIP files is now MVP** (product.md §11.2.3, criterion 88, D25, architecture
+§7 "Bulk download", roadmap Slice 26, after Slice 25 moves storage to R2 (D26)):
+- parts of up to 500 photos, built in the host's browser;
+- no new infrastructure;
+- falls back to one-by-one saving.
+
+The site already says "Download all as ZIP files" (home, how-it-works, FAQ, Intimate's card,
+comparison table), and the old test banning "ZIP" is gone.
+
+Automated checks pass (unit 444/444, build). **Needs a quick visual look at /pricing and the home
+pricing card.**
 
 **Release follow-ups added:** see the two Slice 20 rows in Release follow-ups.
 
@@ -2394,8 +2458,16 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 1. In a fresh session, **Slice 21: Free first event**. The site already advertises it,
    so Slice 20 can't deploy without it (roadmap.md, architecture §8c "Free:
-   claim, then activate"). It needs a migration for `hosts.free_event_claimed_at` /
-   `free_event_id` and the claim function, and its concurrency test.
+   claim, then activate"). It needs:
+   - a migration for `hosts.free_event_claimed_at` / `free_event_id`, the claim function, and
+     its concurrency test;
+   - server-side enforcement of Free's lighter event (product.md §15.3.1, criteria 82–86).
+   Then Slices 22–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
+   before anything deploys, because the site already advertises them.
+   - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user
+     to create the Cloudflare account, enable R2 and put its keys in `.env.local` / Vercel
+     first.
+   - It changes the upload path, so every media case in release-validation.md reruns after it.
 2. **Release candidate timing is the user's call.** Slices 20–24 change the Share step, the
    pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.
    Cutting the RC after the plan slices avoids rerunning those twice. If an RC is cut sooner,

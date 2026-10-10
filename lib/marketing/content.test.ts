@@ -10,10 +10,10 @@ import {
   MARKETING_PLANS,
   PAYMENT_COPY_BY_MODE,
   PLAN_COMPARISON,
+  planFeatures,
   PRICE_FROM_LABEL,
   PRICES_LABEL,
   PRICING_FAQ_IDS,
-  planPriceLabel,
   REFUND_SUMMARY,
   TESTIMONIALS,
   faqItemsById,
@@ -41,8 +41,41 @@ describe("marketing facts come from the product", () => {
     expect(PRICES_LABEL).toBe("₱499 or ₱999");
     expect(PRICE_FROM_LABEL).toBe("₱499");
     expect(HOSTED_ACCESS_LABEL).toBe("up to 12 months");
-    expect(planPriceLabel(PLANS.free)).toBe("Free");
-    expect(planPriceLabel(PLANS.intimate)).toBe("₱499");
+  });
+
+  it("builds each plan card on the one before it (D24)", () => {
+    const [free, intimate, celebration] = MARKETING_PLANS.map(planFeatures);
+    expect(free).toMatchObject({ heading: "Includes", additions: false });
+    expect(intimate.heading).toBe("Everything in Free, plus");
+    expect(intimate.lines.map((l) => l.text)).toEqual([
+      "Up to 100 guests",
+      "Up to 500 photos",
+      "Hosted for 6 months",
+      "Download all as ZIP files",
+      "Printable QR cards and posters",
+      "Your own photo and hashtag",
+      "All keepsake styles",
+      "Live guest and photo counts",
+    ]);
+    expect(celebration.heading).toBe("Everything in Intimate, plus");
+    expect(celebration.lines).toEqual([
+      { text: "Up to 300 guests" },
+      { text: "Up to 1,500 photos" },
+      { text: "Hosted for 12 months" },
+      { text: "We set it up with you" },
+      { text: "Signage prepared with you" },
+      { text: "Direct help on the day" },
+      { text: "Numbered table cards" },
+      { text: "Save to Google Drive", soon: true },
+      { text: "Add a co-host", soon: true },
+    ]);
+    // Only what isn't built yet is marked soon, and nothing else is.
+    expect(intimate.lines.some((l) => l.soon)).toBe(false);
+  });
+
+  it("never claims Free can do what product.md §15.3.1 leaves out", () => {
+    const free = planFeatures(PLANS.free).lines.map((l) => l.text).join(" ");
+    expect(free).not.toMatch(/printable|table card|poster|theme photo|hashtag|counts|download/i);
   });
 
   it("compares plans only on what really differs (product.md §15.3)", () => {
@@ -50,10 +83,21 @@ describe("marketing facts come from the product", () => {
     // that thing differs; anything else would invent a plan-gated feature.
     const MAY_DIFFER = new Set([
       "Price",
-      "Guests who can join",
-      "Hosted from activation",
-      "We set your event up with you",
-      "Help from us on the day",
+      "Which events",
+      "Guests",
+      "Hosted for",
+      // Free's lighter event (product.md §15.3.1), from the registry's `features`:
+      "Live guest and photo counts",
+      "Your own photo and hashtag",
+      "Printable QR cards and posters",
+      "Keepsakes of one photo",
+      "Keepsakes of all five photos",
+      // Celebration's extras, built and coming soon:
+      "Numbered table cards",
+      "Save to Google Drive",
+      "We set it up with you",
+      "Direct help on the day",
+      "Add a co-host",
     ]);
     for (const row of PLAN_COMPARISON.flatMap((group) => group.rows)) {
       const values = MARKETING_PLANS.map((plan) => row.value(plan));
@@ -144,10 +188,11 @@ describe("marketing copy stays honest and on-brand", () => {
     [/★|\bstars?\b rating|\d[\d,]* (happy )?(hosts|customers|events) (trust|use|love)/i, "fabricated social proof"],
     [/(regular|normally|was) ₱|<s>|line-through/i, "fake anchor price"],
     [/renew/i, "every plan is one-time; there are no renewals (D24)"],
-    [/google drive/i, "Send to Google Drive ships after launch; nothing may offer it yet (D24)"],
+    // Ships after launch: it may appear only as "coming soon", on the same line (product.md §11.2.1).
+    [/google drive(?![^\n]*soon)/i, "Google Drive may only be offered as coming soon (D24)"],
+    [/co-?host(?![^\n]*soon)/i, "co-host access ships after launch; only as coming soon (§11.2.2)"],
     [/one price|no tiers|nothing to compare/i, "there are two plans now (D24)"],
     [/most popular|best value|recommended plan/i, "no upsell framing between plans"],
-    [/\bzip\b/i, "bulk download is not a ZIP (D11)"],
     [/real[- ]?time/i, "counts are polled, not realtime (D9)"],
     [/\bvideo\b/i, "there is no video feature"],
     [/slide ?show|live (photo )?wall/i, "the gallery is scrolled, never played (D22)"],

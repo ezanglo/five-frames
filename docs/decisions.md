@@ -19,6 +19,9 @@ Status values: **Proposed** (awaiting user approval) · **Accepted** · **Supers
 
 ## D1 — Supabase as the primary backend platform
 
+> Amended by D26 (2026-10-11, planned): file storage moves to Cloudflare R2. Postgres, Auth and
+> the DAL stay on Supabase.
+
 **Status:** Accepted (2026-09-21)
 **Context:** The spec requires Postgres-grade consistency for frame limits, host accounts, and
 private object storage with direct browser upload. It names Supabase as an obvious candidate but
@@ -152,6 +155,9 @@ exactly one frame per photo. Full status table in architecture §6.
 
 ## D7 — Direct-to-storage photo upload via signed upload URLs, with TUS for large files
 
+> Superseded in part by D26 (2026-10-11, planned): photo storage moves to Cloudflare R2, which
+> has no TUS. Direct-to-storage under a server-issued, per-object authorization stays.
+
 **Status:** Accepted (2026-09-21)
 **Context:** The spec fixes two requirements: large media uploads go directly to storage rather
 than through the application server, and uploads must be resilient to interruption on weak venue
@@ -233,7 +239,8 @@ performance gain. It can be adopted for marketing surfaces later if they justify
 
 ## D11 — Bulk download is client-driven sequential signed URLs for MVP
 
-**Status:** Accepted (2026-09-21)
+**Status:** Accepted (2026-09-21). Superseded in part by D25 (2026-10-11): still client-driven,
+but now packaged as streamed ZIP parts, with the one-by-one save kept as the fallback.
 **Context:** The spec requires bulk download of originals but leaves the mechanism open. A large
 wedding can produce well over a thousand photos across several GB.
 **Decision:** Issue per-capture signed URLs and have the host dashboard download them
@@ -915,6 +922,34 @@ real before paying.
 a wedding. Feature-gating the guest experience would make the cheaper plans feel broken and
 undercut the brandmark's discovery loop (§19). "First event free" over a repeatable small
 free event was the founder's call. It is simpler to explain, and accounts are email-confirmed.
+**Amended 2026-10-11 (founder's call): Free is a lighter event, not the whole product.** It
+replaces item 1's "one guest experience" for Free only (product.md §15.3.1):
+- event link, on-screen QR and the phone-screen format only;
+- accent color only;
+- one keepsake style per family (the preselected Single-photo style and the signature Full Set);
+- no live counts.
+
+The gallery, moderation, downloads and five frames are unchanged. Two lines held:
+- Downloads stay, because of Invariant 11.
+- Free keeps a Single-photo keepsake rather than only the Full Set. A Full-Set-only keepsake
+  would make using all five frames the only way to get one, which product.md §10.2.2 forbids.
+
+The limits are enforced server-side for Free events (Invariant 15) in Slice 21, alongside Free
+activation. They are recorded as entitlement flags in `lib/plans/registry.ts`, which marketing
+already reads.
+
+**Amended 2026-10-11 (founder's call): Celebration gets co-host access after launch, and both
+after-launch features may be advertised as "coming soon."**
+- **Co-host access** (product.md §11.2.2): one invited co-host per Celebration event. They can
+  run the event but not own it: no plan, payment, refund, invites or deletion. It ships in the
+  first update with Send to Google Drive. It touches every host ownership check (Invariant 9,
+  CLAUDE.md "every event query carries an ownership predicate"), so it gets its own design pass
+  then (architecture §7f).
+- **Coming soon:** the site may list both on Celebration only as clearly labelled "coming soon"
+  (§11.2.1). `content.test.ts` rejects any mention of either without "soon" on the same line.
+- **Table-number cards** (Slice 24) are listed on Celebration now, so Slice 24 must land before
+  the site deploys, the same as Free and Slice 21.
+
 **Technical shape (2026-10-11):** settled in architecture.md §6a (override function and
 append-only log), §7c (table-number cards), §7d (time sections), §7e (Drive, deferred) and §8c
 (plan registry, `activateEvent(eventId, source)` stamping plan, cap and `hosted_until` from what
@@ -944,3 +979,120 @@ for that slice, kept from Google's own documentation:
 cap and `hosted_until` at activation, the plan on the Share step, dashboard, Console and
 marketing; (b) Free activation and its claim; (c) operator capacity override and log; (d) time
 sections; (e) table-number cards. Next update: (f) Send to Google Drive.
+
+---
+
+## D25 — "Download all" streams ZIP parts in the host's browser
+
+**Status:** Accepted (2026-10-11). Supersedes D11's "no zip" in part. D11's client-driven
+principle stands.
+**Context:** The founder wants "Download all" to give ZIP files in MVP, in parts of 500 photos
+(product.md §11.2.3). A Celebration event can hold 1,500 photos, several GB. The obvious design
+is to build the ZIPs on a server and store them, and current provider limits rule it out without
+new infrastructure and a paid plan:
+- A Vercel Function response is capped at 4.5 MB
+  ([Vercel limits](https://vercel.com/docs/functions/limitations#request-body-size)).
+- Supabase Storage caps a single file at 50 MB on the Free plan, 500 GB on Pro
+  ([file limits](https://supabase.com/docs/guides/storage/uploads/file-limits)), and this
+  project is configured at 50 MB.
+- Supabase Edge Functions get 2 s of CPU per request and 256 MB of memory
+  ([limits](https://supabase.com/docs/guides/functions/limits)). That's too little to checksum
+  GBs.
+
+**Decision:** The browser builds each part as it downloads it. The host page already fetches
+every original by a fresh signed URL (D11, `lib/media/save-files.ts`). For a ZIP part it
+streams those responses into a stored (uncompressed) ZIP, written straight to a file:
+- through the File System Access API where available;
+- otherwise as a service-worker-streamed download.
+
+It uses a small streaming ZIP library with ZIP64 support. Parts hold up to 500 photos in gallery
+order. Where neither streaming route exists (feature-detected, not by user agent), it falls
+back to D11's one-by-one save. The details are in architecture §7 "Bulk download (D25)".
+
+**Reasoning:**
+- No new infrastructure, no paid plan, nothing extra stored, and no new copy of private media
+  on our side.
+- JPEG/PNG/WebP are already compressed, so a stored ZIP costs nothing and keeps bytes identical
+  (Invariant 10).
+- Streaming keeps memory flat whatever the part size.
+- 500-photo parts stay well under the 4 GB classic ZIP limit even without ZIP64, and match the
+  plans: Free and Intimate fit in one file.
+
+**Alternatives rejected:**
+- A server-built archive in Storage: needs Supabase Pro for files over 50 MB, plus a background
+  job and cross-region transfer (Vercel `iad1`, Supabase `ap-southeast-1`).
+- Edge Functions: CPU limit.
+- An in-memory blob ZIP: crashes phones at hundreds of MB.
+
+**Consequences:**
+- Some browsers and in-app browsers get the one-by-one fallback. That's acceptable because it
+  is today's behavior, stated plainly.
+- The download needs the page open while it runs, as today.
+- A server-side archive job (shared with the Drive export, architecture §7e) stays possible
+  later if hosts need "close the tab and get a link".
+
+---
+
+## D26 — Photo and theme storage on Cloudflare R2, before launch
+
+**Status:** Accepted (2026-10-11), planned. It is Slice 25, a prerequisite of the ZIP slice (26).
+It amends D1 (Supabase stays for Postgres, Auth and the DAL) and supersedes D7's TUS mechanism.
+
+**Context:** FiveFrames sends far more data out than it takes in: guests scroll galleries, hosts
+download whole events (as ZIPs, D25), and the Drive export will come later. A full Celebration
+event is about 6 GB of originals, and a busy gallery can serve over 100 GB.
+- **Supabase** counts Storage egress against one shared quota: 5 GB on Free, 250 GB on Pro,
+  then $0.09/GB uncached
+  ([egress](https://supabase.com/docs/guides/platform/manage-your-usage/egress)).
+- **R2** egress is free through the S3 API, and storage is $0.015/GB-month
+  ([R2 pricing](https://developers.cloudflare.com/r2/pricing/)).
+
+There are no real customer photos yet, so moving now is a code change, not a data migration. That
+was the founder's deciding reason.
+
+**Decision:** Captures (originals and derivatives) and theme images live in private R2 buckets,
+reached only through the S3 API with server-held credentials:
+- **Reads:** short-lived presigned GET URLs, minted by the DAL after the same access checks as
+  today. A signed URL is still the result of authorization, never a substitute for it.
+- **Uploads:** browsers upload directly to R2 under server-issued presigned authorization for
+  one object key. That is the same trust shape as D7, with a different mechanism (below).
+- **Server work:** derivatives, keepsake rendering, theme processing and permanent deletion
+  (D18) read and write R2 from the server.
+
+Supabase Storage is retired for media. Postgres, Auth, the DAL, RLS posture and every
+invariant are unchanged.
+
+**What the slice must settle (architecture §7h):**
+- **Resumable upload without TUS.** R2 documents presigned PUT for single objects, and
+  resumability through S3 multipart
+  ([R2 uploads](https://developers.cloudflare.com/r2/objects/upload-objects/)). The product needs
+  uploads that are "resumable or safely restartable" (product.md §14). Options:
+  - a presigned single PUT for typical photos, safely restarted on failure;
+  - server-signed multipart parts for large files.
+
+  The Keep sequence's retry rules (CLAUDE.md, NET-02) must hold either way, and real-device
+  venue-network checks rerun.
+- **Placement.** An R2 location near the Philippines, since Vercel functions are in `iad1`.
+  Confirm against R2's documented location options before creating the bucket.
+- **CORS** on the buckets for browser PUT and GET: uploads and D25's ZIP fetches.
+- **Credentials.** An R2 access key and secret, server-only and never `NEXT_PUBLIC_`. They are
+  now as sensitive as the Supabase service-role key for media.
+- **Existing dev objects.** Copy them across or let dev events lose their photos. This is a
+  one-off decision for dev only; there is no production data.
+
+**Needs the founder:** a Cloudflare account with R2 enabled (Cloudflare asks for a payment
+method even within the free allowance), and its keys placed in `.env.local` and Vercel by the
+founder. Under CLAUDE.md, the agent doesn't create provider accounts or enable paid features.
+
+**Alternatives rejected:**
+- **Stay on Supabase Storage and migrate later:** egress becomes the main storage cost as
+  events grow, and a later move means copying real customer media while it's live.
+- **Supabase Storage behind a CDN:** cached egress is cheaper ($0.03/GB), but signed private
+  URLs don't cache well per viewer, and it isn't free.
+
+**Consequences:**
+- The CLAUDE.md storage gotchas (signed TUS `…/upload/resumable/sign`, `lib/media/tus.ts`) are
+  replaced when the slice lands.
+- release-validation.md marks every case that uploads, displays or downloads media for rerun.
+- A second vendor and secret to operate.
+

@@ -93,7 +93,7 @@ const HOST_STEPS: { title: string; body: ReactNode }[] = [
   },
   {
     title: "Download and keep",
-    body: `Download every original, one at a time or all at once. Your collection stays in your dashboard for ${HOSTED_ACCESS_LABEL}, depending on your plan, with a warning before it ends.`,
+    body: `Download every original, one at a time or all at once as ZIP files. Your collection stays in your dashboard for ${HOSTED_ACCESS_LABEL}, depending on your plan, with a warning before it ends.`,
   },
 ];
 

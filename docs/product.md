@@ -1,7 +1,7 @@
 # FiveFrames — Product Definition
 
 Status: ready for technical bootstrap
-Last updated: 2026-10-11 (plans: a host's first event is Free, then Intimate ₱499 or Celebration ₱999, one-time fees with no renewals, differing only in guest capacity, hosted access and a few Celebration extras, §15.3; Free activation without payment, §7.2; operators may override any event's guest capacity upwards, on any plan, §5.1; Google Drive export, §11.2.1; table-number cards, §11.3; time sections as the default gallery view, §7.5; criteria 70–81). Previously 2026-10-02 (sales-led launch: self-service online payment is built but switched off at launch, so every sale is arranged in conversation and confirmed by a FiveFrames operator, §7.2; e-wallet transfers as a manual payment method, §7.2.1; an Operator Console payment ledger, §5.1.1; criteria 17 and 69). Previously 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
+Last updated: 2026-10-11 ("Download all" saves ZIP files of up to 500 photos each, on every plan, in MVP, §11.2.3; criteria 33 and 88. Earlier the same day: Celebration adds co-host access after launch, §11.2.2; Send to Google Drive and co-host access may be shown as "coming soon" on Celebration, §11.2.1–§11.2.2; criterion 87. Earlier the same day: Free is a lighter event: link and on-screen QR only, accent color only, one keepsake style per family, no live counts, §15.3.1; invariant 15 and criteria 75, 82–86 amended. Earlier the same day: plans: a host's first event is Free, then Intimate ₱499 or Celebration ₱999, one-time fees with no renewals, differing only in guest capacity, hosted access and a few Celebration extras, §15.3; Free activation without payment, §7.2; operators may override any event's guest capacity upwards, on any plan, §5.1; Google Drive export, §11.2.1; table-number cards, §11.3; time sections as the default gallery view, §7.5; criteria 70–86). Previously 2026-10-02 (sales-led launch: self-service online payment is built but switched off at launch, so every sale is arranged in conversation and confirmed by a FiveFrames operator, §7.2; e-wallet transfers as a manual payment method, §7.2.1; an Operator Console payment ledger, §5.1.1; criteria 17 and 69). Previously 2026-09-30 (added Event Theme & Keepsakes, §10: one optional host-set event theme — image, accent color, hashtag — carried across guest screens, signage and five FiveFrames keepsake styles that replace the single branded share card; themed signage with previews, §11.3; host-only theme previews allowed before payment, §7.2. Amended the same day: keepsakes now come in two families — five Single-photo keepsake styles and five Full Set keepsake styles that combine a guest session's five committed captures, one of them built on the FiveFrames brandmark's construction, §10.2–§10.2.2; criteria 54–66)
 Initial market: Philippines
 
 ---
@@ -67,7 +67,7 @@ These principles constrain feature decisions and UI copy. They are product requi
 
 The operator role is internal to FiveFrames, not a customer-facing account type, and is not part of the host/guest permission model — it exists solely to keep payment confirmation for manual sales outside the host's own control. Operator status is granted explicitly by FiveFrames; it is never acquired automatically. Being a paying customer or an event host never grants manual-payment confirmation authority on its own — a host who is separately and explicitly authorized as an operator still cannot confirm or refund payment for an event they themselves own. At launch, FiveFrames expects to have only one or a very small number of operator accounts (see Open Questions).
 
-**Co-hosts are out of scope for MVP.** One owning host account per event. Shared logins are not an intended workflow; the "my partner and our coordinator both need access" case is a known post-MVP gap (see Future Ideas).
+**Co-hosts arrive after launch, on Celebration only (§11.2.2).** At launch there is one owning host account per event. Shared logins are not an intended workflow; until co-host access ships, the "my partner and our coordinator both need access" case is a known gap.
 
 ### 5.1 Operator Console
 
@@ -337,7 +337,7 @@ The five-frame allowance is per guest session (§9.1); it does not by itself bou
 - It is a fair-use boundary on **event size**, distinct from and in addition to the per-session frame limit.
 - **Reaching the cap is calm and non-destructive:** guest sessions already admitted to the event are completely unaffected and keep their full remaining allowance. A new guest attempting to join once the event is at capacity sees a calm, factual "this event is currently full" state — not an error — and is not charged, blamed, or told the event failed.
 - Reaching the cap does not close capture for existing guests, does not delete or hide anything, and does not affect the host's ability to moderate, reveal, or download.
-- The host should be able to see when an event is near or at capacity.
+- The host should be able to see when an event is near or at capacity. On Free, which shows no counts (§15.3.1), the host sees a calm notice once the event is full.
 
 **Capacity override (operators only).** When any event needs more room, whatever its plan, an authorized operator can raise its capacity through the Operator Console (§5.1). The host can't, and there is no self-service or paid upgrade in MVP.
 
@@ -370,7 +370,7 @@ It is deliberately constrained. The host sets three optional things; FiveFrames 
 
 ### 10.1 Event theme
 
-Each event has exactly **one** theme. It is event-scoped, set by the host, and **entirely optional** — hosts are never required to customize anything to activate or run an event.
+Each event has exactly **one** theme. It is event-scoped, set by the host, and **entirely optional** — hosts are never required to customize anything to activate or run an event. On a Free event, the theme is the accent color only (§15.3.1).
 
 | Part | What the host sets | When not set |
 |---|---|---|
@@ -435,7 +435,7 @@ A **keepsake** is a new, photobooth-style still image that FiveFrames generates 
 
 **Rules for both families**
 
-- The same styles are available for every event. Hosts do not create or upload templates. Guests do not edit them.
+- The same styles are available for every event on a paid plan. A Free event offers one style per family, the preselected ones (§15.3.1). Hosts do not create or upload templates. Guests do not edit them.
 - Every style must draw meaningfully on the event theme — the accent color always, and the theme image where the style uses one — and must look complete and polished with no theme image, with the default violet, and with no hashtag.
 - The guest's photography is always the hero of the composition. The theme image is never laid over a guest's photograph, never replaces one, and is never placed where it could be mistaken for a guest capture.
 - **A keepsake never contains:**
@@ -582,7 +582,7 @@ Event Theme & Keepsakes must not grow into a general design tool (a Canva-like e
 - upload-your-own frame overlay;
 - animated or video keepsake templates;
 - AR;
-- paid template packs or other purchasable styles;
+- paid template packs or other purchasable styles (styles are never sold on their own; a paid plan simply has every style, and Free one per family, §15.3.1);
 - purchasable extra frames (already excluded everywhere — §9.1);
 - removing FiveFrames attribution, on any plan or for any price (§15.3);
 - per-guest branding configuration;
@@ -610,16 +610,16 @@ Event Theme & Keepsakes must not grow into a general design tool (a Canva-like e
 
 - Event status and lifecycle state, with the capture open/close control.
 - The event's plan, and when its hosted access ends.
-- Guest session count against the event's capacity, and photo count.
+- Guest session count against the event's capacity, and photo count (not on Free, §15.3.1).
 - Gallery grid with moderation: **hide, unhide, delete, favorite**. (This is the host's management view; the revealed gallery's layout, §7.5, doesn't change it.)
-- Downloads: individual captures and bulk download of originals, on every plan.
+- Downloads: individual captures, and "Download all" as ZIP files of up to 500 photos each (§11.2.3), on every plan.
 - Send to Google Drive (Celebration only, after launch, §11.2.1).
 - Gallery link, capture link, and event signage (§11.3).
 - Sharing and visibility settings.
 
 #### 11.2.1 Send to Google Drive (Celebration)
 
-**Ships after launch, in the first update (not in this release).** Until it ships, no host screen, marketing page or sales conversation may offer it, and Celebration is sold on its other extras. Celebration events activated before it ships get it when it ships, for the rest of their hosted access.
+**Ships after launch, in the first update (not in this release).** Until it ships, no host screen offers it, and nothing presents it as available now. The public site and sales conversations may list it on Celebration only as clearly labelled "coming soon". Celebration events activated before it ships get it when it ships, for the rest of their hosted access.
 
 A Celebration host can copy all of the event's originals into their own Google Drive in one action, instead of downloading them one by one. It is a convenience on top of downloading, never a replacement for it: every plan keeps individual and bulk download (Invariant §12.11).
 
@@ -631,9 +631,33 @@ A Celebration host can copy all of the event's originals into their own Google D
 - **What happens to the copy afterwards.** The Drive folder belongs to the host, under their own Google account. Later moderation, link rotation, expiry and permanent deletion in FiveFrames don't touch it, and FiveFrames can't recall it. The host is told this before starting.
 - Exporting never changes gallery access, visibility, moderation, or any original.
 
+#### 11.2.3 Download all as ZIP files
+
+"Download all" saves the event's originals as **ZIP files of up to 500 photos each**, on every plan, for the whole hosted period and the grace period after it (§15.2). An event with up to 500 photos downloads as one ZIP; a bigger one comes in parts ("Part 1 of 3").
+
+- **What's inside:** the same set as before: every committed, non-deleted original, including hidden ones, byte-for-byte unchanged. No keepsakes, theme image, thumbnails or other derived files.
+- **Order and names:** photos in gallery order, split into consecutive parts. File names inside each ZIP are readable and unique, and each ZIP is named after the event and its part.
+- **Each part is its own download.** The host can download parts one at a time, and retry one that failed, without starting over.
+- **When a ZIP isn't possible.** Some browsers and in-app browsers can't save a large generated file. There, "Download all" falls back to saving the photos one by one, and says so plainly.
+- **Honest copy.** The product says a ZIP was sent to the browser, never that it was saved, because it can't know.
+- Downloading never changes the gallery, access, moderation or any original (Invariant §12.10–§12.11).
+
+#### 11.2.2 Co-host access (Celebration)
+
+**Ships after launch, in the first update (not in this release).** The same "coming soon" rule as §11.2.1 applies until then: listed on Celebration only as clearly labelled "coming soon", never offered in the product or presented as available now. Celebration events activated before it ships get it when it ships, for the rest of their hosted access.
+
+A Celebration host can invite **one co-host** — typically a partner, family member or coordinator — to run the event with them, so the couple doesn't have to be the one opening capture at the venue.
+
+- **Invited by email**, by the owning host. The co-host signs in with their own host account (or creates one). The host can remove the co-host at any time, and invite a different one.
+- **A co-host can run the event:** open and close capture, moderate (hide, unhide, delete, favorite), reveal the gallery, change the reveal, visibility, layout and sharing settings, see and share the capture and gallery links and signage, rotate or turn off links, and download originals.
+- **A co-host can't own it:** they can't choose or change the plan, pay, request a refund or cancellation, invite or remove co-hosts, delete the event, or transfer ownership. Payment confirmation, refunds and every operator rule are unchanged.
+- **Only Celebration events.** Free and Intimate events have exactly one host account.
+- **Accountability:** the host can see who the co-host is. Actions a co-host takes are attributed to them where the product records who acted.
+- When it ships, Invariant §12.9 extends to "a host can only reach events they own, or events they are the accepted co-host of, within §11.2.2's limits". Until then it is unchanged.
+
 ### 11.3 Event signage
 
-Once an event is activated, the host can obtain a small set of practical signage for the venue, carrying the event's theme (§10.1) and FiveFrames identity. It is an output system, not a general invitation/design editor. At minimum:
+Once an event on a paid plan is activated, the host can obtain a small set of practical signage for the venue (a Free event gets the link, on-screen QR and phone-screen format only, §15.3.1), carrying the event's theme (§10.1) and FiveFrames identity. It is an output system, not a general invitation/design editor. At minimum:
 
 - A printable event QR.
 - A compact table-card format.
@@ -682,7 +706,7 @@ These must hold regardless of architecture. How they are enforced is an engineer
 12. The frame count (5 photos) is a product constant and is not configurable per event.
 13. Privileged operator mutations (confirming a supplier-assisted/manual payment, recording a manual refund, overriding an event's guest capacity) are server-authoritative and auditable, and occur only through the Operator Console (§5.1) — never as a host-declared, ad hoc, or undocumented action.
 14. A keepsake is made only from the requesting guest's own committed, non-hidden captures: one capture for a Single-photo keepsake, or exactly the five committed captures of the requesting guest's own session, all non-hidden, for a Full Set keepsake. It never contains another guest's capture, name, or message, never contains the guest's display name, and never contains the event capture link/QR or the gallery link. A Full Set never contains any guest message. Making or sharing a keepsake never changes gallery visibility or access, never consumes a frame, and never adds a gallery item (§10.2, §10.3).
-15. Plan limits — guest capacity, hosted access period, Free once per account, and the Celebration-only features — are enforced server-side. A host can never obtain a capacity, access period or feature their event's plan doesn't include (the only exception is capacity an operator raised, §9.5), and no plan changes the five-frame allowance, the guest experience, or the FiveFrames brandmark (§15.3).
+15. Plan limits — guest capacity, hosted access period, Free once per account, Free's lighter feature set (§15.3.1), and the Celebration-only features — are enforced server-side. A host can never obtain a capacity, access period or feature their event's plan doesn't include (the only exception is capacity an operator raised, §9.5). No plan changes the five-frame allowance, the capture flow, gallery access and privacy, downloads (§12.11), or the FiveFrames brandmark (§15.3).
 
 ---
 
@@ -754,7 +778,7 @@ Venue conditions are assumed to be bad: congested Wi-Fi, weak mobile data, inter
 
 ### 15.3 Plans
 
-Every plan runs the same event. Guests get the same five frames, the same capture flow, keepsakes (both families), Full Set, theme, gallery and gallery layouts, time sections, moderation, sharing rules, privacy, and downloads. Plans differ only in how many guests can join, how long the gallery is hosted, and a few Celebration extras that take no extra work from the host.
+Every plan runs a real event with the same core: five frames per guest, the same capture flow, the gallery (reveal, visibility, layouts, time sections), moderation, sharing rules, privacy, and downloads. **Intimate and Celebration** have every feature and differ only in how many guests can join, how long the gallery is hosted, and a few Celebration extras that take no extra work from the host. **Free** is a lighter version of the same event (§15.3.1).
 
 | | **Free** | **Intimate** | **Celebration** |
 |---|---|---|---|
@@ -765,13 +789,29 @@ Every plan runs the same event. Guests get the same five frames, the same captur
 | Operator capacity override (§9.5) | Yes | Yes | Yes |
 | Hosted access (§15.2) | 7 days | 6 months | 12 months |
 | Download grace period after expiry (§15.2) | ~30 days | ~30 days | ~30 days |
-| Signage | Printable QR, table card, poster, digital | Same | Same, plus table-number cards (§11.3) |
-| Send to Google Drive (§11.2.1) | — | — | Yes, after launch |
+| Sharing the event | Event link, on-screen QR and the phone-screen format only (§15.3.1) | Link, printable QR, table card, poster, phone-screen | Same, plus table-number cards (§11.3) |
+| Event theme (§10.1) | Accent color only | Theme image, accent color, hashtag | Same |
+| Keepsake styles (§10.2) | One per family: the preselected Single-photo style and the signature Full Set style | All five in each family | Same |
+| Live guest and photo counts on the dashboard (§11.2) | — | Yes | Yes |
+| Send to Google Drive (§11.2.1) | — | — | Yes, after launch (shown as "coming soon") |
+| Co-host access (§11.2.2) | — | — | Yes, after launch (shown as "coming soon") |
 | Set-up together | — | — | Yes |
 | Help on the day | — | — | Yes |
 | FiveFrames brandmark | On | On | On |
 
-**Free** shows the whole product, limited by size and time rather than features, so a host can try FiveFrames at a real gathering before paying for one that matters. It activates without payment (§7.2). It isn't refundable, because nothing was paid. There's no upgrade from Free to a paid plan in MVP. A host who wants more buys a new event.
+**Free** lets a host try FiveFrames at a real, small gathering before paying for one that matters. It is limited by size, time and features (§15.3.1). It activates without payment (§7.2). It isn't refundable, because nothing was paid. There's no upgrade from Free to a paid plan in MVP. A host who wants more buys a new event.
+
+#### 15.3.1 What a Free event leaves out
+
+A Free event is the real product with fewer extras. Everything not listed here works exactly as on a paid plan.
+
+- **Sharing the event: link and on-screen QR only.** The host gets the event link, the QR on screen (to show or screenshot), and the phone-screen (digital) signage format to send in a group chat. There is no printable QR, table card, poster or table-number card download. The QR rules (§11.3) are unchanged.
+- **Theme: accent color only.** The host picks the accent color. There is no theme image and no hashtag on any Free output: guest screens, keepsakes and the phone-screen format all use the no-image, no-hashtag treatment, which must still look finished (§10.1). The Look step on a Free event offers only the color.
+- **Keepsakes: one style per family.** Guests can still make keepsakes of their own photos, under the same sharing setting and rules (§10.2, §10.3). A Single-photo keepsake uses the preselected Single-photo style. A Full Set keepsake, once a guest happens to have five committed photos, uses the signature Full Set style. There is no style choice to make. The Full Set stays optional and is never a goal (§10.2.2): a guest with fewer than five photos still has the Single-photo keepsake.
+- **No live counts.** The dashboard doesn't show guests-joined or photos-taken counts. The host still sees the photos themselves, moderates them, and sees a calm notice once the event is full (§9.5). The Operator Console's counts are unchanged.
+- **Unchanged on Free:** five frames per guest, capture open and close, the gallery and its reveal, link, visibility, layouts and time sections, moderation, guests' own photos and downloads, host downloads (Invariant §12.11), and the brandmark.
+
+These limits are enforced on the server for Free events (Invariant §12.15), not only hidden in the interface.
 
 **Set-up together** and **Help on the day** are human services from FiveFrames, not product features:
 
@@ -780,7 +820,7 @@ Every plan runs the same event. Guests get the same five frames, the same captur
 
 **Branding is the same on every plan.** No plan, price or arrangement removes the FiveFrames brandmark from keepsakes or FiveFrames identity from signage (§10.2, §10.5).
 
-**Not in MVP:** self-service upgrades between plans, paid capacity add-ons, plan-specific frame counts, and any plan-specific change to the guest experience.
+**Not in MVP:** self-service upgrades between plans, paid capacity add-ons, plan-specific frame counts, and any plan-specific change to the guest experience beyond Free's lighter theme and keepsakes (§15.3.1).
 
 ---
 
@@ -847,7 +887,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Gallery with reveal timing (after event / immediate / custom), browsed by scrolling, in a host-chosen layout: Masonry (default), Rows or Grid, divided into time sections by default (§7.5).
 - Separate view-only gallery link; visibility "anyone with link" or "only me"; link rotation/revocation.
 - Host moderation: hide, unhide, delete, favorite.
-- Host downloads: individual and bulk originals, on every plan.
+- Host downloads: individual originals, and "Download all" as ZIP files of up to 500 photos each with a one-by-one fallback (§11.2.3), on every plan.
 - Event theme (§10.1): optional theme image, accent color (default violet, with an automatic contrast safeguard), and optional hashtag, configurable in Draft and afterwards, with host-only previews of guest screens, keepsake styles, and signage. Polished defaults when nothing is set.
 - Keepsakes (§10.2), in two families, the same for every event. Each keepsake is themed, carries a subtle, non-removable FiveFrames brandmark, and never contains the guest's display name. Keepsakes replace the single branded share card.
   - **Single-photo keepsakes** (§10.2.1): exactly five Single-photo styles, which a guest chooses between when sharing or saving one of their own captures. Works for portrait, landscape and square photos.
@@ -873,7 +913,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Replay: browser-based "memories" experience from guest photos, timestamps, messages, host favorites and licensed music.
 - Physical photobook from the same collection.
 - AI-assisted duplicate detection, curation, moment grouping, and first-draft Replay/Book.
-- Co-host access or a read-only dashboard link.
+- Co-host access for Celebration events (§11.2.2): the first update after launch.
 - Guest video capture: a short clip per guest session, with its own managed upload/processing pipeline and branded video share assets. Not designed for in MVP; the MVP architecture reserves nothing for it.
 - Guest session recovery.
 - Live photo wall / slideshow at the venue: not in MVP unless later customer evidence justifies it.
@@ -885,7 +925,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 ### Explicitly excluded
 Native apps · guest accounts, email or OTP · unlimited uploads · configurable frame/shot counts · paid extra frames · filters applied to original captures · likes, comments, followers, profiles · streaks, leaderboards, badges, engagement nudges, photo missions/games/bingo · long-form video · in-browser video editor · photobook editor · RSVP/invitations · seating tools · semantic search · microservices · self-managed video transcoding · direct Instagram/Facebook publishing · AI capture features or AI anywhere in the capture flow · AI-generated or altered memories, faces, or captions · social-feed mechanics generally · free events beyond one per host account · self-service plan upgrades or paid capacity add-ons · renewals, extensions of hosted access, or subscriptions · invoicing software · a point-of-sale (POS) system · cash-drawer/till features · general accounting software · host self-activation (a host marking their own event paid) · removing FiveFrames branding on any plan · operator impersonation of hosts · operator-initiated event ownership changes · operators granting extra guest frames · operators bypassing payment confirmation or forcing an event active · operators editing customer event configuration merely by virtue of being operators · operator deletion of customer media as a routine support action · operator (staff) access to actual guest media by default · a general CRM, accounting, POS, marketing-analytics, or infrastructure-monitoring product · a general RBAC/organization-management product · a freeform canvas, keepsake, or signage design editor, and the rest of the Event Theme & Keepsakes exclusions listed in §10.5 (custom fonts, stickers, host template layouts, own frame overlays, multiple theme images, guest filters or text, animated/video or AR templates, paid template packs, removable attribution, per-guest branding, social publishing, AI-generated graphics, and the Full Set exclusions: guest captions, reordering, hero selection, crop controls, host Full Set templates, gallery-wide or multi-guest collages, host-generated Full Sets, physical print ordering).
 
-**On competitor feature creep:** none of the items above — nor guest video capture, co-host accounts, or a live photo wall/slideshow (all three already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, co-host accounts, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
+**On competitor feature creep:** none of the items above — nor guest video capture or a live photo wall/slideshow (both already tracked as Post-MVP ideas, not MVP scope) — are being pursued merely because competitor products have them. This applies in particular to configurable shot counts, unlimited guest uploads, live photo walls/slideshows, filters on original media, guest video, RSVP/invitations, seating tools, games/photo missions, AI capture features, and social likes/comments/follows. Any of these may be revisited later, but only from real customer evidence — not from competitive parity pressure.
 
 ---
 
@@ -894,8 +934,8 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 **Hypotheses to validate**
 - Launch prices ₱499 (Intimate) and ₱999 (Celebration) per event (§15).
 - Plan capacities of 10, 100 and 300 joined guest sessions, and hosted access of 7 days, 6 months and 12 months, fit how hosts actually use each plan (§15.3). Celebration's 300 sessions (1,500 theoretical committed captures) are the size to load-test before launch.
-- A host's one Free event leads to paid events rather than replacing them: 10 guests and 7 days are enough to try FiveFrames for real, and too little to run an occasion that matters.
-- Celebration's extras (Send to Google Drive, table-number cards, set-up together, help on the day) make the bigger plan worth choosing without adding host work.
+- A host's one Free event leads to paid events rather than replacing them: 10 guests, 7 days and a lighter feature set (§15.3.1) are enough to try FiveFrames for real, and too little to run an occasion that matters.
+- Celebration's extras (table-number cards, set-up together, help on the day, and after launch Send to Google Drive and a co-host) make the bigger plan worth choosing without adding host work.
 - Five photos is the right allowance.
 - Guests accept commitment finality without frustration.
 - Hosts are comfortable opening capture manually at the venue.
@@ -909,7 +949,6 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - Exact safety-net close duration after the event (48–72 hours).
 - Exact expiry grace period before permanent deletion (~30 days).
 - Final payment provider selection, and when to switch self-service online payment on (needs a live provider account with KYC complete, and a business decision once direct sales show demand).
-- Whether bulk download is a zip, a batched flow, or provider-native.
 - Copy and legal text for refunds, retention and deletion (needs a business/legal decision before launch).
 - Whether hosts may pick a free custom accent color in addition to FiveFrames' curated set (§10.1). This is a design decision; the contrast safeguard applies either way.
 - Exact theme image maximum file size (§10.1) — left to architecture/design.
@@ -923,7 +962,7 @@ Native apps · guest accounts, email or OTP · unlimited uploads · configurable
 - The sharing toggle cannot prevent a guest from sharing media already on their device.
 - A keepsake of either family, once shared or saved, can't be recalled by later host moderation, turning sharing off, a theme change, or expiry (§10.3). A Full Set exported before the host hid or deleted one of its five captures keeps that capture.
 - The theme image is public-facing event presentation: anyone with the event link, anyone who sees the signage, and anyone a keepsake is shared with may see it. Hosts are told this at upload (§10.1).
-- One host account per event; couples, families, or coordinators needing shared access is a known gap.
+- One host account per event until co-host access ships for Celebration (§11.2.2); until then, and on Free and Intimate, couples, families, or coordinators needing shared access is a known gap.
 - Someone can create more host accounts to get more Free events. Host sign-up requires email confirmation, and a Free event's 10 guests and 7 days limit what this is worth. Accepted.
 - A Google Drive copy is outside FiveFrames' control once made: later moderation, expiry and deletion don't reach it (§11.2.1).
 
@@ -974,9 +1013,9 @@ Observable behavior that defines launch readiness.
 
 **Host operations**
 32. Host can hide, unhide, delete and favorite captures, and the guest's view reflects hides and deletions.
-33. Host can download individual captures and all originals in bulk.
+33. Host can download individual captures and all originals in bulk (as ZIP files, criterion 88).
 34. Dashboard counts remain correct when realtime updates are unavailable.
-35. For an activated event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance, themed per §11.3 (see also criteria 49–53).
+35. For an activated Intimate or Celebration event, the host can obtain each event signage format — printable QR, table card, poster, and digital/phone-screen — each showing the event name, a short guest instruction, and a "No app. No account." reassurance, themed per §11.3 (see also criteria 49–53).
 36. A manually collected payment that is refunded shows an auditable record that the refund was manually executed, including who executed it and when, and the event returns to an unpaid state with its links disabled — identical in outcome to a provider refund.
 
 **Platform**
@@ -985,7 +1024,7 @@ Observable behavior that defines launch readiness.
 
 **Event theme** *(numbered after the existing criteria so earlier references stay valid)*
 
-39. A host can set one theme image, one accent color, and one optional hashtag for an event, and can replace or remove the theme image and clear the hashtag whenever event configuration is editable.
+39. On a paid plan, a host can set one theme image, one accent color, and one optional hashtag for an event, and can replace or remove the theme image and clear the hashtag whenever event configuration is editable.
 40. An event with no theme image, the default violet, and no hashtag shows polished guest screens, keepsakes, and signage, with no empty slots or placeholders. A host can activate and run an event without ever opening the theme settings.
 41. For any accent color the host selects, themed text and controls on guest screens, keepsakes, and signage stay legible (adjusted automatically where needed), and QR contrast is never reduced.
 42. A host can configure and preview the theme while the event is Draft or pending payment. Those previews create no working link, QR, or downloadable signage, and theming never changes payment or activation state.
@@ -993,7 +1032,7 @@ Observable behavior that defines launch readiness.
 
 **Keepsakes**
 
-44. Exactly five FiveFrames Single-photo keepsake styles are offered, the same for every event. When sharing or saving one of their own captures, a guest chooses one in a single step, with one style preselected.
+44. Exactly five FiveFrames Single-photo keepsake styles are offered, the same for every paid-plan event (Free: criterion 84). When sharing or saving one of their own captures, a guest chooses one in a single step, with one style preselected.
 45. Each Single-photo style produces a polished keepsake from portrait, landscape and square photos, with and without a theme image, hashtag, or guest message. It reflects the event's accent color, and the theme image where the style uses one.
 46. Every keepsake carries a subtle FiveFrames brandmark outside the photograph, which neither host nor guest can remove. No keepsake shows the guest's display name, other guests' content, the capture link/QR, or the gallery link.
 47. A guest cannot move, add, or edit any keepsake element, text, font, color, or branding; the only choice is the style. Keepsake styles are never offered during capture, and the capture flow (§9.2) is unchanged.
@@ -1001,7 +1040,7 @@ Observable behavior that defines launch readiness.
 
 **Signage**
 
-49. All four signage formats — printable QR, table card, poster, digital — remain available after activation, reflecting the event's accent color and hashtag, and the theme image on the formats where it fits.
+49. On paid plans, all four signage formats — printable QR, table card, poster, digital — remain available after activation, reflecting the event's accent color and hashtag, and the theme image on the formats where it fits.
 50. The host can preview every signage format with their theme before downloading. The preview matches the downloaded output closely enough to judge what will print or display.
 51. Every themed signage format's QR scans reliably when printed and when shown on a phone or screen; no theme element overlaps the QR or its clear margin.
 52. Before activation, no signage format can be downloaded and no preview contains a working QR.
@@ -1009,7 +1048,7 @@ Observable behavior that defines launch readiness.
 
 **Full Set keepsakes** *(numbered after the existing criteria so earlier references stay valid; criteria 29–31 and 46–48 apply to both keepsake families)*
 
-54. Keepsakes come in two families, each with exactly five styles: the five Single-photo styles of criterion 44, unchanged, and exactly five Full Set styles. They are offered as two separate, clearly distinguished choices, never as a single list of ten.
+54. On paid plans, keepsakes come in two families, each with exactly five styles: the five Single-photo styles of criterion 44, unchanged, and exactly five Full Set styles. They are offered as two separate, clearly distinguished choices, never as a single list of ten.
 55. One of the five Full Set styles is built on the FiveFrames brandmark's construction: five regions, two landscape, two portrait and one square, with the square as the fifth region closing the composition and no four corners meeting.
 56. A Full Set contains exactly the five committed captures of the requesting guest's own session — never fewer, never another guest's — and a guest cannot obtain a Full Set containing any other session's capture.
 57. Photos 1–5 in a Full Set follow the order the captures were committed. The same five captures produce the same arrangement in a given style every time, and the guest has no way to reorder them or choose a hero image.
@@ -1036,13 +1075,19 @@ Observable behavior that defines launch readiness.
 72. Free activation only ever activates the Free plan. An Intimate or Celebration event activates only through confirmed payment, exactly as in criteria 10, 17 and 18.
 73. A Free, Intimate or Celebration event admits at most 10, 100 or 300 guest sessions respectively, under concurrent joins, unless an operator raised its capacity. The next guest sees the calm "event is full" state of criterion 15.
 74. Hosted access ends 7 days, 6 months or 12 months after activation, by plan. The host can download (and on Celebration, send to Google Drive) at any point during that period and through the grace period after it. No plan offers a renewal or extension of hosted access.
-75. On every plan, guests get the same five frames, capture flow, keepsakes of both families, theme, gallery and sharing rules. Nothing a guest sees depends on the plan except reaching capacity.
+75. On every plan, guests get the same five frames, capture flow, gallery and sharing rules. Beyond reaching capacity, the only thing a guest sees that depends on the plan is Free's lighter theme and single keepsake style per family (§15.3.1).
 
 **Operator capacity override (§9.5)**
 76. An authorized operator can raise any event's guest capacity, on any plan including Free, in the Operator Console, and can't save it without typing a reason. Each override is a permanent log entry showing the event, old and new capacity, the reason, the operator and the time, and the event's Console page lists that history newest first. No one can edit or delete an entry. They can't lower capacity, or raise capacity for an event they own. Raising capacity creates no payment record and changes no plan, price or access period. A guest who was turned away as "full" can join as soon as it's raised.
 
 **Send to Google Drive (§11.2.1)** *(first update after launch; not a launch criterion)*
 77. A Celebration host can send every committed, non-deleted original (the same set as bulk download) to a new folder in their own Google Drive. FiveFrames asks only for permission to create its own files. The export keeps going after the host closes the page, the dashboard shows its progress and completion, and retrying after a failure never puts the same photo in the folder twice. The copied files are byte-for-byte the originals. Free and Intimate events don't offer it, and bulk download works on every plan.
+
+**Co-host access (§11.2.2)** *(first update after launch; not a launch criterion)*
+87. A Celebration host can invite one co-host by email and remove them at any time. The co-host can open and close capture, moderate, reveal, change gallery and sharing settings, use and rotate the links and signage, and download originals, and cannot change the plan, pay, request a refund, invite others, delete the event, or transfer ownership. Free and Intimate events offer no co-host. Until it ships, the product offers no co-host anywhere, and the site lists it on Celebration only as "coming soon".
+
+**Download all as ZIP files (§11.2.3)**
+88. On every plan, "Download all" produces ZIP files of up to 500 photos each, holding exactly the committed, non-deleted originals (hidden included), byte-for-byte, in gallery order, with readable unique names. An event with 500 or fewer photos gives one ZIP, and a 1,500-photo event gives three parts that can each be downloaded and retried on its own. Where the browser can't save a generated ZIP, "Download all" saves the photos one by one instead and says so. Copy never claims a file was saved.
 
 **Table-number cards (§11.3)**
 78. A Celebration host can enter a table count from 1 to 100, preview the cards, and download that many table-number cards, each showing its number and the event's QR. Every card's QR leads to the same capture link, and the cards follow the QR rules of criteria 49–53. Free and Intimate events don't offer them.
@@ -1053,6 +1098,13 @@ Observable behavior that defines launch readiness.
 
 **Branding on every plan (§15.3)**
 81. On every plan, keepsakes carry the FiveFrames brandmark and signage carries FiveFrames identity. No plan, setting or price removes them.
+
+**Free event limits (§15.3.1)**
+82. A Free event's host can copy the event link, show its QR on screen, and download the phone-screen format, and nothing else: no printable QR, table card, poster or table-number card download is offered or served, including by requesting its address directly.
+83. A Free event's Look offers only the accent color. No theme image or hashtag appears on any Free output, including one set before the event was activated on Free, and every Free output still looks finished.
+84. On a Free event, a guest's Single-photo keepsake uses the preselected style and a Full Set uses the signature style, with no style choice. Requesting any other style is refused by the server. A guest with fewer than five photos still sees the Single-photo keepsake, and nothing presents the Full Set as a goal.
+85. A Free event's dashboard shows no guests-joined or photos-taken counts, live or otherwise, and shows a calm notice once the event is full.
+86. A Free event's gallery, reveal, visibility, layouts, time sections, moderation, guests' own downloads and the host's individual and bulk downloads work exactly as on a paid plan.
 
 ---
 

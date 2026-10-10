@@ -1,6 +1,15 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ArrowRight, CalendarClock, Check, ChevronDown, Minus, Sparkles, Users } from "lucide-react";
+import {
+  ArrowRight,
+  CalendarClock,
+  Check,
+  ChevronDown,
+  Clock,
+  Minus,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { ButtonLink } from "@/components/ff/button";
 import {
   EVERY_PLAN_HIGHLIGHTS,
@@ -8,11 +17,11 @@ import {
   PAYMENT_COPY,
   PLAN_COMPARISON,
   planExtras,
-  planPriceLabel,
+  planFeatures,
   type ComparisonValue,
   type FaqItem,
 } from "@/lib/marketing/content";
-import type { Plan } from "@/lib/plans/registry";
+import { formatPrice, type Plan } from "@/lib/plans/registry";
 import { cn } from "@/lib/utils";
 
 /**
@@ -70,29 +79,39 @@ function PlanStats({ plan, compact }: { plan: Plan; compact?: boolean }) {
   );
 }
 
-function CheckLine({ children, accent }: { children: ReactNode; accent?: boolean }) {
+/**
+ * One list line, the same on every plan card and the homepage card. A `soon` line is promised
+ * but not built yet (product.md §11.2.1, §11.2.2): it gets a clock instead of a check and a
+ * "Coming soon" label, so it can never read as available today.
+ */
+function CheckLine({ children, soon }: { children: ReactNode; soon?: boolean }) {
   return (
     <li className="flex items-start gap-3 text-label font-medium text-ink">
-      <span
-        className={cn(
-          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full",
-          accent ? "bg-brand text-ink-inverse" : "bg-brand-tint text-brand",
-        )}
-      >
-        {accent ? (
-          <Sparkles className="size-3" strokeWidth={2.5} aria-hidden />
+      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-tint text-brand">
+        {soon ? (
+          <Clock className="size-3" strokeWidth={2.5} aria-hidden />
         ) : (
           <Check className="size-3" strokeWidth={3} aria-hidden />
         )}
       </span>
-      <span className={accent ? "font-semibold" : undefined}>{children}</span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        {children}
+        {soon && (
+          <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-micro font-semibold text-ink-muted">
+            Coming soon
+          </span>
+        )}
+      </span>
     </li>
   );
 }
 
 /**
- * One plan (product.md §15.3, D24): name, price (or Free, once per account), who it suits, its
- * guests and hosting, what it adds, and everything every plan does. No anchors, no
+ * One plan (product.md §15.3, D24): name, price (₱0 for the Free first event), who it suits, its
+ * guests and hosting, then its features built up plan by plan: Free lists what it includes, and
+ * each paid plan says "Everything in <previous>, plus" what it adds (`planFeatures`). Every card
+ * has the same structure, spacing, icon and button, so the plans read as one set; the only
+ * thing that varies is the content. No anchors, no
  * favourite-plan badge, no per-photo upsells. Everything comes from the registry and
  * lib/marketing/content.ts.
  */
@@ -106,7 +125,7 @@ export function PlanCard({
   headingLevel?: "h2" | "h3";
 }) {
   const Heading = headingLevel;
-  const extras = planExtras(plan);
+  const features = planFeatures(plan);
   return (
     <div
       className={cn(
@@ -118,43 +137,32 @@ export function PlanCard({
         <Heading className="text-label font-bold text-brand">{plan.label}</Heading>
         <p className="flex flex-wrap items-baseline gap-x-2">
           <span className="tabular text-[48px] leading-none font-extrabold tracking-[-0.02em] text-ink sm:text-[56px]">
-            {planPriceLabel(plan)}
+            {formatPrice(plan.pricePhp)}
           </span>
           <span className="text-body font-semibold text-ink-muted">
-            {plan.pricePhp === 0 ? "your first event" : "per event, paid once"}
+            {plan.pricePhp === 0 ? "for your first event" : "per event, paid once"}
           </span>
         </p>
-        <p className="text-label font-medium text-ink-muted">{plan.forWhom}.</p>
+        {/* Two lines reserved, so every card's stats and list start at the same height. */}
+        <p className="min-h-[2lh] text-label font-medium text-ink-muted">{plan.forWhom}.</p>
       </div>
 
       <PlanStats plan={plan} />
 
-      {extras.length > 0 && (
-        <ul className="flex flex-col gap-3">
-          {extras.map((line) => (
-            <CheckLine key={line} accent>
-              {line}
-            </CheckLine>
-          ))}
-        </ul>
-      )}
-
       <div className="flex flex-col gap-3 border-t border-line pt-5">
         <p className="text-caption font-semibold tracking-wide text-ink-muted uppercase">
-          Every plan includes
+          {features.heading}
         </p>
         <ul className="flex flex-col gap-3">
-          {EVERY_PLAN_HIGHLIGHTS.map((line) => (
-            <CheckLine key={line}>{line}</CheckLine>
+          {features.lines.map((line) => (
+            <CheckLine key={line.text} soon={line.soon}>
+              {line.text}
+            </CheckLine>
           ))}
         </ul>
       </div>
 
-      <ButtonLink
-        href="/signup"
-        variant={plan.id === "celebration" ? "primary" : "secondary"}
-        className="mt-auto w-full"
-      >
+      <ButtonLink href="/signup" className="mt-auto w-full">
         {plan.pricePhp === 0 ? "Start your free event" : "Create your event"}
         <ArrowRight aria-hidden />
       </ButtonLink>
@@ -184,7 +192,7 @@ export function PlansCard({ className }: { className?: string }) {
                 <span className="text-caption font-medium text-ink-muted">{plan.forWhom}</span>
               </div>
               <span className="tabular shrink-0 text-[32px] leading-none font-extrabold tracking-[-0.02em] text-ink">
-                {planPriceLabel(plan)}
+                {formatPrice(plan.pricePhp)}
               </span>
             </div>
             <PlanStats plan={plan} compact />
@@ -202,7 +210,7 @@ export function PlansCard({ className }: { className?: string }) {
           Every plan includes
         </p>
         <ul className="flex flex-col gap-2.5">
-          {EVERY_PLAN_HIGHLIGHTS.slice(0, 5).map((line) => (
+          {EVERY_PLAN_HIGHLIGHTS.map((line) => (
             <CheckLine key={line}>{line}</CheckLine>
           ))}
         </ul>
@@ -229,8 +237,8 @@ export function PlansCard({ className }: { className?: string }) {
 
 /**
  * The full plan comparison on /pricing: every feature, grouped, against Free, Intimate and
- * Celebration. Most rows are included everywhere, which is the point: plans differ only in
- * guests, hosting and Celebration's help from us (product.md §15.3). A real table, so screen
+ * Celebration. Free is the lighter event (product.md §15.3.1); the paid plans differ only in
+ * guests, hosting and Celebration's help from us (§15.3). A real table, so screen
  * readers announce each cell with its plan and feature. At phone width the plan columns stay
  * narrow (checks and short values), so the table fits without scrolling the page.
  */
@@ -302,6 +310,13 @@ function ComparisonCell({ value }: { value: ComparisonValue }) {
       <span className="text-ink-muted">
         <Minus className="mx-auto size-4" aria-hidden />
         <span className="sr-only">Not included</span>
+      </span>
+    );
+  }
+  if (value === "Soon") {
+    return (
+      <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-micro font-semibold text-ink-muted">
+        Coming soon
       </span>
     );
   }
