@@ -9,6 +9,7 @@ import {
 import { getEventForOperatorMutation } from "@/lib/dal/operator-events";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 import { CURRENCY } from "@/lib/payments/pricing";
+import { PLANS } from "@/lib/plans/registry";
 import type { ManualPaymentMethod } from "@/lib/db/types";
 
 /**
@@ -40,6 +41,7 @@ export async function confirmManualPaymentAction(
   const amountPhp = Number(formData.get("amount"));
   const paidAtLocal = String(formData.get("paidAt") ?? "").trim();
   const referenceNote = String(formData.get("referenceNote") ?? "").trim() || null;
+  const expectedPlan = String(formData.get("plan") ?? "");
 
   if (!method) {
     return { status: "error", message: "Choose a payment method." };
@@ -54,6 +56,16 @@ export async function confirmManualPaymentAction(
   const event = await getEventForOperatorMutation(eventId);
   if (!event) {
     return { status: "error", message: "Event not found." };
+  }
+  // The operator agreed an amount for the plan this page showed. If the host switched plans
+  // since, confirming would activate a plan nobody priced (D24), so stop and show the new one.
+  if (event.plan !== expectedPlan) {
+    return {
+      status: "error",
+      message: event.plan
+        ? `The host changed the plan to ${PLANS[event.plan].label} since this page loaded. Reload, check the amount, and confirm again.`
+        : "The host hasn’t chosen a plan. Reload once they have.",
+    };
   }
 
   const input: ManualPaymentInput = {
@@ -82,6 +94,11 @@ export async function confirmManualPaymentAction(
       return {
         status: "error",
         message: "This event is already activated — nothing to confirm.",
+      };
+    case "plan_not_chosen":
+      return {
+        status: "error",
+        message: "The host hasn’t chosen a paid plan yet, so there’s nothing to confirm.",
       };
     case "activated":
       return { status: "activated" };

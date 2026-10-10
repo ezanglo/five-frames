@@ -22,7 +22,7 @@ import {
   type DemoFrames,
 } from "@/lib/demo/state";
 import { MarketingRail, RailSteps } from "@/components/ff/marketing/marketing-rail";
-import { PRICE_LABEL } from "@/lib/marketing/content";
+import { PRICES_LABEL } from "@/lib/marketing/content";
 import { DemoKeepsakes } from "./demo-keepsakes";
 
 type Composing = {
@@ -267,8 +267,8 @@ export function DemoExperience() {
           title="Ready for a real event?"
           body={
             <>
-              Creating an event needs a host account and payment — {PRICE_LABEL} per event, paid
-              once, no subscription.{" "}
+              Creating an event needs a host account. Your first event is free; after that it’s{" "}
+              {PRICES_LABEL} per event, paid once, no subscription.{" "}
               <Link href="/signup" className="font-semibold text-brand underline-offset-4 hover:underline">
                 Create your event
               </Link>

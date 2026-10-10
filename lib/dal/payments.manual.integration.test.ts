@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { createDraftEvent, getEventForHost } from "@/lib/dal/events";
+import { createDraftEvent as createUnplannedDraft, getEventForHost, setEventPlan } from "@/lib/dal/events";
 import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
 import { grantOperator } from "@/lib/dal/operators";
 import {
@@ -25,6 +25,13 @@ import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
  * cross-source race (a manual confirm and a provider webhook can now both try to activate
  * the same event) worth proving for real rather than trusting code inspection alone.
  */
+/** A draft with a paid plan chosen, as every confirmable event needs since D24. The plan rules
+ *  themselves are covered in plans.integration.test.ts. */
+async function createDraftEvent(hostId: string, name: string) {
+  const event = await createUnplannedDraft(hostId, name);
+  return (await setEventPlan(hostId, event.id, "celebration")) ?? event;
+}
+
 describe("manual payment confirmation and refund", () => {
   const supabase = createServiceClient();
   const suffix = crypto.randomUUID();

@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ChevronLeft } from "lucide-react";
 import { MarketingRail, RailChecks } from "@/components/ff/marketing/marketing-rail";
-import { PRICE_LABEL } from "@/lib/marketing/content";
+import { PRICE_FROM_LABEL } from "@/lib/marketing/content";
 import { Wordmark } from "./wordmark";
 
 /**
@@ -93,7 +93,7 @@ function BrandPanel() {
       lead="Share one QR code and your guests capture the day from their own phones. You reveal the gallery when the moment’s right."
       className="hidden lg:sticky lg:top-0 lg:flex"
     >
-      <RailChecks items={["No app for guests", "No guest accounts", `${PRICE_LABEL} per event, paid once`]} />
+      <RailChecks items={["No app for guests", "No guest accounts", `First event free, then from ${PRICE_FROM_LABEL}`]} />
     </MarketingRail>
   );
 }

@@ -6,7 +6,7 @@ import { confirmManualPaymentAction, type ManualPaymentFormState } from "@/app/(
 import { ConfirmSubmitButton } from "@/components/ff/confirm-button";
 import { Field, SelectInput, TextArea, TextInput } from "@/components/ff/field";
 import { labelItems, MANUAL_PAYMENT_METHOD_LABEL } from "@/lib/events/labels";
-import { EVENT_PRICE_PHP } from "@/lib/payments/pricing";
+import { formatPrice, PLANS, type PaidPlanId } from "@/lib/plans/registry";
 
 const INITIAL_STATE: ManualPaymentFormState = { status: "idle" };
 const METHOD_ITEMS = labelItems(MANUAL_PAYMENT_METHOD_LABEL);
@@ -19,13 +19,17 @@ const METHOD_ITEMS = labelItems(MANUAL_PAYMENT_METHOD_LABEL);
  */
 export function ManualPaymentForm({
   eventId,
+  plan,
   timezone,
   defaultPaidAt,
 }: {
   eventId: string;
+  /** The paid plan the host chose. The page doesn't render this form without one. */
+  plan: PaidPlanId;
   timezone: string;
   defaultPaidAt: string;
 }) {
+  const chosen = PLANS[plan];
   const [state, formAction, pending] = useActionState(
     confirmManualPaymentAction.bind(null, eventId),
     INITIAL_STATE,
@@ -33,6 +37,12 @@ export function ManualPaymentForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
+      {/* The plan this page showed; the action refuses if the host has switched since (D24). */}
+      <input type="hidden" name="plan" value={plan} />
+      <p className="rounded-lg bg-surface-subtle p-3 text-label font-medium text-ink">
+        Plan: <span className="font-semibold">{chosen.label}</span> · list price{" "}
+        <span className="tabular">{formatPrice(chosen.pricePhp)}</span>
+      </p>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Method" htmlFor="method">
           <SelectInput id="method" name="method" required defaultValue="cash">
@@ -52,7 +62,7 @@ export function ManualPaymentForm({
             min="0"
             step="0.01"
             required
-            defaultValue={EVENT_PRICE_PHP}
+            defaultValue={chosen.pricePhp}
             className="tabular"
           />
         </Field>

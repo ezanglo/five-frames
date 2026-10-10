@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { ButtonLink } from "@/components/ff/button";
 import { StatusPill } from "@/components/ff/pill";
-import { CtaBand, FaqList, PriceCard } from "@/components/ff/marketing/blocks";
+import { CtaBand, FaqList, PlansCard } from "@/components/ff/marketing/blocks";
 import { GuestJourney } from "@/components/ff/marketing/guest-journey";
 import { KeepsakeShowcase } from "@/components/ff/marketing/keepsake-showcase";
 import { GalleryLayoutsShowcase } from "@/components/ff/marketing/gallery-layouts-showcase";
@@ -49,7 +49,7 @@ import {
   HOME_FAQ_IDS,
   HOSTED_ACCESS_LABEL,
   PAYMENT_COPY,
-  PRICE_LABEL,
+  PRICE_FROM_LABEL,
   TESTIMONIALS,
   faqItemsById,
 } from "@/lib/marketing/content";
@@ -138,8 +138,9 @@ function Hero() {
             </ButtonLink>
           </div>
           <p className="text-caption font-semibold text-ink-on-dark">
-            <span className="text-ink-inverse">{PRICE_LABEL}</span> per event, paid once · Guests
-            never pay
+            First event free · then from{" "}
+            <span className="text-ink-inverse">{PRICE_FROM_LABEL}</span>, paid once · Guests never
+            pay
           </p>
           <FiveKeptFrames entrance="load" className="mt-4 max-w-[420px] sm:max-w-[560px] lg:hidden" />
         </div>
@@ -436,7 +437,7 @@ function HostSection() {
         </FeatureCard>
         <FeatureCard icon={<CalendarClock />} title={`Hosted for ${HOSTED_ACCESS_LABEL}`}>
           Your collection stays in your dashboard for {HOSTED_ACCESS_LABEL} after activation,
-          with a heads-up before it ends.
+          depending on your plan, with a heads-up before it ends.
         </FeatureCard>
       </div>
     </Section>
@@ -450,7 +451,7 @@ const STEPS = [
   },
   {
     title: "Activate and share the QR",
-    body: `Pay ${PRICE_LABEL} once and your event link, QR code and signage are ready. Capture stays closed until you open it.`,
+    body: `Choose a plan (your first event can be free), activate it, and your event link, QR code and signage are ready. Capture stays closed until you open it.`,
   },
   {
     title: "Open capture on the day",
@@ -692,8 +693,8 @@ function PricingSection() {
           <SectionHeader
             id="pricing-title"
             eyebrow="Pricing"
-            title="One event. One price."
-            lead="No tiers to compare and nothing to add on. Set up your event first, then pay once when you’re ready to share your QR code."
+            title="Start free. Pay once per event."
+            lead="Your first event is free. After that, choose by the size of your event. Every plan gets the same five frames, keepsakes and gallery."
           />
           <ul className="flex flex-col gap-3">
             {[
@@ -715,7 +716,7 @@ function PricingSection() {
             <ArrowRight className="size-4" aria-hidden />
           </Link>
         </div>
-        <PriceCard />
+        <PlansCard />
       </div>
     </Section>
   );

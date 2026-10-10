@@ -8,6 +8,7 @@ import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
 import { REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
 import { deriveEventLifecycleState, isGalleryRevealed } from "@/lib/events/lifecycle";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
+import { isPaidPlanId, PLANS } from "@/lib/plans/registry";
 import { SectionCard, StatTile } from "@/components/ff/cards";
 import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { StatusPill } from "@/components/ff/pill";
@@ -83,6 +84,7 @@ export default async function OperatorEventDetailPage({
 
           <SectionCard title="Lifecycle" caption={`Times in ${tz.replaceAll("_", " ")}.`}>
             <dl className="flex flex-col">
+              <Row label="Plan" value={event.plan ? PLANS[event.plan].label : "Not chosen"} />
               <Row label="Activated" value={when(event.activated_at)} />
               <Row label="Capture opened" value={when(event.capture_opened_at)} />
               <Row label="Capture closed" value={when(event.capture_closed_at)} />
@@ -175,12 +177,18 @@ export default async function OperatorEventDetailPage({
             </div>
             {event.activated_at ? (
               <ManualRefundForm eventId={event.id} />
-            ) : (
+            ) : isPaidPlanId(event.plan) ? (
               <ManualPaymentForm
                 eventId={event.id}
+                plan={event.plan}
                 timezone={tz}
                 defaultPaidAt={nowInEventTimezone(tz)}
               />
+            ) : (
+              <p className="text-caption font-medium text-ink-muted">
+                The host hasn’t chosen a paid plan yet. Payment can be confirmed once they choose
+                Intimate or Celebration on their Share step.
+              </p>
             )}
           </section>
         </aside>

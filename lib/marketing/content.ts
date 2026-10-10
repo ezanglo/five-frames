@@ -1,7 +1,7 @@
 import { SHOTS_PER_GUEST } from "@/components/ff/shots";
-import { HOSTED_ACCESS_DAYS } from "@/lib/events/policy";
 import { PAYMENT_MODE, type PaymentMode } from "@/lib/payments/mode";
-import { EVENT_PRICE_PHP, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
+import { REFUND_POLICY_COPY } from "@/lib/payments/pricing";
+import { formatPrice, PAID_PLANS, PLANS, type Plan } from "@/lib/plans/registry";
 
 /**
  * Public marketing copy that states product facts. Every number here derives from the constant
@@ -10,20 +10,132 @@ import { EVENT_PRICE_PHP, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
  * claim audit in docs/design-direction.md → "Marketing site" lists what is deliberately left out.
  */
 
-/** "₱999" — the one event price (product.md §15), formatted for display. */
-export const PRICE_LABEL = `₱${EVENT_PRICE_PHP.toLocaleString("en-PH")}`;
+/**
+ * The plans the public site offers (product.md §15.3, D24), straight from the registry the
+ * Share step and checkout use: the Free first event, then the two paid plans.
+ *
+ * Free activation is Slice 21. The site shows it ahead of that slice at the user's request, so
+ * this must not be deployed until Slice 21 has landed (docs/progress.md, Slice 20).
+ */
+export const MARKETING_PLANS: Plan[] = [PLANS.free, ...PAID_PLANS];
+
+export const FREE_PLAN = PLANS.free;
+
+/** "₱499" — the lowest paid price, for "then from …" lines. */
+export const PRICE_FROM_LABEL = formatPrice(Math.min(...PAID_PLANS.map((p) => p.pricePhp)));
+
+/** "₱499 or ₱999". */
+export const PRICES_LABEL = PAID_PLANS.map((p) => formatPrice(p.pricePhp)).join(" or ");
+
+/** "Free" for the Free plan, the peso price otherwise. */
+export function planPriceLabel(plan: Plan): string {
+  return plan.pricePhp === 0 ? "Free" : formatPrice(plan.pricePhp);
+}
 
 export const FRAMES = SHOTS_PER_GUEST;
 
-/** "about 12 months" — hosted access from activation (product.md §15.2, lib/events/policy.ts). */
-export const HOSTED_ACCESS_LABEL = `about ${Math.round(HOSTED_ACCESS_DAYS / 30.4)} months`;
+/** "up to 12 months" — the longest hosted access any plan has (product.md §15.2). Copy using it
+ *  says "depending on your plan", since Free is 7 days and Intimate 6 months. */
+export const HOSTED_ACCESS_LABEL = `up to ${
+  MARKETING_PLANS.reduce((a, b) => (b.hostedAccessDays > a.hostedAccessDays ? b : a)).hostedAccessLabel
+}`;
+
+/** "Free for 7 days, Intimate for 6 months and Celebration for 12 months". */
+export const HOSTED_ACCESS_BY_PLAN = MARKETING_PLANS.map((p) => `${p.label} for ${p.hostedAccessLabel}`)
+  .join(", ")
+  .replace(/, ([^,]*)$/, " and $1");
 
 /**
- * Launch guest-session capacity (product.md §9.5, decision D13). The authoritative value is the
- * `guest_session_cap` column default in supabase/migrations/20260922000000_event_join_capacity.sql;
- * content.test.ts fails if the two disagree.
+ * What every plan does, for the plan cards (product.md §15.3: every plan runs the same event).
+ * Only things the product does today: table-number cards (Slice 24) and the cloud export
+ * (after launch, architecture §7e) stay off until they exist.
  */
-export const DEFAULT_GUEST_SESSION_CAP = 250;
+export const EVERY_PLAN_HIGHLIGHTS = [
+  `${FRAMES} frames for every guest — no app, no account`,
+  "Event QR, table card, poster and phone-screen signage",
+  "Your own look: a photo, an accent color and a hashtag",
+  "Keepsakes guests make from their own photos",
+  "Counts that refresh on their own, and moderation",
+  "A private gallery you reveal when you choose",
+  "Every original, ready to download",
+];
+
+/** What a plan adds on top of everything every plan does. */
+export function planExtras(plan: Plan): string[] {
+  if (plan.id === "free") return ["No payment needed", "One per account, for your first event"];
+  if (plan.id === "celebration") return ["We set your event up with you", "Help from us on the day"];
+  return [];
+}
+
+/** A comparison cell: included, not included, or a value that differs by plan. */
+export type ComparisonValue = boolean | string;
+export type ComparisonRow = { label: string; value: (plan: Plan) => ComparisonValue };
+export type ComparisonGroup = { title: string; rows: ComparisonRow[] };
+
+const everyPlan = () => true;
+
+/** The full comparison on /pricing. Rows that differ read their values from the registry. */
+export const PLAN_COMPARISON: ComparisonGroup[] = [
+  {
+    title: "Guests and hosting",
+    rows: [
+      { label: "Price", value: (p) => planPriceLabel(p) },
+      { label: "Guests who can join", value: (p) => `Up to ${p.guestSessionCap}` },
+      { label: "Hosted from activation", value: (p) => p.hostedAccessLabel },
+      { label: "Downloads open the whole time", value: everyPlan },
+      { label: "A grace period to download after hosting ends", value: everyPlan },
+    ],
+  },
+  {
+    title: "Capture",
+    rows: [
+      { label: `${FRAMES} frames for every guest`, value: everyPlan },
+      { label: "Guests join by QR or link — no app, no account", value: everyPlan },
+      { label: "You open and close capture", value: everyPlan },
+      { label: "Guests-joined and photos-taken counts that refresh on their own", value: everyPlan },
+    ],
+  },
+  {
+    title: "Your look and signage",
+    rows: [
+      { label: "A theme photo, accent color and hashtag", value: everyPlan },
+      { label: "Your welcome message for guests", value: everyPlan },
+      { label: "Printable QR, table card, poster and phone-screen signage", value: everyPlan },
+    ],
+  },
+  {
+    title: "Keepsakes",
+    rows: [
+      { label: "Single-photo keepsakes, in five styles", value: everyPlan },
+      { label: "Full Set keepsakes for guests who keep all five, in five styles", value: everyPlan },
+      { label: "You choose whether guests can share keepsakes", value: everyPlan },
+    ],
+  },
+  {
+    title: "Gallery and privacy",
+    rows: [
+      { label: "Hide, unhide, delete and favorite photos", value: everyPlan },
+      { label: "Reveal after the event, right away, or at a time you set", value: everyPlan },
+      { label: "Masonry, Rows or Grid layout", value: everyPlan },
+      { label: "Open to anyone with the link, or only you", value: everyPlan },
+      { label: "Replace or turn off your links at any time", value: everyPlan },
+    ],
+  },
+  {
+    title: "Downloads",
+    rows: [
+      { label: "Every original, one at a time or all at once", value: everyPlan },
+      { label: "Guests download the photos they kept", value: everyPlan },
+    ],
+  },
+  {
+    title: "Help from us",
+    rows: [
+      { label: "We set your event up with you", value: (p) => p.id === "celebration" },
+      { label: "Help from us on the day", value: (p) => p.id === "celebration" },
+    ],
+  },
+];
 
 /** Self-service methods offered at checkout (lib/payments/paymongo-client.ts). */
 export const PAYMENT_METHODS = ["GCash", "Maya", "card"] as const;
@@ -61,7 +173,7 @@ export const PAYMENT_COPY_BY_MODE: Record<PaymentMode, PaymentCopy> = {
       title: "Pay online",
       body: `${PAYMENT_METHODS_SENTENCE}, handled securely by our payment provider, PayMongo.`,
     },
-    hostStep: `You’ll see the full breakdown first — ${PRICE_LABEL}, processing fees included — and the refund terms. Then pay online with ${PAYMENT_METHODS_SENTENCE}.`,
+    hostStep: `Choose your plan, then see the full breakdown — ${PRICES_LABEL}, processing fees included — and the refund terms. Then pay online with ${PAYMENT_METHODS_SENTENCE}.`,
     faqAnswer: `Online with ${PAYMENT_METHODS_SENTENCE}, handled securely by our payment provider, PayMongo. Processing fees are included in the price.`,
     metaTail: `you pay online with ${PAYMENT_METHODS_SENTENCE}`,
   },
@@ -73,7 +185,7 @@ export const PAYMENT_COPY_BY_MODE: Record<PaymentMode, PaymentCopy> = {
       title: "Pay FiveFrames directly",
       body: "We arrange payment with you in person — cash, bank transfer or e-wallet — and confirm it ourselves.",
     },
-    hostStep: `You’ll see the full breakdown first — ${PRICE_LABEL} and the refund terms. Then pay FiveFrames directly, and your event activates as soon as we confirm it.`,
+    hostStep: `Choose your plan, then see the full breakdown — ${PRICES_LABEL} and the refund terms. Then pay FiveFrames directly, and your event activates as soon as we confirm it.`,
     faqAnswer:
       "Directly to FiveFrames. We arrange it with you when we set up your event — cash, bank transfer or e-wallet — and your event activates once we confirm your payment.",
     metaTail: "you pay FiveFrames directly",
@@ -104,7 +216,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: "How do I create an event?",
         answer: [
           "Create a host account, then set up your event: its name, date and timezone, a welcome message for guests, and your gallery and sharing settings. If you like, give it a look too. You can set everything up before you pay.",
-          "Pay once to activate it, and your event link and QR code are ready to share.",
+          `Your first event can be free, for up to ${FREE_PLAN.guestSessionCap} guests. After that, choose a plan and pay once to activate it. Either way, your event link and QR code are ready to share as soon as it’s active.`,
         ],
       },
       {
@@ -113,6 +225,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         answer: [
           `Yes. The demo lets you take ${FRAMES} shots and keep them, just as a guest would, right in your browser, and try the keepsake styles on a sample look.`,
           "The demo isn’t an event. Nothing you do there is uploaded or saved, and it never gives you a link or QR code to share.",
+          `For a real event, your first one is free: up to ${FREE_PLAN.guestSessionCap} guests, hosted for ${FREE_PLAN.hostedAccessLabel}, with every feature.`,
         ],
       },
       {
@@ -134,7 +247,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "how-many-guests",
         question: "How many guests can join?",
         answer: [
-          `Each event has room for up to ${DEFAULT_GUEST_SESSION_CAP} guest sessions. Each phone browser that joins counts as one.`,
+          `It depends on your plan: ${MARKETING_PLANS.map((p) => `up to ${p.guestSessionCap} on ${p.label}`).join(", ").replace(/, ([^,]*)$/, " and $1")}. Each phone browser that joins counts as one.`,
           `If an event fills up, anyone new sees a calm “this event is full” screen. Guests who already joined keep all ${FRAMES} of their frames.`,
         ],
       },
@@ -250,7 +363,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "how-long",
         question: "How long are the photos kept?",
         answer: [
-          `Each event includes ${HOSTED_ACCESS_LABEL} of hosted access from the day it’s activated. Your dashboard warns you before it ends, and downloads stay available for a grace period afterwards.`,
+          `Each event is hosted from the day it’s activated: ${HOSTED_ACCESS_BY_PLAN}. You can download everything at any point in that time, your dashboard warns you before it ends, and downloads stay available for a grace period afterwards.`,
           "After that, the photos are permanently deleted.",
         ],
       },
@@ -308,8 +421,17 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "cost",
         question: "How much does it cost?",
         answer: [
-          `${PRICE_LABEL} per event, paid once. That covers the whole event, ${HOSTED_ACCESS_LABEL} of hosted access, and ${FRAMES} frames for every guest.`,
-          "There are no tiers, subscriptions or per-photo charges.",
+          `Your first event is free, for up to ${FREE_PLAN.guestSessionCap} guests and ${FREE_PLAN.hostedAccessLabel} of hosting. After that: ${PAID_PLANS.map((p) => `${p.label} is ${formatPrice(p.pricePhp)}, for up to ${p.guestSessionCap} guests and ${p.hostedAccessLabel} of hosting`).join("; ")}. Each is paid once, for one event.`,
+          `Every plan gets the same ${FRAMES} frames for every guest, the same keepsakes and the same gallery. There are no subscriptions or per-photo charges, and nothing to top up later.`,
+        ],
+      },
+      {
+        id: "which-plan",
+        question: "Which plan should I choose?",
+        answer: [
+          `Go by how many guests you expect. ${PAID_PLANS.map((p) => `${p.label} suits ${p.forWhom.toLowerCase()}, up to ${p.guestSessionCap} guests`).join("; ")}.`,
+          "Celebration also comes with us: we set your event up with you, and you can reach us on the day if anything comes up. Nothing about the guest experience changes between plans.",
+          `Free is there to try FiveFrames for real once, with up to ${FREE_PLAN.guestSessionCap} guests. It’s one per account, so save it for a small gathering rather than the event that matters most.`,
         ],
       },
       {
@@ -389,7 +511,7 @@ export const HOME_FAQ_IDS = [
   "how-pay",
 ] as const;
 
-export const PRICING_FAQ_IDS = ["guests-pay", "how-pay", "when-qr", "pay-opens", "refund", "how-long"] as const;
+export const PRICING_FAQ_IDS = ["which-plan", "guests-pay", "how-pay", "when-qr", "pay-opens", "refund", "how-long"] as const;
 
 /**
  * Testimonials — intentionally empty. Only add a quote that a real host or guest actually gave,

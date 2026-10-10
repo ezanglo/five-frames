@@ -6,6 +6,8 @@
  * only to whatever project .env.local points at, and there is no route or UI path in the
  * application itself that can trigger this (invariant 7 stays intact in the shipped app).
  *
+ * Activates on Celebration (D24), the plan every pre-plans event was sold as.
+ *
  * Usage: pnpm dev:activate-event <eventId>
  */
 import { readFileSync, existsSync } from "node:fs";
@@ -16,9 +18,9 @@ import {
   addDays,
   addHours,
   GRACE_PERIOD_DAYS,
-  HOSTED_ACCESS_DAYS,
   SAFETY_NET_CLOSE_HOURS,
 } from "@/lib/events/policy";
+import { PLANS } from "@/lib/plans/registry";
 
 function loadEnvLocal() {
   const envPath = path.resolve(import.meta.dirname, "..", ".env.local");
@@ -52,7 +54,8 @@ async function main() {
   });
 
   const now = new Date().toISOString();
-  const hostedUntil = addDays(now, HOSTED_ACCESS_DAYS);
+  const plan = PLANS.celebration;
+  const hostedUntil = addDays(now, plan.hostedAccessDays);
   const { data, error } = await supabase
     .from("events")
     .update({
@@ -61,6 +64,8 @@ async function main() {
       activated_at: now,
       capture_opened_at: now,
       safety_net_closes_at: addHours(now, SAFETY_NET_CLOSE_HOURS),
+      plan: plan.id,
+      guest_session_cap: plan.guestSessionCap,
       hosted_until: hostedUntil,
       grace_until: addDays(hostedUntil, GRACE_PERIOD_DAYS),
     })

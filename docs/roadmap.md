@@ -3,7 +3,7 @@
 Vertical slices, each delivering observable capability. Acceptance criteria numbers refer to
 [docs/product.md §20](./product.md) as renumbered for the five-photo, no-video MVP.
 
-> **Status (2026-10-01): implementation complete. Release validation pending.**
+> **Status (2026-10-11): plans (D24) in progress, Slices 20–24 below. Release validation pending.**
 >
 > - Every feature slice is complete: Slices 1–13 and 15–18.
 > - No feature slice remains.
@@ -645,6 +645,23 @@ moderated list, capture rows, original bytes and access under every layout. Unit
 placement (no overlap, prefix-stable) and rendering (same photos, order and labels in every
 layout). Browser checks of the gallery at 390/768/1280 for each layout, the setting and the
 homepage. Human: GAL-07, VIS-05.
+
+---
+
+## Plans (D24): Slices 20–24
+
+A product change requested on 2026-10-11 (product.md §15.3, decision D24, architecture §6a,
+§7c–§7e, §8c): a Free first event, Intimate ₱499 and Celebration ₱999, an operator capacity
+override, time sections and table-number cards. Send to Google Drive is deferred to the first
+update after launch (architecture §7e) and is not a slice here.
+
+| Slice | Scope | Criteria | Status |
+|---|---|---|---|
+| **20 — Plan model** | Plan registry; `events.plan` / `payments.plan`; activation stamps plan, cap and hosted access from what was paid for; plan choice on the Share step; plan on the dashboard and in the Console; marketing shows all three plans (Free ahead of Slice 21, so deploy 20 with 21) | 70 (paid plans), 72, 73 (Intimate, Celebration), 74, 75 | `complete` (2026-10-11) |
+| 21 — Free first event | Free activation through `activateEvent` with the once-per-account claim on `hosts`; Free on the Share step | 70 (Free), 71, 73 (Free) | `not started` |
+| 22 — Capacity override | Operator override with required reason and append-only log; history on the Console event page | 76, 21, 22 | `not started` |
+| 23 — Time sections | Hourly sections in the revealed gallery, on by default, host switch | 79, 80 | `not started` |
+| 24 — Table-number cards | Celebration signage format and ZIP download | 78 | `not started` |
 
 ---
 

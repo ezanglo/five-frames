@@ -18,7 +18,7 @@ import {
   YourFiveScreen,
 } from "@/components/ff/marketing/product-screens";
 import { FeatureCard, PageHero, Section, SectionHeader } from "@/components/ff/marketing/section";
-import { FRAMES, HOSTED_ACCESS_LABEL, PAYMENT_COPY, PRICE_LABEL } from "@/lib/marketing/content";
+import { FRAMES, HOSTED_ACCESS_LABEL, PAYMENT_COPY, PRICE_FROM_LABEL } from "@/lib/marketing/content";
 import { marketingMetadata } from "@/lib/marketing/metadata";
 
 export const metadata = marketingMetadata({
@@ -57,7 +57,7 @@ const LIFECYCLE: { status: string; icon: PillIcon; host: string; guests: string 
   {
     status: "Gallery revealed",
     icon: "check",
-    host: `Share the gallery link and download originals for ${HOSTED_ACCESS_LABEL}.`,
+    host: `Share the gallery link and download originals for ${HOSTED_ACCESS_LABEL}, depending on your plan.`,
     guests: "Anyone you share the gallery link with can view it, if you allow that.",
   },
 ];
@@ -93,7 +93,7 @@ const HOST_STEPS: { title: string; body: ReactNode }[] = [
   },
   {
     title: "Download and keep",
-    body: `Download every original, one at a time or all at once. Your collection stays in your dashboard for ${HOSTED_ACCESS_LABEL}, with a warning before it ends.`,
+    body: `Download every original, one at a time or all at once. Your collection stays in your dashboard for ${HOSTED_ACCESS_LABEL}, depending on your plan, with a warning before it ends.`,
   },
 ];
 
@@ -287,7 +287,7 @@ export default function HowItWorksPage() {
 
       <CtaBand
         title="Ready when you are."
-        body={`Create your event now and pay ${PRICE_LABEL} only when you’re ready to share the QR code.`}
+        body={`Your first event is free. After that, set up first and pay — from ${PRICE_FROM_LABEL} — only when you’re ready to share the QR code.`}
       />
     </>
   );

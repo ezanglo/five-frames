@@ -172,7 +172,8 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   - `source` — `'provider' | 'manual'`.
   - `plan` — `'intimate' | 'celebration'`: what this payment bought (§8c, D24). Set when the
     row is created and never changed. Activation copies it to `events.plan`. There is never a
-    `'free'` payment row.
+    `'free'` payment row. Nullable only for rows older code may still create; a null reads as
+    Celebration (`planForPayment`). NOT NULL is a deployment-order follow-up (§8c "As built").
   - Provider fields (nullable, `source = 'provider'` only): PayMongo checkout session id,
     amounts, fee breakdown, provider status, webhook delivery id (idempotency).
   - Manual fields (nullable, `source = 'manual'` only): `manual_method`
@@ -1467,6 +1468,30 @@ The slice greps for `activating_payment_id` and covers each reader with a test.
 sold as ₱999 / 12 months) and leaves their stored cap (250) and `hosted_until` alone. Drafts
 stay null. Existing `payments` rows backfill to `'celebration'`. Activation therefore never
 lowers a live event's cap.
+
+**As built (Slice 20, paid plans only):**
+- Migration `20261011000000_event_plans.sql` is additive, because Vercel Production still serves
+  older code against the dev database. `payments.plan` is nullable, and the plan-aware
+  `begin_provider_checkout_for_plan()` sits beside Slice 8's `begin_provider_checkout()`
+  rather than replacing it. Once no deployment runs pre-plans code: make `payments.plan` NOT
+  NULL and drop the old function (docs/progress.md, release follow-ups).
+- `activateEvent(eventId, paymentId)` keeps its signature for now. It reads `payments.plan`
+  (scoped to the same event, so a foreign payment id throws) and stamps plan, cap,
+  `hosted_until` and `grace_until` in the one guarded update. The `{ kind: 'free' }` source
+  arrives with Free in Slice 21.
+- The checkout function reads `events.plan` under the event-row lock and supersedes a pending
+  checkout made for a different plan. The caller expires that session at PayMongo
+  afterwards, best-effort. `startCheckoutAction` redirects to the Share step when no paid plan
+  is chosen.
+- Manual confirm refuses with `plan_not_chosen` and records `payments.plan`. The Console form
+  posts the plan it showed, and the action refuses if the host switched since, because the
+  operator agreed an amount for a specific plan.
+- `setEventPlan` (`lib/dal/events.ts`) is owner-scoped with `activated_at IS NULL` in the same
+  statement. The Share step's `PlanPicker` saves on change, with a no-JS submit.
+- Marketing reads `MARKETING_PLANS` (Free, Intimate, Celebration). It shows Free ahead of Slice
+  21 at the user's request, so the site must not be deployed until Slice 21 lands.
+  `content.test.ts` forbids literal guest counts, "one price"/"no tiers", "renew" and
+  "Google Drive".
 
 ---
 

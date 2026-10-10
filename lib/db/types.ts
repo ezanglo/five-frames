@@ -1,3 +1,5 @@
+import type { PaidPlanId, PlanId } from "@/lib/plans/registry";
+
 export type RevealMode = "after_event" | "immediate" | "custom";
 export type GalleryVisibility = "anyone_with_link" | "only_me";
 /** How the revealed gallery is arranged (D22). Presentation only; see lib/gallery/layouts.ts. */
@@ -39,6 +41,9 @@ export type EventRow = {
 
   guest_session_cap: number;
   guest_session_count: number;
+  /** The host's choice while Draft (null until chosen); set by activation to what was bought
+   *  (architecture §8c, D24). */
+  plan: PlanId | null;
 
   created_at: string;
   updated_at: string;
@@ -89,6 +94,9 @@ export type PaymentRow = {
   id: string;
   event_id: string;
   source: PaymentSource;
+  /** What this payment bought. Null only on rows from before plans; read through
+   *  `planForPayment`. */
+  plan: PaidPlanId | null;
 
   provider_checkout_session_id: string | null;
   checkout_url: string | null;

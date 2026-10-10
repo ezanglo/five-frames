@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { EVENT_PRICE_PHP, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
+import { REFUND_POLICY_COPY } from "@/lib/payments/pricing";
+import { PAID_PLANS, PLANS } from "@/lib/plans/registry";
 import {
-  DEFAULT_GUEST_SESSION_CAP,
   FAQ_GROUPS,
   HOME_FAQ_IDS,
+  HOSTED_ACCESS_LABEL,
+  MARKETING_PLANS,
   PAYMENT_COPY_BY_MODE,
-  PRICE_LABEL,
+  PLAN_COMPARISON,
+  PRICE_FROM_LABEL,
+  PRICES_LABEL,
   PRICING_FAQ_IDS,
+  planPriceLabel,
   REFUND_SUMMARY,
   TESTIMONIALS,
   faqItemsById,
@@ -31,21 +36,47 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe("marketing facts come from the product", () => {
-  it("shows the one real event price", () => {
-    expect(PRICE_LABEL).toBe(`₱${EVENT_PRICE_PHP.toLocaleString("en-PH")}`);
+  it("offers every plan, straight from the registry the Share step uses (D24)", () => {
+    expect(MARKETING_PLANS).toEqual([PLANS.free, ...PAID_PLANS]);
+    expect(PRICES_LABEL).toBe("₱499 or ₱999");
+    expect(PRICE_FROM_LABEL).toBe("₱499");
+    expect(HOSTED_ACCESS_LABEL).toBe("up to 12 months");
+    expect(planPriceLabel(PLANS.free)).toBe("Free");
+    expect(planPriceLabel(PLANS.intimate)).toBe("₱499");
+  });
+
+  it("compares plans only on what really differs (product.md §15.3)", () => {
+    // Every plan runs the same event. A row may differ between plans only if product.md says
+    // that thing differs; anything else would invent a plan-gated feature.
+    const MAY_DIFFER = new Set([
+      "Price",
+      "Guests who can join",
+      "Hosted from activation",
+      "We set your event up with you",
+      "Help from us on the day",
+    ]);
+    for (const row of PLAN_COMPARISON.flatMap((group) => group.rows)) {
+      const values = MARKETING_PLANS.map((plan) => row.value(plan));
+      if (new Set(values).size > 1) expect(MAY_DIFFER, row.label).toContain(row.label);
+      else expect(values[0], row.label).toBe(true);
+    }
   });
 
   it("uses the refund copy shown at checkout, verbatim", () => {
     expect(REFUND_SUMMARY).toBe(REFUND_POLICY_COPY);
   });
 
-  it("states the same guest-session capacity as the database default", () => {
-    const migration = readFileSync(
-      path.join(ROOT, "supabase/migrations/20260922000000_event_join_capacity.sql"),
-      "utf8",
-    );
-    const match = migration.match(/guest_session_cap int not null default (\d+)/);
-    expect(match?.[1]).toBe(String(DEFAULT_GUEST_SESSION_CAP));
+  it("states guest capacity only from the plan registry", () => {
+    // Capacity is per plan and stamped at activation (D24). A literal number of guests in copy
+    // would drift from it, so copy must interpolate `guestSessionCap` instead.
+    const files = [
+      ...sourceFiles(path.join(ROOT, "app/(marketing)")),
+      ...sourceFiles(path.join(ROOT, "components/ff/marketing")),
+      path.join(ROOT, "lib/marketing/content.ts"),
+    ];
+    for (const file of files) {
+      expect(readFileSync(file, "utf8"), file).not.toMatch(/\b\d+ guest(s| sessions)\b/i);
+    }
   });
 
   it("never promises online checkout while hosts pay FiveFrames directly (D23)", () => {
@@ -112,7 +143,10 @@ describe("marketing copy stays honest and on-brand", () => {
     [/bank[- ]level|military[- ]grade|100% (private|secure)/i, "unsupported security claims"],
     [/★|\bstars?\b rating|\d[\d,]* (happy )?(hosts|customers|events) (trust|use|love)/i, "fabricated social proof"],
     [/(regular|normally|was) ₱|<s>|line-through/i, "fake anchor price"],
-    [/renew/i, "renewal isn't built — don't sell it"],
+    [/renew/i, "every plan is one-time; there are no renewals (D24)"],
+    [/google drive/i, "Send to Google Drive ships after launch; nothing may offer it yet (D24)"],
+    [/one price|no tiers|nothing to compare/i, "there are two plans now (D24)"],
+    [/most popular|best value|recommended plan/i, "no upsell framing between plans"],
     [/\bzip\b/i, "bulk download is not a ZIP (D11)"],
     [/real[- ]?time/i, "counts are polled, not realtime (D9)"],
     [/\bvideo\b/i, "there is no video feature"],

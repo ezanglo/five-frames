@@ -1,12 +1,15 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-02 (**Sales-led manual payment (D23) implemented and verified locally, on top of Slice 19, gallery layouts. Both await a new RC, their targeted reruns and human verification.**)
+Last updated: 2026-10-11 (**Slice 20, the plan model (D24), is complete: human verification passed. Slice 21 (Free first event) is next, and Slice 20 can't deploy without it. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.**)
 
-- **Plans (D24): specified and designed, not implemented.** Free first event (10 guests,
-  7 days), Intimate ₱499 (100, 6 months), Celebration ₱999 (300, 12 months), one-time fees with
-  no renewals, operator capacity override (any plan, reason required, append-only log),
-  table-number cards, and default time sections (product.md §15.3; architecture.md §6a, §7c,
-  §7d, §8c). D24 lists five slices for this update; none is built.
+- **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
+  [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
+  because the site already advertises Free.
+  Not started:
+  - 21 Free first event;
+  - 22 capacity override;
+  - 23 time sections;
+  - 24 table-number cards.
 - **Deferred to the first update after launch: Send to Google Drive** (D24, architecture.md §7e).
   Not in this release, and nothing may offer it until it ships. To test it when it ships:
   product.md criterion 77. A Celebration export is complete, matches "Download all", survives
@@ -35,6 +38,85 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 20 — Plan model (2026-10-11): `complete`
+
+Intimate ₱499 (100 guests, 6 months) and Celebration ₱999 (300 guests, 12 months), one-time
+(product.md §15.3, D24, architecture §8c "As built"). Free activation arrives in Slice 21. Not
+committed, not deployed.
+
+**Deploy blocker:** the marketing site already shows the Free first event (at the user's
+request, 2026-10-11), but nothing in the product can activate it until Slice 21. Don't deploy
+Slice 20 on its own; deploy it together with Slice 21.
+
+**Built:**
+- `lib/plans/registry.ts`: one registry for prices, caps and hosted access, plus labels. It
+  replaces `EVENT_PRICE_*` and `HOSTED_ACCESS_DAYS`.
+- Migration `20261011000000_event_plans.sql`: `events.plan`, `payments.plan` (nullable for
+  older code) and `begin_provider_checkout_for_plan()`. Activated events and existing payments
+  were backfilled to Celebration, with their caps and expiry untouched. **Applied to the dev
+  project** with `supabase db query --linked -f` plus `migration repair`, so `20260930020000`
+  stays unapplied: 30 events and 15 payments now read Celebration, and drafts are null.
+- Activation stamps plan, cap, `hosted_until` and `grace_until` from `payments.plan` in the one
+  guarded update. Checkout prices and records the chosen plan, and supersedes a pending checkout
+  for a different plan. Manual confirm requires a paid plan and records it.
+- Host:
+  - the Share step has plan cards that save on change, then a breakdown for that plan ("paid
+    once, no renewal");
+  - the dashboard's guest tile shows plan · cap · hosted until.
+- Operator Console:
+  - plan on the event list and detail;
+  - the confirm form shows the plan and pre-fills its list price, and refuses if the host
+    switched plans since the page loaded.
+- Marketing: home, pricing (three plan cards plus a full "Compare plans" table, from
+  `PLAN_COMPARISON` / `EVERY_PLAN_HIGHLIGHTS` in content.ts), how-it-works, FAQ
+  (new "Which plan should I choose?"; Free added to cost, guests, hosting, create and try-first
+  answers), demo and auth rail all read the registry. `content.test.ts` now forbids literal
+  guest counts, "one price"/"no tiers" and "Google Drive".
+
+**Automated verification (local, dev database):**
+- `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
+- unit 440/440 ✔
+- all integration files 16/16, 150 tests ✔, including the new `plans.integration.test.ts`
+  (12): owner-only plan choice refused after activation; confirm refused with no plan;
+  stamping for Intimate; a late webhook activates the plan paid for after the draft switched;
+  legacy null → Celebration; two plans' payments racing (one winner, consistent stamp); a
+  foreign payment id refused; checkout reuse vs supersede on a plan switch; one pending
+  checkout under 6 concurrent starts; joins stop at exactly 100 and 300.
+
+**Human verification — passed (reported by the user 2026-10-11):** all five checks below passed,
+including the expanded plan cards, the "Compare plans" table at phone and desktop width, and the
+home pricing card.
+
+**Human verification checklist (Slice 20 exit, all passed):**
+1. Share step on a new draft: no plan selected; "Choose a plan to see your total"; no waiting
+   status. Pick Intimate → it saves (brief "Saving your plan…"), breakdown shows "FiveFrames
+   Intimate ₱499", "up to 100 guests", "hosted for 6 months". Switch to Celebration → ₱999,
+   300, 12 months. Reload: the choice persists.
+2. Operator Console on that draft: plan "Celebration", confirm form pre-filled ₱999. In another
+   tab switch the host to Intimate, then submit the operator form → refused, naming Intimate.
+   Reload and confirm → activates. The host's Share step turns into the QR hand-over; the
+   dashboard guest tile reads "Intimate · up to 100 guests · hosted until …" about 6 months out.
+3. A draft with no plan in the Console: no confirm form, just the "hasn't chosen a paid plan"
+   note.
+4. Marketing at phone and desktop width:
+   - home hero "First event free · then from ₱499…";
+   - home pricing section "Start free. Pay once per event." with Free, Intimate and Celebration
+     rows;
+   - /pricing: three plan cards (side by side on desktop, stacked on phone). Each card shows
+     price, who it suits, a guests/hosted pair, the plan's extras (Free: no payment, one per
+     account; Celebration: set up with you, help on the day), then "Every plan includes";
+   - /pricing "Compare plans" table: seven groups. Only Price, Guests, Hosted and the two
+     "Help from us" rows differ; every other row is a check in all three columns. At phone
+     width it fits without the page scrolling sideways, and the rows are readable;
+   - home pricing card: a row per plan with guests/hosted, an "Every plan includes" list, and a
+     "Compare everything in each plan" link that lands on the table;
+   - the FAQ "Which plan should I choose?";
+   - nothing says "one price" or "no tiers", or mentions Google Drive.
+5. An existing activated event (before plans): dashboard reads "Celebration · up to 250 guests"
+   with its original expiry. Nothing about it changed.
+
+**Release follow-ups added:** see the two Slice 20 rows in Release follow-ups.
 
 ## Sales-led manual payment (2026-10-02): `awaiting human verification`
 
@@ -2310,23 +2392,22 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-0. Apply `20261002000000_manual_payment_e_wallet.sql` to the dev project (same way as
-   `20261001000000`: `supabase db query --linked -f …`, then
-   `supabase migration repair --linked --status applied 20261002000000`). Set `SALES_CONTACT` in
-   `lib/payments/mode.ts` once the contact channel is chosen.
-1. Review the D23 diff (uncommitted; Slice 19 is committed as `e48546d`), then checkpoint it as a new release-candidate commit
-   (on top of the marketing commits made since RC `6d8aca8`) and record its SHA in
-   release-validation.md's run record. The dev
-   database already has `20261001000000`. Code from Slice 19 needs that migration, so don't
-   deploy it against any database that lacks it.
-2. Deploy that commit to `five-frames.vercel.app`.
-3. Run `/e2e-validate` only for the targeted reruns: ENV-01, ENV-02, the GAL-04/GAL-07 and VIS-03
-   automated proxies from "Gallery-layout change after RC `6d8aca8`", HOST-04, the OPS-03/OPS-05
-   rechecks and OPS-06 from "Sales-led payment change after RC `6d8aca8`", then SMOKE-01. The NET-02,
-   NET-01/NET-04 and HOST-08 repairs were already verified on RC `6d8aca8` and Slice 19 didn't
-   touch them.
-4. After those pass, run the remaining iPhone, Android, real-network, visual and final-smoke
-   validation.
+1. In a fresh session, **Slice 21: Free first event**. The site already advertises it,
+   so Slice 20 can't deploy without it (roadmap.md, architecture §8c "Free:
+   claim, then activate"). It needs a migration for `hosts.free_event_claimed_at` /
+   `free_event_id` and the claim function, and its concurrency test.
+2. **Release candidate timing is the user's call.** Slices 20–24 change the Share step, the
+   pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.
+   Cutting the RC after the plan slices avoids rerunning those twice. If an RC is cut sooner,
+   recheck those screens after the plan slices land.
+   - The dev database already has `20261001000000`, `20261002000000` and `20261011000000`.
+   - Don't deploy code from Slice 19 or Slice 20 against a database that lacks them.
+3. For that RC: deploy to `five-frames.vercel.app`, then run `/e2e-validate`:
+   - the targeted reruns from "Gallery-layout change after RC `6d8aca8`" and "Sales-led payment
+     change after RC `6d8aca8`", plus plan cases once they're added to release-validation.md;
+   - then SMOKE-01;
+   - then the remaining iPhone, Android, real-network, visual and final-smoke validation.
+4. Set `SALES_CONTACT` in `lib/payments/mode.ts` once the contact channel is chosen.
 
 Do not begin `/release-review` or any production mutation until that pass is done. Done means every
 case is PASS, or BLOCKED with the user's explicit acceptance, and no launch-blocking FAIL remains.
@@ -2343,6 +2424,8 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **Vercel function region vs Supabase region.** Functions run in US East (`iad1`); Supabase is in `ap-southeast-1`. Reconcile placement, then re-check representative latency (architecture §12) | Deployment configuration | Before real traffic |
 | **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
 | **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |
+| **Plans migration on a production database (Slice 20).** Apply `20261011000000_event_plans.sql` **before** deploying Slice 20 code anywhere (the code reads `events.plan`, `payments.plan` and calls `begin_provider_checkout_for_plan`). It is additive and safe under older code. Already applied to dev | Migration (needs explicit approval for production) | Next deploy / release |
+| **`payments.plan` NOT NULL and drop `begin_provider_checkout()`** once no deployment runs pre-plans code (architecture §8c "As built"). Backfill any null `payments.plan` to `celebration` first | Deployment-order dependency | After Slice 20 is deployed everywhere this database is served |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
 | **Advance-expiry warning channel.** The warning is in-product only; no outbound email or SMS exists (D18 launch prerequisite) | Product decision | Pre-launch |

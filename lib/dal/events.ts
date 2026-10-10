@@ -9,6 +9,7 @@ import {
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import type { EventRow, GalleryLayout, GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { isGalleryLayout } from "@/lib/gallery/layouts";
+import type { PaidPlanId } from "@/lib/plans/registry";
 import { isAccentKey } from "@/lib/theme/accents";
 import { InvalidHashtagError, normalizeHashtag } from "@/lib/theme/hashtag";
 
@@ -192,6 +193,32 @@ export async function updateEventConfig(
     .update(toRow(input))
     .eq("id", eventId)
     .eq("host_id", hostId)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as EventRow | null;
+}
+
+/**
+ * The host's plan choice while Draft (product.md §7.2, §15.3, D24). Ownership-scoped, and
+ * refused once the event is activated (`activated_at IS NULL` in the same statement), so a
+ * plan is fixed from activation on, exactly as product.md says. Only paid plans for now: Free
+ * has its own once-per-account activation (D24 slice b) and is never a plain choice here.
+ * Returns null for "not found / not owned / already activated" alike.
+ */
+export async function setEventPlan(
+  hostId: string,
+  eventId: string,
+  plan: PaidPlanId,
+): Promise<EventRow | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("events")
+    .update({ plan })
+    .eq("id", eventId)
+    .eq("host_id", hostId)
+    .is("activated_at", null)
     .select()
     .maybeSingle();
 

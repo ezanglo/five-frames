@@ -6,11 +6,13 @@ import { requireHost } from "@/lib/auth/host-session";
 import {
   closeCapture,
   createDraftEvent,
+  getEventForHost,
   openCapture,
   revokeEventToken,
   revokeGalleryToken,
   rotateEventToken,
   rotateGalleryToken,
+  setEventPlan,
   updateEventConfig,
   type EventConfigInput,
 } from "@/lib/dal/events";
@@ -34,6 +36,7 @@ import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { isGalleryLayout } from "@/lib/gallery/layouts";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
+import { isPaidPlanId } from "@/lib/plans/registry";
 
 const REVEAL_MODES: RevealMode[] = ["after_event", "immediate", "custom"];
 const VISIBILITIES: GalleryVisibility[] = ["anyone_with_link", "only_me"];
@@ -269,9 +272,25 @@ export async function revealGalleryNowAction(eventId: string) {
  *  browser to PayMongo's hosted checkout; activation itself only happens later, via the signed
  *  webhook (architecture §8), never here. In `manual` payment mode (D23) there is no button,
  *  and a replayed or crafted submission is sent back to the Share step instead. */
+/**
+ * Share step plan choice (product.md §7.2, §15.3, D24). Draft only: `setEventPlan` refuses an
+ * activated event in the same statement, so a stale tab can't change a running event's plan.
+ * Anything but a paid plan id is ignored; Free activates through its own action (D24 slice b).
+ */
+export async function chooseEventPlanAction(eventId: string, formData: FormData) {
+  const host = await requireHost();
+  const plan = formData.get("plan");
+  if (isPaidPlanId(plan)) await setEventPlan(host.id, eventId, plan);
+  redirect(`/events/${eventId}/setup?step=share`);
+}
+
 export async function startCheckoutAction(eventId: string) {
   const host = await requireHost();
   if (!isOnlinePaymentEnabled()) redirect(`/events/${eventId}/setup?step=share`);
+  // The price is the chosen plan's; without one there is nothing to pay for yet.
+  const event = await getEventForHost(host.id, eventId);
+  if (!event) notFound();
+  if (!isPaidPlanId(event.plan)) redirect(`/events/${eventId}/setup?step=share`);
   const baseUrl = await getRequestBaseUrl();
 
   const session = await startProviderCheckout(host.id, eventId, baseUrl);

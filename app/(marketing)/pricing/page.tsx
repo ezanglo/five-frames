@@ -1,12 +1,11 @@
 import { Ban, CalendarClock, CreditCard, ReceiptText } from "lucide-react";
-import { CtaBand, FaqList, PriceCard } from "@/components/ff/marketing/blocks";
+import { CtaBand, FaqList, PlanCard, PlanComparison } from "@/components/ff/marketing/blocks";
 import { PageHero, Section, SectionHeader } from "@/components/ff/marketing/section";
 import {
-  DEFAULT_GUEST_SESSION_CAP,
-  FRAMES,
-  HOSTED_ACCESS_LABEL,
+  HOSTED_ACCESS_BY_PLAN,
+  MARKETING_PLANS,
   PAYMENT_COPY,
-  PRICE_LABEL,
+  PRICES_LABEL,
   PRICING_FAQ_IDS,
   REFUND_SUMMARY,
   faqItemsById,
@@ -15,43 +14,9 @@ import { marketingMetadata } from "@/lib/marketing/metadata";
 
 export const metadata = marketingMetadata({
   title: "Pricing",
-  description: `FiveFrames is ${PRICE_LABEL} per event, paid once. Guests never pay, every guest gets five frames, and ${PAYMENT_COPY.metaTail}.`,
+  description: `Your first FiveFrames event is free; after that it’s ${PRICES_LABEL} per event, paid once. Guests never pay, every guest gets five frames, and ${PAYMENT_COPY.metaTail}.`,
   path: "/pricing",
 });
-
-const INCLUDED = [
-  {
-    title: "For your guests",
-    lines: [
-      `Exactly ${FRAMES} frames each, at no cost to them`,
-      "No app, no account — just a first name",
-      "A private view of the photos they kept, to revisit and download",
-      "Keepsakes of their own photos to share or save, if you allow sharing",
-    ],
-  },
-  {
-    title: "For you",
-    lines: [
-      "Your event link and QR code, plus table card, poster and phone-screen signage",
-      "An optional look: one image, an accent color and a hashtag",
-      "Capture you open and close yourself",
-      "Guests-joined and photos-taken counts that refresh on their own",
-      "Hide, unhide, delete and favorite",
-      "Gallery reveal after the event, right away, or at a time you set",
-      "A choice of gallery layout: Masonry, Rows or Grid",
-      "Download every original, individually or all at once",
-    ],
-  },
-  {
-    title: "Hosting",
-    lines: [
-      `${HOSTED_ACCESS_LABEL[0].toUpperCase()}${HOSTED_ACCESS_LABEL.slice(1)} of hosted access from activation`,
-      "A warning on your dashboard before hosting ends",
-      "Downloads stay open for a grace period afterwards",
-      `Room for up to ${DEFAULT_GUEST_SESSION_CAP} guest sessions per event`,
-    ],
-  },
-];
 
 const PAYMENT_STEPS = [
   {
@@ -74,36 +39,30 @@ export default function PricingPage() {
     <>
       <PageHero
         eyebrow="Pricing"
-        title="One event. One price. Paid once."
-        lead={`${PRICE_LABEL} covers everything for one event. Guests never pay, and there’s nothing to add on.`}
+        title="Start free. Then pay once per event."
+        lead={`Your first event is free. After that, choose by the size of your event: ${PRICES_LABEL}. Guests never pay, and there’s nothing to add on.`}
       />
 
-      <Section labelledBy="included-title" className="relative -mt-6 rounded-t-sheet">
-        <div className="grid gap-12 lg:grid-cols-[440px_minmax(0,1fr)] lg:gap-20">
-          <div className="lg:sticky lg:top-28 lg:self-start">
-            <PriceCard headingLevel="h2" />
-          </div>
-          <div className="flex flex-col gap-10">
-            <SectionHeader
-              id="included-title"
-              eyebrow="What’s included"
-              title="Everything, for every event."
-              lead="There’s one offer, so there’s nothing to compare. Every event gets all of this."
-            />
-            {INCLUDED.map((group) => (
-              <div key={group.title} className="flex flex-col gap-4 border-t border-line pt-6">
-                <h3 className="text-[19px] font-bold text-ink">{group.title}</h3>
-                <ul className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-                  {group.lines.map((line) => (
-                    <li key={line} className="flex items-start gap-3 text-label font-medium text-ink">
-                      <span aria-hidden className="mt-2 size-1.5 shrink-0 rounded-full bg-brand" />
-                      {line}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
+      <Section labelledBy="plans-title" className="relative -mt-6 rounded-t-sheet">
+        <h2 id="plans-title" className="sr-only">
+          Plans
+        </h2>
+        <div className="grid gap-6 lg:grid-cols-3">
+          {MARKETING_PLANS.map((plan) => (
+            <PlanCard key={plan.id} plan={plan} />
+          ))}
+        </div>
+      </Section>
+
+      <Section labelledBy="compare-title" className="pt-0 sm:pt-0 lg:pt-0">
+        <div className="flex flex-col gap-10 lg:gap-12">
+          <SectionHeader
+            id="compare-title"
+            eyebrow="Compare plans"
+            title="Everything, on every plan."
+            lead="Every event gets the same frames, look, keepsakes, gallery and downloads — even a free one. Plans differ only in how many guests can join, how long your gallery is hosted, and Celebration’s help from us."
+          />
+          <PlanComparison />
         </div>
       </Section>
 
@@ -133,15 +92,15 @@ export default function PricingPage() {
           </PolicyCard>
           <PolicyCard icon={<CalendarClock />} title="After hosting ends">
             <p>
-              Hosting lasts {HOSTED_ACCESS_LABEL} from activation. Your dashboard warns you before
-              it ends, and you can still download everything during a grace period afterwards.
-              Then the photos are permanently deleted.
+              Hosting lasts from activation: {HOSTED_ACCESS_BY_PLAN}. Your dashboard warns you
+              before it ends, and you can still download everything during a grace period
+              afterwards. Then the photos are permanently deleted.
             </p>
           </PolicyCard>
           <PolicyCard icon={<Ban />} title="What you won’t pay for">
             <p>
-              No subscriptions, no tiers, no per-photo charges, no extra frames. Guests are never
-              asked to pay for anything.
+              No subscriptions, no per-photo charges, no extra frames, and nothing to top up
+              later. Guests are never asked to pay for anything.
             </p>
           </PolicyCard>
         </div>

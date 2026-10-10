@@ -31,6 +31,7 @@ describe("isDuplicatePayment", () => {
     media_deleted_at: null,
     guest_session_cap: 250,
     guest_session_count: 0,
+    plan: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -39,6 +40,7 @@ describe("isDuplicatePayment", () => {
     id: "payment-winner",
     event_id: "event-1",
     source: "provider",
+    plan: "celebration",
     provider_checkout_session_id: null,
     checkout_url: null,
     provider_status: null,

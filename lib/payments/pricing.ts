@@ -1,15 +1,9 @@
 /**
- * Event pricing (product.md §15). No secrets here, so this has no `server-only` import —
- * both the checkout confirmation page (server component) and the DAL read it.
- *
- * The launch price hypothesis is ₱999/event; the post-validation target (₱1,490) is a
- * later business decision (product.md §19), not implemented as a second tier — there is
- * exactly one price in code today, and moving it is a one-constant change, not a pricing
- * system.
+ * Payment helpers shared by the Share step and the DAL (product.md §15). No secrets here, so
+ * this has no `server-only` import. Prices are per plan and live in `lib/plans/registry.ts`
+ * (D24); this file keeps what is the same for every plan.
  */
 
-export const EVENT_PRICE_PHP = 999;
-export const EVENT_PRICE_CENTAVOS = EVENT_PRICE_PHP * 100;
 export const CURRENCY = "PHP";
 
 /**

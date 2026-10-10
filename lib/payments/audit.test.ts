@@ -5,6 +5,7 @@ const base: OperatorPaymentView = {
   id: "p1",
   event_id: "e1",
   source: "provider",
+  plan: "celebration",
   provider_checkout_session_id: "cs_1",
   checkout_url: null,
   provider_status: "paid",

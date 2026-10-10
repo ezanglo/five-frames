@@ -197,6 +197,12 @@ change, not a refactor.
   Its container tiers live in both `lib/gallery/layouts.ts` and `app/globals.css`;
   `layouts.test.ts` checks that they match. Tile shapes come from `display_width/height`,
   recorded at commit, never from measuring in the browser.
+- **Prices, guest capacities and hosted-access periods live only in `lib/plans/registry.ts`**
+  (D24). Activation stamps them onto the event from `payments.plan`, never from the draft's
+  `events.plan`, so a plan change after a checkout can't change what was bought. After
+  activation, read `guest_session_cap` and `hosted_until` from the event (an operator override
+  may have raised the cap), never from the registry. Marketing copy interpolates the registry;
+  `content.test.ts` rejects literal guest counts.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

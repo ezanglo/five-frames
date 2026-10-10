@@ -25,6 +25,7 @@ import { formatEventDateTime, formatEventTime } from "@/lib/events/format";
 import { DRAFT_PAYMENT_COPY, deriveDraftPaymentState } from "@/lib/payments/draft-payment";
 import { PAYMENT_MODE } from "@/lib/payments/mode";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
+import { PLANS } from "@/lib/plans/registry";
 import { qrSvgDataUri } from "@/lib/media/qr";
 import {
   closeCaptureAction,
@@ -130,12 +131,28 @@ export default async function EventDashboardPage({
   }
 
   // ── Cards ──────────────────────────────────────────────────────────────────────────────
+  // The plan and its capacity (D24). Before activation the stored cap is only the column
+  // default, so a draft shows its chosen plan's capacity instead; after activation the stored
+  // cap is the truth (it includes any operator override).
+  const plan = event.plan ? PLANS[event.plan] : null;
+  const hostedUntil = formatEventDateTime(event.hosted_until, tz, { year: true });
+  const guestsCaption = event.activated_at
+    ? [
+        plan?.label,
+        `up to ${event.guest_session_cap} guests`,
+        hostedUntil && `hosted until ${hostedUntil}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : plan
+      ? `${plan.label} · up to ${plan.guestSessionCap} guests`
+      : "Choose a plan to activate";
   const guestsTile = (
     <StatTile
       tone="tint"
       value={guests}
       label="Guests joined"
-      caption={`Up to ${event.guest_session_cap} guests`}
+      caption={guestsCaption.charAt(0).toUpperCase() + guestsCaption.slice(1)}
       labelFirst
       className="lg:rounded-3xl lg:p-5"
     />

@@ -16,6 +16,7 @@ function payment(overrides: Partial<LedgerPayment>): LedgerPayment {
     id: "pay-1",
     event_id: "event-1",
     source: "manual",
+    plan: "celebration",
     provider_checkout_session_id: null,
     checkout_url: null,
     provider_status: null,

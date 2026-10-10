@@ -40,6 +40,7 @@ const EVENT: EventRow = {
   media_deleted_at: null,
   guest_session_cap: 250,
   guest_session_count: 187,
+  plan: "celebration",
   created_at: "2026-09-01T00:00:00Z",
   updated_at: "2026-09-01T00:00:00Z",
 };

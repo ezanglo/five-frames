@@ -10,8 +10,15 @@ import {
   getCheckoutSessionStatus,
   type PaymongoWebhookEvent,
 } from "@/lib/payments/paymongo-client";
-import { CURRENCY, EVENT_PRICE_CENTAVOS } from "@/lib/payments/pricing";
-import { addDays, GRACE_PERIOD_DAYS, HOSTED_ACCESS_DAYS } from "@/lib/events/policy";
+import { CURRENCY } from "@/lib/payments/pricing";
+import { addDays, GRACE_PERIOD_DAYS } from "@/lib/events/policy";
+import {
+  isPaidPlanId,
+  PLANS,
+  planForPayment,
+  priceCentavos,
+  type PaidPlanId,
+} from "@/lib/plans/registry";
 import type { EventRow, ManualPaymentMethod, PaymentRow } from "@/lib/db/types";
 
 function sleep(ms: number) {
@@ -24,7 +31,37 @@ type BeginProviderCheckoutRow = {
   checkout_url: string | null;
   is_new: boolean;
   already_activated: boolean;
+  plan: PaidPlanId | null;
+  superseded_checkout_session_id: string | null;
 };
+
+/**
+ * `begin_provider_checkout_for_plan()` (migration 20261011000000): the plan-aware successor of
+ * Slice 8's `begin_provider_checkout()`. It reads the event's chosen plan under the event-row
+ * lock and supersedes a pending checkout made for a different plan instead of reusing it (D24).
+ * Expiring that superseded session at PayMongo happens here, after the lock is released, and
+ * is best-effort: our own row already says it's superseded.
+ */
+async function beginProviderCheckout(
+  supabase: ReturnType<typeof createServiceClient>,
+  eventId: string,
+): Promise<BeginProviderCheckoutRow> {
+  const { data, error } = await supabase
+    .rpc("begin_provider_checkout_for_plan", { p_event_id: eventId })
+    .single<BeginProviderCheckoutRow>();
+  if (error) throw error;
+  if (data.superseded_checkout_session_id) {
+    try {
+      await expireCheckoutSession(data.superseded_checkout_session_id);
+    } catch (err) {
+      console.error(
+        `Failed to expire checkout session ${data.superseded_checkout_session_id} after a plan change`,
+        err,
+      );
+    }
+  }
+  return data;
+}
 
 const REUSE_POLL_ATTEMPTS = 10;
 const REUSE_POLL_INTERVAL_MS = 300;
@@ -53,7 +90,12 @@ const REUSE_POLL_INTERVAL_MS = 300;
  *
  * Refuses (returns null) once the event is activated: paying twice for the same event
  * isn't a retry, it's a no-op the UI shouldn't offer, and no new checkout can be created
- * after activation (the `begin_provider_checkout` guard).
+ * after activation (the `begin_provider_checkout_for_plan` guard).
+ *
+ * The amount is the price of the plan the event has chosen, read under the same lock that
+ * creates the payment row, and the row records that plan (`payments.plan`, D24). A draft with
+ * no paid plan chosen is refused by the database (`plan_not_payable`); callers check the plan
+ * first, so reaching that is a bug, not a host-facing state.
  */
 export async function startProviderCheckout(
   hostId: string,
@@ -65,14 +107,11 @@ export async function startProviderCheckout(
 
   const supabase = createServiceClient();
 
-  const { data: begin, error: beginError } = await supabase
-    .rpc("begin_provider_checkout", { p_event_id: eventId })
-    .single<BeginProviderCheckoutRow>();
-  if (beginError) throw beginError;
+  const begin = await beginProviderCheckout(supabase, eventId);
   if (begin.already_activated) return null;
 
   if (begin.is_new) {
-    return createAndStoreCheckoutSession(supabase, event, begin.payment_id!, baseUrl);
+    return createAndStoreCheckoutSession(supabase, event, begin.payment_id!, begin.plan!, baseUrl);
   }
 
   const reused = await reuseOrReplaceCheckoutSession(supabase, event, begin, baseUrl);
@@ -83,11 +122,13 @@ async function createAndStoreCheckoutSession(
   supabase: ReturnType<typeof createServiceClient>,
   event: EventRow,
   paymentId: string,
+  plan: PaidPlanId,
   baseUrl: string,
 ): Promise<{ checkoutUrl: string }> {
+  const amount = priceCentavos(plan);
   try {
     const session = await createCheckoutSession({
-      amountCentavos: EVENT_PRICE_CENTAVOS,
+      amountCentavos: amount,
       currency: CURRENCY,
       eventName: event.name,
       successUrl: `${baseUrl}/events/${event.id}?checkout=pending`,
@@ -102,7 +143,7 @@ async function createAndStoreCheckoutSession(
       .update({
         provider_checkout_session_id: session.id,
         checkout_url: session.checkoutUrl,
-        amount: EVENT_PRICE_CENTAVOS,
+        amount,
         currency: CURRENCY,
         updated_at: new Date().toISOString(),
       })
@@ -165,16 +206,13 @@ async function reuseOrReplaceCheckoutSession(
     .eq("id", paymentId)
     .eq("provider_status", "pending");
 
-  const { data: fresh, error: freshError } = await supabase
-    .rpc("begin_provider_checkout", { p_event_id: event.id })
-    .single<BeginProviderCheckoutRow>();
-  if (freshError) throw freshError;
+  const fresh = await beginProviderCheckout(supabase, event.id);
   if (fresh.already_activated) {
     throw new Error("Event was activated while replacing an expired checkout session.");
   }
 
   if (fresh.is_new) {
-    return createAndStoreCheckoutSession(supabase, event, fresh.payment_id!, baseUrl);
+    return createAndStoreCheckoutSession(supabase, event, fresh.payment_id!, fresh.plan!, baseUrl);
   }
 
   // Another request replaced it first — reuse whatever it produced (bounded, no further
@@ -239,6 +277,12 @@ export async function getLatestPaymentForEvent(
  * Also supersedes (best-effort, never throws) any other still-`pending` provider checkout
  * sessions for this event once activation actually happens here — once paid, no other
  * session for this event should remain payable.
+ *
+ * The plan comes from the payment, never from the draft's current choice (D24, architecture
+ * §8c): `payments.plan` is fixed when the row is created, so a late webhook for a checkout the
+ * host has since moved away from still activates exactly what was paid for. The plan, its guest
+ * capacity and its hosted access period are all written in the same guarded statement, so an
+ * activated event can never carry one plan's capacity and another's access period.
  */
 export async function activateEvent(
   eventId: string,
@@ -246,12 +290,22 @@ export async function activateEvent(
 ): Promise<{ event: EventRow; activatedByThisCall: boolean }> {
   const supabase = createServiceClient();
 
+  const { data: payment, error: paymentError } = await supabase
+    .from("payments")
+    .select("plan")
+    .eq("id", paymentId)
+    .eq("event_id", eventId)
+    .single();
+  if (paymentError) throw paymentError;
+  const plan = PLANS[planForPayment(payment as Pick<PaymentRow, "plan">)];
+
   const activatedAt = new Date().toISOString();
-  // Hosted access and its grace period (product.md §15.2, decision D8) are both fixed
-  // launch-policy durations from the activation instant, so they're computed once here —
-  // the same "set once, derive forever after" pattern as safety_net_closes_at — rather than
-  // requiring a later mutation to materialize the expiry/grace transition.
-  const hostedUntil = addDays(activatedAt, HOSTED_ACCESS_DAYS);
+  // Hosted access and its grace period (product.md §15.2, decision D8) are computed once from
+  // the activation instant — the same "set once, derive forever after" pattern as
+  // safety_net_closes_at — rather than requiring a later mutation to materialize the
+  // expiry/grace transition. The access period is the plan's (D24); the grace period is the
+  // same on every plan.
+  const hostedUntil = addDays(activatedAt, plan.hostedAccessDays);
   const graceUntil = addDays(hostedUntil, GRACE_PERIOD_DAYS);
 
   const { data: activated, error } = await supabase
@@ -261,6 +315,8 @@ export async function activateEvent(
       event_token: generateLinkToken(),
       gallery_token: generateLinkToken(),
       activating_payment_id: paymentId,
+      plan: plan.id,
+      guest_session_cap: plan.guestSessionCap,
       hosted_until: hostedUntil,
       grace_until: graceUntil,
     })
@@ -430,6 +486,7 @@ export type ConfirmManualPaymentResult =
   | { outcome: "not_found" }
   | { outcome: "owns_event" }
   | { outcome: "already_activated" }
+  | { outcome: "plan_not_chosen" }
   | { outcome: "activated"; event: EventRow; payment: PaymentRow }
   | { outcome: "duplicate"; event: EventRow; payment: PaymentRow };
 
@@ -459,6 +516,9 @@ export async function confirmManualPayment(
   if (!event) return { outcome: "not_found" };
   if (event.host_id === operatorId) return { outcome: "owns_event" };
   if (event.activated_at) return { outcome: "already_activated" };
+  // The host chooses the plan (product.md §7.2); an operator only confirms payment for it. A
+  // draft without a paid plan has nothing to confirm yet.
+  if (!isPaidPlanId(event.plan)) return { outcome: "plan_not_chosen" };
 
   const supabase = createServiceClient();
   const { data: payment, error } = await supabase
@@ -466,6 +526,7 @@ export async function confirmManualPayment(
     .insert({
       event_id: eventId,
       source: "manual",
+      plan: event.plan,
       manual_method: input.method,
       manual_amount: input.amountCentavos,
       manual_currency: input.currency,

@@ -20,16 +20,19 @@ import { getLatestPaymentForEvent } from "@/lib/dal/payments";
 import { firstName, formatEventDate } from "@/lib/events/format";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
 import { qrSvgDataUri } from "@/lib/media/qr";
-import {
-  EVENT_PRICE_PHP,
-  hasPendingProviderPayment,
-  REFUND_POLICY_COPY,
-} from "@/lib/payments/pricing";
+import { hasPendingProviderPayment, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
+import { formatPrice, isPaidPlanId, PLANS } from "@/lib/plans/registry";
 import { DRAFT_PAYMENT_COPY } from "@/lib/payments/draft-payment";
 import { isOnlinePaymentEnabled, SALES_CONTACT } from "@/lib/payments/mode";
-import { saveDetailsStepAction, saveLookStepAction, startCheckoutAction } from "../../actions";
+import {
+  chooseEventPlanAction,
+  saveDetailsStepAction,
+  saveLookStepAction,
+  startCheckoutAction,
+} from "../../actions";
 import { DetailsStepForm } from "../../wizard-forms";
 import { DashboardLive } from "../dashboard-live";
+import { PlanPicker } from "@/components/ff/host/plan-picker";
 import { LookStudio } from "@/components/ff/look/look-studio";
 import { getEventThemeForHost } from "@/lib/dal/event-theme";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ff/button";
@@ -179,7 +182,9 @@ export default async function EventSetupPage({
     ]);
     const isPending = hasPendingProviderPayment(latestPayment);
     const name = firstName(host.name);
-    const price = `₱${EVENT_PRICE_PHP.toLocaleString()}`;
+    // The host's paid plan choice (D24). Nothing is payable or confirmable until there is one.
+    const plan = isPaidPlanId(event.plan) ? PLANS[event.plan] : null;
+    const price = plan ? formatPrice(plan.pricePhp) : null;
 
     return (
       <WizardShell
@@ -208,33 +213,56 @@ export default async function EventSetupPage({
             </p>
           )}
 
-          <ul className="flex flex-col gap-2.5">
-            <Benefit icon={<QrCode />}>
-              Your event link, printable QR and signage — issued the moment payment is confirmed.
-            </Benefit>
-            <Benefit icon={<Camera />}>
-              Five shots per guest, for up to {event.guest_session_cap} guests.
-            </Benefit>
-            <Benefit icon={<Clock />} muted>
-              Guests can’t shoot yet — capture opens only when you switch it on.
-            </Benefit>
-          </ul>
+          <PlanPicker
+            action={chooseEventPlanAction.bind(null, eventId)}
+            value={isPaidPlanId(event.plan) ? event.plan : null}
+          />
 
-          <dl className="flex flex-col gap-3 rounded-lg bg-surface-subtle p-4">
-            <PriceRow label="FiveFrames event" value={price} />
-            {online ? (
-              <PriceRow label="Processing fees" value="Included — nothing extra" />
-            ) : (
-              <PriceRow label="How you pay" value="Directly to FiveFrames" />
-            )}
-            <div className="border-t border-line pt-3">
-              <PriceRow label={online ? "Total today" : "Total"} value={price} strong />
-            </div>
-            <p className="text-caption font-medium text-ink-muted">{REFUND_POLICY_COPY}</p>
-          </dl>
+          {plan && price && (
+            <>
+              <ul className="flex flex-col gap-2.5">
+                <Benefit icon={<QrCode />}>
+                  Your event link, printable QR and signage — issued the moment payment is
+                  confirmed.
+                </Benefit>
+                <Benefit icon={<Camera />}>
+                  Five shots per guest, for up to {plan.guestSessionCap} guests.
+                </Benefit>
+                <Benefit icon={<CalendarCheck />}>
+                  Your gallery is hosted for {plan.hostedAccessLabel} from activation. Download
+                  your photos any time in that period.
+                </Benefit>
+                <Benefit icon={<Clock />} muted>
+                  Guests can’t shoot yet — capture opens only when you switch it on.
+                </Benefit>
+              </ul>
+
+              <dl className="flex flex-col gap-3 rounded-lg bg-surface-subtle p-4">
+                <PriceRow label={`FiveFrames ${plan.label}`} value={price} />
+                {online ? (
+                  <PriceRow label="Processing fees" value="Included — nothing extra" />
+                ) : (
+                  <PriceRow label="How you pay" value="Directly to FiveFrames" />
+                )}
+                <div className="border-t border-line pt-3">
+                  <PriceRow label={online ? "Total today" : "Total"} value={price} strong />
+                </div>
+                <p className="text-caption font-medium text-ink-muted">
+                  Paid once, for this event. There’s no renewal or subscription.
+                </p>
+                <p className="text-caption font-medium text-ink-muted">{REFUND_POLICY_COPY}</p>
+              </dl>
+            </>
+          )}
         </div>
 
-        {online ? (
+        {!plan ? (
+          <WizardActions backHref={stepHref(2)}>
+            <p className="text-label font-medium text-ink-muted">
+              Choose a plan to see your total.
+            </p>
+          </WizardActions>
+        ) : online ? (
           <>
             <form action={startCheckoutAction.bind(null, eventId)} className="contents">
               <WizardActions backHref={stepHref(2)}>

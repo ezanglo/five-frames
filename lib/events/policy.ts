@@ -12,15 +12,16 @@
  *  close that fires too early would refuse a guest who is still legitimately capturing. */
 export const SAFETY_NET_CLOSE_HOURS = 72;
 
-/** product.md §15.2: "~12 months" of hosted gallery access from activation. */
-export const HOSTED_ACCESS_DAYS = 365;
+/* Hosted access is per plan (product.md §15.3, D24): `hostedAccessDays` in lib/plans/registry.ts. */
 
 /** product.md §15.2: "~30 days" grace period after expiry, downloads still available. */
 export const GRACE_PERIOD_DAYS = 30;
 
 /** How far ahead of expiry the host sees an in-product warning. product.md only requires
  *  "warned in advance", without a specific lead time — chosen so a host still has a full
- *  ordinary grace-period's worth of runway to act after first seeing the warning. */
+ *  ordinary grace-period's worth of runway to act after first seeing the warning. On a plan
+ *  shorter than this (Free, 7 days) the warning is simply visible from activation, which is
+ *  what product.md §15.2 asks for. */
 export const EXPIRY_WARNING_DAYS_BEFORE = 30;
 
 const DAY_MS = 24 * 60 * 60 * 1000;

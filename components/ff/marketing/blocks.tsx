@@ -1,13 +1,18 @@
 import type { ReactNode } from "react";
-import { ArrowRight, Check, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, CalendarClock, Check, ChevronDown, Minus, Sparkles, Users } from "lucide-react";
 import { ButtonLink } from "@/components/ff/button";
 import {
-  FRAMES,
-  HOSTED_ACCESS_LABEL,
+  EVERY_PLAN_HIGHLIGHTS,
+  MARKETING_PLANS,
   PAYMENT_COPY,
-  PRICE_LABEL,
+  PLAN_COMPARISON,
+  planExtras,
+  planPriceLabel,
+  type ComparisonValue,
   type FaqItem,
 } from "@/lib/marketing/content";
+import type { Plan } from "@/lib/plans/registry";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,24 +43,70 @@ export function FaqList({ items, className }: { items: FaqItem[]; className?: st
   );
 }
 
-const INCLUSIONS = [
-  `${FRAMES} frames for every guest — the same for every event`,
-  "Your event link, printable QR, table card, poster and phone-screen signage",
-  "Your own look on guest screens, signage and keepsakes, if you want one",
-  "Keepsakes guests can make from their own photos",
-  "You open and close capture; hide, unhide, delete and favorite any photo",
-  "Reveal the gallery when you choose, to anyone with the link or only you",
-  "A gallery to scroll through, laid out as Masonry, Rows or Grid",
-  "Download every original, one at a time or all at once",
-  `${HOSTED_ACCESS_LABEL[0].toUpperCase()}${HOSTED_ACCESS_LABEL.slice(1)} of hosted access`,
-];
+/** The two numbers that differ between plans, shown first on every plan card. */
+function PlanStats({ plan, compact }: { plan: Plan; compact?: boolean }) {
+  const stats = [
+    { icon: <Users />, value: `Up to ${plan.guestSessionCap}`, label: "guests" },
+    { icon: <CalendarClock />, value: plan.hostedAccessLabel, label: "hosted" },
+  ];
+  return (
+    <dl className="grid grid-cols-2 gap-2">
+      {stats.map((stat) => (
+        <div
+          key={stat.label}
+          className={cn(
+            "flex flex-col gap-0.5 rounded-lg bg-surface-subtle [&_svg]:size-4 [&_svg]:text-brand",
+            compact ? "px-3 py-2" : "p-3",
+          )}
+        >
+          <dt className="flex items-center gap-1.5 text-caption font-medium text-ink-muted">
+            {stat.icon}
+            {stat.label[0].toUpperCase() + stat.label.slice(1)}
+          </dt>
+          <dd className="tabular text-label font-bold text-ink">{stat.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function CheckLine({ children, accent }: { children: ReactNode; accent?: boolean }) {
+  return (
+    <li className="flex items-start gap-3 text-label font-medium text-ink">
+      <span
+        className={cn(
+          "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full",
+          accent ? "bg-brand text-ink-inverse" : "bg-brand-tint text-brand",
+        )}
+      >
+        {accent ? (
+          <Sparkles className="size-3" strokeWidth={2.5} aria-hidden />
+        ) : (
+          <Check className="size-3" strokeWidth={3} aria-hidden />
+        )}
+      </span>
+      <span className={accent ? "font-semibold" : undefined}>{children}</span>
+    </li>
+  );
+}
 
 /**
- * The one offer (product.md §15): one event, one price, paid once. No tiers, no anchors, no
- * per-photo upsells. Price and inclusions come from the product constants.
+ * One plan (product.md §15.3, D24): name, price (or Free, once per account), who it suits, its
+ * guests and hosting, what it adds, and everything every plan does. No anchors, no
+ * favourite-plan badge, no per-photo upsells. Everything comes from the registry and
+ * lib/marketing/content.ts.
  */
-export function PriceCard({ className, headingLevel = "h3" }: { className?: string; headingLevel?: "h2" | "h3" }) {
+export function PlanCard({
+  plan,
+  className,
+  headingLevel = "h3",
+}: {
+  plan: Plan;
+  className?: string;
+  headingLevel?: "h2" | "h3";
+}) {
   const Heading = headingLevel;
+  const extras = planExtras(plan);
   return (
     <div
       className={cn(
@@ -64,39 +115,197 @@ export function PriceCard({ className, headingLevel = "h3" }: { className?: stri
       )}
     >
       <div className="flex flex-col gap-2">
-        <Heading className="text-label font-bold text-brand">One event</Heading>
-        <p className="flex items-baseline gap-2">
-          <span className="tabular text-[56px] leading-none font-extrabold tracking-[-0.02em] text-ink">
-            {PRICE_LABEL}
+        <Heading className="text-label font-bold text-brand">{plan.label}</Heading>
+        <p className="flex flex-wrap items-baseline gap-x-2">
+          <span className="tabular text-[48px] leading-none font-extrabold tracking-[-0.02em] text-ink sm:text-[56px]">
+            {planPriceLabel(plan)}
           </span>
-          <span className="text-body font-semibold text-ink-muted">per event, paid once</span>
+          <span className="text-body font-semibold text-ink-muted">
+            {plan.pricePhp === 0 ? "your first event" : "per event, paid once"}
+          </span>
         </p>
-        <p className="text-label font-medium text-ink-muted">
-          Guests never pay. No subscription, no per-photo charges, and processing fees are
-          included.
-        </p>
+        <p className="text-label font-medium text-ink-muted">{plan.forWhom}.</p>
       </div>
-      <ul className="flex flex-col gap-3">
-        {INCLUSIONS.map((line) => (
-          <li key={line} className="flex items-start gap-3 text-label font-medium text-ink">
-            <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-brand-tint text-brand">
-              <Check className="size-3" strokeWidth={3} aria-hidden />
-            </span>
-            {line}
+
+      <PlanStats plan={plan} />
+
+      {extras.length > 0 && (
+        <ul className="flex flex-col gap-3">
+          {extras.map((line) => (
+            <CheckLine key={line} accent>
+              {line}
+            </CheckLine>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-col gap-3 border-t border-line pt-5">
+        <p className="text-caption font-semibold tracking-wide text-ink-muted uppercase">
+          Every plan includes
+        </p>
+        <ul className="flex flex-col gap-3">
+          {EVERY_PLAN_HIGHLIGHTS.map((line) => (
+            <CheckLine key={line}>{line}</CheckLine>
+          ))}
+        </ul>
+      </div>
+
+      <ButtonLink
+        href="/signup"
+        variant={plan.id === "celebration" ? "primary" : "secondary"}
+        className="mt-auto w-full"
+      >
+        {plan.pricePhp === 0 ? "Start your free event" : "Create your event"}
+        <ArrowRight aria-hidden />
+      </ButtonLink>
+    </div>
+  );
+}
+
+/**
+ * Every plan in one compact card, for the homepage pricing section: a row per plan with its
+ * price, guests and hosting, then what every plan includes and one call to action. Guests
+ * never pay on any of them.
+ */
+export function PlansCard({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-6 rounded-3xl border border-line bg-surface p-6 shadow-[0_24px_48px_-32px_rgb(21_20_26/0.3)] sm:p-8",
+        className,
+      )}
+    >
+      <ul className="flex flex-col divide-y divide-line">
+        {MARKETING_PLANS.map((plan) => (
+          <li key={plan.id} className="flex flex-col gap-3 py-4 first:pt-0">
+            <div className="flex items-baseline justify-between gap-4">
+              <div className="flex min-w-0 flex-col">
+                <span className="text-[19px] font-bold text-ink">{plan.label}</span>
+                <span className="text-caption font-medium text-ink-muted">{plan.forWhom}</span>
+              </div>
+              <span className="tabular shrink-0 text-[32px] leading-none font-extrabold tracking-[-0.02em] text-ink">
+                {planPriceLabel(plan)}
+              </span>
+            </div>
+            <PlanStats plan={plan} compact />
+            {planExtras(plan).length > 0 && (
+              <p className="flex items-center gap-1.5 text-caption font-semibold text-ink">
+                <Sparkles className="size-3.5 shrink-0 text-brand" aria-hidden />
+                {planExtras(plan).join(" · ")}
+              </p>
+            )}
           </li>
         ))}
       </ul>
+      <div className="flex flex-col gap-3 rounded-xl bg-surface-subtle p-4">
+        <p className="text-caption font-semibold tracking-wide text-ink-muted uppercase">
+          Every plan includes
+        </p>
+        <ul className="flex flex-col gap-2.5">
+          {EVERY_PLAN_HIGHLIGHTS.slice(0, 5).map((line) => (
+            <CheckLine key={line}>{line}</CheckLine>
+          ))}
+        </ul>
+        <Link
+          href="/pricing#compare-title"
+          className="ff-focus w-fit rounded-md text-label font-semibold text-brand underline-offset-4 hover:underline"
+        >
+          Compare everything in each plan
+        </Link>
+      </div>
       <div className="flex flex-col gap-3">
         <ButtonLink href="/signup" className="w-full">
           Create your event
           <ArrowRight aria-hidden />
         </ButtonLink>
         <p className="text-center text-caption font-medium text-ink-muted">
+          Your first event is free. After that, each event is paid once.{" "}
           {PAYMENT_COPY.priceCardNote}
         </p>
       </div>
     </div>
   );
+}
+
+/**
+ * The full plan comparison on /pricing: every feature, grouped, against Free, Intimate and
+ * Celebration. Most rows are included everywhere, which is the point: plans differ only in
+ * guests, hosting and Celebration's help from us (product.md §15.3). A real table, so screen
+ * readers announce each cell with its plan and feature. At phone width the plan columns stay
+ * narrow (checks and short values), so the table fits without scrolling the page.
+ */
+export function PlanComparison() {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface lg:rounded-3xl">
+      <table className="w-full min-w-[340px] border-collapse text-left">
+        <caption className="sr-only">What each FiveFrames plan includes</caption>
+        <thead>
+          <tr className="border-b border-line">
+            <th scope="col" className="p-3 text-caption font-semibold text-ink-muted sm:p-4 lg:px-6">
+              <span className="sr-only">Feature</span>
+            </th>
+            {MARKETING_PLANS.map((plan) => (
+              <th
+                key={plan.id}
+                scope="col"
+                className="w-[24%] p-3 text-center text-label font-bold text-ink sm:w-[18%] sm:p-4"
+              >
+                {plan.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {PLAN_COMPARISON.map((group) => (
+          <tbody key={group.title}>
+            <tr className="bg-surface-subtle">
+              <th
+                scope="colgroup"
+                colSpan={MARKETING_PLANS.length + 1}
+                className="px-3 py-2.5 text-caption font-bold tracking-wide text-ink-muted uppercase sm:px-4 lg:px-6"
+              >
+                {group.title}
+              </th>
+            </tr>
+            {group.rows.map((row) => (
+              <tr key={row.label} className="border-t border-line first:border-t-0">
+                <th
+                  scope="row"
+                  className="p-3 text-caption font-medium text-ink sm:p-4 sm:text-label lg:px-6"
+                >
+                  {row.label}
+                </th>
+                {MARKETING_PLANS.map((plan) => (
+                  <td key={plan.id} className="p-3 text-center sm:p-4">
+                    <ComparisonCell value={row.value(plan)} />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  );
+}
+
+function ComparisonCell({ value }: { value: ComparisonValue }) {
+  if (value === true) {
+    return (
+      <span className="inline-flex size-6 items-center justify-center rounded-full bg-brand-tint text-brand">
+        <Check className="size-3.5" strokeWidth={3} aria-hidden />
+        <span className="sr-only">Included</span>
+      </span>
+    );
+  }
+  if (value === false) {
+    return (
+      <span className="text-ink-muted">
+        <Minus className="mx-auto size-4" aria-hidden />
+        <span className="sr-only">Not included</span>
+      </span>
+    );
+  }
+  return <span className="tabular text-caption font-bold text-ink sm:text-label">{value}</span>;
 }
 
 /** Closing call to action: the dark photo-header treatment as a rounded band. */

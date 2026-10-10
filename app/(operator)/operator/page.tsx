@@ -6,6 +6,7 @@ import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { TextInput } from "@/components/ff/field";
 import { FilterChip } from "@/components/ff/filter-chip";
 import { StatusPill } from "@/components/ff/pill";
+import { PLANS } from "@/lib/plans/registry";
 
 /**
  * Operator event list (event-list template, DS06): title left, search right, then one white
@@ -104,7 +105,9 @@ export default async function OperatorEventListPage({
                     </span>
                   </div>
                   <span className="tabular hidden shrink-0 text-caption font-medium text-ink-muted md:block">
-                    {event.guest_session_count} / {event.guest_session_cap} guests
+                    {event.plan ? PLANS[event.plan].label : "No plan"}
+                    {event.activated_at &&
+                      ` · ${event.guest_session_count} / ${event.guest_session_cap} guests`}
                   </span>
                   <span className="hidden shrink-0 sm:block">
                     {event.activated_at ? (
