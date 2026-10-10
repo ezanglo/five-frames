@@ -1,8 +1,9 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { useFormStatus } from "react-dom";
-import { formatPrice, PAID_PLANS, type PaidPlanId } from "@/lib/plans/registry";
+import { Button } from "@/components/ff/button";
+import { formatPrice, PAID_PLANS, PLANS, type PlanId } from "@/lib/plans/registry";
 
 /**
  * Share step → plan choice (product.md §7.2, §15.3, D24). Native radio cards posted as `plan`
@@ -12,24 +13,28 @@ import { formatPrice, PAID_PLANS, type PaidPlanId } from "@/lib/plans/registry";
  * how long it's hosted, in plain words, with the price. The selected card has a check and a
  * border, never color alone.
  *
- * Paid plans only for now. Free is offered once per account through its own activation (D24
- * slice b).
+ * Free is listed first, and only while the account hasn't used its Free event (the server
+ * refuses the choice otherwise). Choosing it activates nothing; the Share step's own button does.
  */
 export function PlanPicker({
   action,
   value,
+  offerFree,
 }: {
   action: (formData: FormData) => void | Promise<void>;
-  value: PaidPlanId | null;
+  value: PlanId | null;
+  offerFree: boolean;
 }) {
+  const plans = offerFree ? [PLANS.free, ...PAID_PLANS] : PAID_PLANS;
   return (
     <form action={action}>
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-3 text-label font-semibold text-ink">
           {value ? "Your plan" : "Choose a plan"}
         </legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {PAID_PLANS.map((plan) => (
+        {/* Three cards stack: side by side they would wrap each line in the wizard's column. */}
+        <div className={offerFree ? "grid gap-3" : "grid gap-3 sm:grid-cols-2"}>
+          {plans.map((plan) => (
             <label key={plan.id} className="group relative flex cursor-pointer">
               <input
                 type="radio"
@@ -88,5 +93,20 @@ function SaveStatus() {
         </button>
       </noscript>
     </div>
+  );
+}
+
+/**
+ * The Share step's Free activation submit. Disabled while the request is in flight, so a double
+ * tap sends one request; a second one would land on the same Free event anyway (the server
+ * guard), never a second.
+ */
+export function ActivateFreeButton() {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" disabled={pending} className="w-full lg:w-auto lg:px-8">
+      {pending ? "Activating…" : "Activate free event"}
+      {!pending && <ArrowRight aria-hidden />}
+    </Button>
   );
 }

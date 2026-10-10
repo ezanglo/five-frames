@@ -8,6 +8,7 @@ import { buildFullSetKeepsakeInput, type KeepsakeContext } from "@/lib/keepsakes
 import { PRESELECTED_FULL_SET_STYLE } from "@/lib/keepsakes/styles";
 import type { KeepsakeFamily } from "@/lib/keepsakes/styles";
 import type { AccentKey } from "@/lib/theme/accents";
+import type { PlanFeatures } from "@/lib/plans/registry";
 
 /**
  * What the guest's own view needs to offer keepsakes. `null` whenever keepsakes are off for this
@@ -27,6 +28,8 @@ export type GuestKeepsakes = {
    * switch, nothing disabled or teased (product.md §10.2.2).
    */
   fullSet: readonly string[] | null;
+  /** The event plan's keepsake entitlement: a Free event offers one style per family. */
+  features: PlanFeatures;
 };
 
 export type KeepsakeSourcePhoto = {
@@ -87,6 +90,7 @@ export function useKeepsakePicker(keepsakes: GuestKeepsakes | null, photos: read
         initialFamily={open.family}
         photo={open.photo}
         fullSetPhotos={five}
+        features={keepsakes.features}
         onClose={close}
       />
     ) : null;

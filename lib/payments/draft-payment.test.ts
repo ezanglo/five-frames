@@ -4,16 +4,16 @@ import { DRAFT_PAYMENT_COPY, deriveDraftPaymentState } from "./draft-payment";
 /** HOST-05: an unpaid event's screens never say a payment was received. */
 describe("draft payment state", () => {
   it("no checkout yet", () => {
-    expect(deriveDraftPaymentState({ mode: "online", checkoutParam: undefined, latestPayment: null })).toBe("none");
+    expect(deriveDraftPaymentState({ plan: null, mode: "online", checkoutParam: undefined, latestPayment: null })).toBe("none");
   });
 
   it("a started, abandoned or cancelled checkout reads as unfinished, not as paid", () => {
     const pending = { provider_status: "pending" };
-    expect(deriveDraftPaymentState({ mode: "online", checkoutParam: undefined, latestPayment: pending })).toBe(
+    expect(deriveDraftPaymentState({ plan: null, mode: "online", checkoutParam: undefined, latestPayment: pending })).toBe(
       "checkout_unfinished",
     );
     // PayMongo's cancel redirect lands on the Share step with `checkout=cancelled`.
-    expect(deriveDraftPaymentState({ mode: "online", checkoutParam: "cancelled", latestPayment: pending })).toBe(
+    expect(deriveDraftPaymentState({ plan: null, mode: "online", checkoutParam: "cancelled", latestPayment: pending })).toBe(
       "checkout_unfinished",
     );
   });
@@ -21,6 +21,7 @@ describe("draft payment state", () => {
   it("a superseded attempt is not an unfinished checkout", () => {
     expect(
       deriveDraftPaymentState({
+        plan: null,
         mode: "online",
         checkoutParam: undefined,
         latestPayment: { provider_status: "superseded" },
@@ -31,6 +32,7 @@ describe("draft payment state", () => {
   it("only PayMongo's success redirect shows the confirming state", () => {
     expect(
       deriveDraftPaymentState({
+        plan: null,
         mode: "online",
         checkoutParam: "pending",
         latestPayment: { provider_status: "pending" },
@@ -51,6 +53,7 @@ describe("draft payment state", () => {
     for (const checkoutParam of [undefined, "pending", "cancelled"]) {
       expect(
         deriveDraftPaymentState({
+          plan: null,
           mode: "manual",
           checkoutParam,
           latestPayment: { provider_status: "pending" },
@@ -58,6 +61,22 @@ describe("draft payment state", () => {
       ).toBe("manual");
     }
     expect(Object.values(DRAFT_PAYMENT_COPY.manual).join(" ")).not.toMatch(/paymongo|online/i);
+  });
+
+  it("a draft that chose Free activates itself, in either payment mode, and never mentions payment", () => {
+    for (const mode of ["manual", "online"] as const) {
+      for (const checkoutParam of [undefined, "pending"]) {
+        expect(
+          deriveDraftPaymentState({
+            plan: "free",
+            mode,
+            checkoutParam,
+            latestPayment: { provider_status: "pending" },
+          }),
+        ).toBe("free");
+      }
+    }
+    expect(Object.values(DRAFT_PAYMENT_COPY.free).join(" ")).not.toMatch(/pay|confirm/i);
   });
 
   it("an unfinished checkout offers to continue it", () => {

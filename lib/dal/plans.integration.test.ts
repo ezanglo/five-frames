@@ -185,8 +185,8 @@ describe("plans", () => {
       const celebration = await insertProviderPayment(event.id, "celebration");
 
       const results = await Promise.all([
-        activateEvent(event.id, intimate.id),
-        activateEvent(event.id, celebration.id),
+        activateEvent(event.id, { kind: "payment", paymentId: intimate.id }),
+        activateEvent(event.id, { kind: "payment", paymentId: celebration.id }),
       ]);
       expect(results.filter((r) => r.activatedByThisCall)).toHaveLength(1);
 
@@ -199,7 +199,7 @@ describe("plans", () => {
       const event = await draftWithPlan("intimate");
       const elsewhere = await draftWithPlan("celebration");
       const foreign = await insertProviderPayment(elsewhere.id, "celebration");
-      await expect(activateEvent(event.id, foreign.id)).rejects.toBeTruthy();
+      await expect(activateEvent(event.id, { kind: "payment", paymentId: foreign.id })).rejects.toBeTruthy();
       expect((await getEventForHost(hostId, event.id))?.activated_at).toBeNull();
     });
   });

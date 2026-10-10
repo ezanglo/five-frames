@@ -1,4 +1,5 @@
 import { Clock, Image as ImageIcon, Lock, Users } from "lucide-react";
+import { eventPlanFeatures } from "@/lib/plans/registry";
 import { getEventByToken } from "@/lib/dal/events";
 import { getEventThemeForGuest } from "@/lib/dal/event-theme";
 import { getGuestSession, touchGuestSession } from "@/lib/dal/guest-sessions";
@@ -65,6 +66,7 @@ export default async function GuestEventPage({
           accent: theme?.accent ?? "violet",
           context: buildKeepsakeContext(event, theme?.imageUrl ? { src: theme.imageUrl } : null),
           fullSet: await getFullSetAvailability(event, guestSessionId),
+          features: eventPlanFeatures(event),
         }
       : null;
 

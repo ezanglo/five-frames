@@ -13,16 +13,16 @@ import { FULL_SET_SAMPLES, SAMPLE_MESSAGE, SINGLE_SAMPLES } from "@/lib/keepsake
 import { accentCssVars } from "@/lib/theme/accents";
 import type { LookPreviewState } from "@/lib/theme/preview";
 import {
-  FULL_SET_STYLES,
   PRESELECTED_FULL_SET_STYLE,
   PRESELECTED_SINGLE_STYLE,
-  SINGLE_STYLES,
+  stylesForPlan,
   type KeepsakeFamily,
   type FullSetStyleId,
   type KeepsakeStyleId,
   type KeepsakeStyleMeta,
   type SingleStyleId,
 } from "@/lib/keepsakes/styles";
+import type { PlanFeatures } from "@/lib/plans/registry";
 import { cn } from "@/lib/utils";
 import { GuestPhonePreview } from "./guest-phone-preview";
 import { SegmentedTabs, tabPanelProps } from "./segmented-tabs";
@@ -37,6 +37,8 @@ export type LookPreviewProps = {
   activated: boolean;
   /** Activated with a current capture link: signage shows and downloads the real QR. */
   liveCode: boolean;
+  /** The event plan's signage formats and keepsake styles. */
+  features: PlanFeatures;
   /** Unsaved color/hashtag changes: signage downloads wait for Save (they use the saved look). */
   dirty: boolean;
   /** Open on this tab (e.g. the Share step's "Look → Signage" link). */
@@ -139,6 +141,7 @@ function LookStage({
   sharingEnabled,
   activated,
   liveCode,
+  features,
   dirty,
   initialTab,
   className,
@@ -193,7 +196,7 @@ function LookStage({
               </div>
               <div className="hidden w-[34%] max-w-[320px] min-w-0 flex-col gap-4 xl:flex">
                 <div className="shadow-[0_18px_36px_rgb(21_20_26/0.16)]">
-                  <SignageImage look={signage} format="table-card" />
+                  <SignageImage look={signage} format={features.printSignage ? "table-card" : "digital"} />
                 </div>
                 <ObjectLabel>Signage</ObjectLabel>
               </div>
@@ -206,10 +209,10 @@ function LookStage({
             </div>
           )}
           {tab === "keepsakes" && (
-            <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} large />
+            <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} features={features} large />
           )}
           {tab === "signage" && (
-            <SignagePanel look={signage} activated={activated} liveCode={liveCode} dirty={dirty} large />
+            <SignagePanel look={signage} activated={activated} liveCode={liveCode} features={features} dirty={dirty} large />
           )}
         </div>
       </div>
@@ -224,6 +227,7 @@ function LookMobilePreview({
   sharingEnabled,
   activated,
   liveCode,
+  features,
   dirty,
   initialTab,
 }: LookPreviewProps) {
@@ -264,10 +268,10 @@ function LookMobilePreview({
             </div>
           )}
           {tab === "keepsakes" && (
-            <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} />
+            <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} features={features} />
           )}
           {tab === "signage" && (
-            <SignagePanel look={signage} activated={activated} liveCode={liveCode} dirty={dirty} />
+            <SignagePanel look={signage} activated={activated} liveCode={liveCode} features={features} dirty={dirty} />
           )}
         </div>
       </div>
@@ -337,10 +341,12 @@ function StyleRow({
 function KeepsakesPanel({
   context,
   sharingEnabled,
+  features,
   large,
 }: {
   context: KeepsakeContext;
   sharingEnabled: boolean;
+  features: PlanFeatures;
   large?: boolean;
 }) {
   const idBase = useId();
@@ -348,7 +354,7 @@ function KeepsakesPanel({
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
   const [singleStyle, setSingleStyle] = useState<SingleStyleId>(PRESELECTED_SINGLE_STYLE);
   const [fullSetStyle, setFullSetStyle] = useState<FullSetStyleId>(PRESELECTED_FULL_SET_STYLE);
-  const styles = family === "single" ? SINGLE_STYLES : FULL_SET_STYLES;
+  const styles = stylesForPlan(family, features);
   const selected: KeepsakeStyleId = family === "single" ? singleStyle : fullSetStyle;
   const select = (id: KeepsakeStyleId) =>
     family === "single" ? setSingleStyle(id as SingleStyleId) : setFullSetStyle(id as FullSetStyleId);
@@ -411,14 +417,18 @@ function KeepsakesPanel({
                 style={style}
                 family={family}
                 selected={style.id === selected}
-                onSelect={large ? () => select(style.id as KeepsakeStyleId) : undefined}
+                onSelect={large && styles.length > 1 ? () => select(style.id as KeepsakeStyleId) : undefined}
               />
             ))}
           </ul>
           <p className="text-caption font-medium text-ink-muted">
-            {family === "single"
-              ? "Guests pick one of these five when they share or save a photo. Sample photos — guests see their own."
-              : "Guests who keep all five photos can also make one keepsake of all five. You preview the styles here; only guests make their own."}
+            {!features.allKeepsakeStyles
+              ? family === "single"
+                ? "On a Free event, guests make keepsakes in this one style. Sample photos — guests see their own."
+                : "Guests who keep all five photos can also make one keepsake of all five, in this style. You preview it here; only guests make their own."
+              : family === "single"
+                ? "Guests pick one of these five when they share or save a photo. Sample photos — guests see their own."
+                : "Guests who keep all five photos can also make one keepsake of all five. You preview the styles here; only guests make their own."}
           </p>
         </div>
       </div>

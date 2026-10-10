@@ -123,7 +123,7 @@ export default async function OperatorEventDetailPage({
             action={
               event.activated_at ? (
                 <StatusPill size="sm" tone="success" icon="check">
-                  Paid · Activated
+                  {event.plan === "free" ? "Free · Activated" : "Paid · Activated"}
                 </StatusPill>
               ) : (
                 <StatusPill size="sm">Unpaid</StatusPill>
@@ -131,7 +131,11 @@ export default async function OperatorEventDetailPage({
             }
           >
             {payments.length === 0 ? (
-              <p className="text-caption font-medium text-ink-muted">No payment attempt yet.</p>
+              <p className="text-caption font-medium text-ink-muted">
+                {event.activated_at && event.plan === "free"
+                  ? "The host activated their account’s Free event. No payment was made."
+                  : "No payment attempt yet."}
+              </p>
             ) : (
               <ul className="flex flex-col gap-3">
                 {payments.map((payment) => (
@@ -168,14 +172,23 @@ export default async function OperatorEventDetailPage({
               </span>
               <div className="flex min-w-0 flex-col gap-0.5">
                 <h2 className="text-[16px] leading-snug font-bold text-ink">
-                  {event.activated_at ? "Record a manual refund" : "Confirm a manual payment"}
+                  {event.activated_at
+                    ? event.plan === "free"
+                      ? "Nothing to refund"
+                      : "Record a manual refund"
+                    : "Confirm a manual payment"}
                 </h2>
                 <p className="text-caption font-medium text-ink-muted">
                   Privileged action · recorded under your operator account.
                 </p>
               </div>
             </div>
-            {event.activated_at ? (
+            {event.activated_at && event.plan === "free" ? (
+              // Nothing was paid, so there is nothing to refund (recordManualRefund refuses too).
+              <p className="text-caption font-medium text-ink-muted">
+                This is a Free event. There is no payment to refund.
+              </p>
+            ) : event.activated_at ? (
               <ManualRefundForm eventId={event.id} />
             ) : isPaidPlanId(event.plan) ? (
               <ManualPaymentForm
@@ -186,7 +199,10 @@ export default async function OperatorEventDetailPage({
               />
             ) : (
               <p className="text-caption font-medium text-ink-muted">
-                The host hasn’t chosen a paid plan yet. Payment can be confirmed once they choose
+                {event.plan === "free"
+                  ? "The host chose Free, which they activate themselves. "
+                  : "The host hasn’t chosen a paid plan yet. "}
+                Payment can be confirmed once they choose{" "}
                 {PAID_PLANS.map((p) => p.label).join(" or ")} on their Share step.
               </p>
             )}

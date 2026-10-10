@@ -96,8 +96,8 @@ describe("payment and shared activation", () => {
     const event = await createDraftEvent(hostAId, "Direct activation race");
     const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
 
-    const first = await activateEvent(event.id, paymentId);
-    const second = await activateEvent(event.id, paymentId);
+    const first = await activateEvent(event.id, { kind: "payment", paymentId });
+    const second = await activateEvent(event.id, { kind: "payment", paymentId });
 
     expect(first.activatedByThisCall).toBe(true);
     expect(second.activatedByThisCall).toBe(false);
@@ -113,7 +113,7 @@ describe("payment and shared activation", () => {
     const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
 
     const before = Date.now();
-    const { event: activated } = await activateEvent(event.id, paymentId);
+    const { event: activated } = await activateEvent(event.id, { kind: "payment", paymentId });
     const after = Date.now();
 
     expect(activated.hosted_until).not.toBeNull();
@@ -280,7 +280,7 @@ describe("payment and shared activation", () => {
   it("begin_provider_checkout refuses to create a new session once the event is activated", async () => {
     const event = await createDraftEvent(hostAId, "No checkout after activation");
     const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
-    await activateEvent(event.id, paymentId);
+    await activateEvent(event.id, { kind: "payment", paymentId });
 
     const { data, error } = await supabase
       .rpc("begin_provider_checkout", { p_event_id: event.id })
@@ -315,7 +315,7 @@ describe("payment and shared activation", () => {
       .single();
     if (activatorError) throw activatorError;
 
-    const { activatedByThisCall } = await activateEvent(event.id, activatorPayment.id as string);
+    const { activatedByThisCall } = await activateEvent(event.id, { kind: "payment", paymentId: activatorPayment.id as string });
     expect(activatedByThisCall).toBe(true);
 
     const { data: sidelined, error: sidelinedError } = await supabase
@@ -364,7 +364,7 @@ describe("payment and shared activation", () => {
   it("startProviderCheckout refuses for an already-activated event", async () => {
     const event = await createDraftEvent(hostAId, "Already paid");
     const paymentId = await insertProviderPayment(event.id, `cs_test_${crypto.randomUUID()}`);
-    await activateEvent(event.id, paymentId);
+    await activateEvent(event.id, { kind: "payment", paymentId });
 
     const result = await startProviderCheckout(hostAId, event.id, "https://example.test");
     expect(result).toBeNull();
@@ -381,7 +381,7 @@ describe("payment and shared activation", () => {
     expect(unpaid?.activated_at).toBeNull();
     expect(unpaid?.event_token).toBeNull();
     const latest = await getLatestPaymentForEvent(hostAId, event.id);
-    expect(deriveDraftPaymentState({ mode: "online", checkoutParam: undefined, latestPayment: latest })).toBe(
+    expect(deriveDraftPaymentState({ plan: null, mode: "online", checkoutParam: undefined, latestPayment: latest })).toBe(
       "checkout_unfinished",
     );
 

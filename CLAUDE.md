@@ -213,6 +213,11 @@ change, not a refactor.
   activation, read `guest_session_cap` and `hosted_until` from the event (an operator override
   may have raised the cap), never from the registry. Marketing copy interpolates the registry;
   `content.test.ts` rejects literal guest counts.
+- **Free's lighter event is gated where bytes are served** (product.md §15.3.1). Signage and
+  keepsake routes check `isSignageFormatAllowed` / `isStyleAllowed` against
+  `eventPlanFeatures(event)`, and screens list only `signageFormatsFor` / `stylesForPlan`. A new
+  signage format, keepsake route or Premium-only feature must go through the same check, never
+  a UI-only hide.
 - **shadcn/base-ui `Select` needs an `items` map** (`{ value, label }` array or record) passed to
   `Select.Root` for `SelectValue` to render the human-readable label. Without it, the trigger
   displays the raw stored value (e.g. `after_event`) instead of the label — the `<SelectItem>`

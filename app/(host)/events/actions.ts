@@ -21,7 +21,7 @@ import {
   moderateCapture,
   type ModerationAction,
 } from "@/lib/dal/captures";
-import { startProviderCheckout } from "@/lib/dal/payments";
+import { activateFreeEvent, startProviderCheckout } from "@/lib/dal/payments";
 import { isOnlinePaymentEnabled } from "@/lib/payments/mode";
 import {
   beginThemeImageUpload,
@@ -36,7 +36,7 @@ import type { GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { isGalleryLayout } from "@/lib/gallery/layouts";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
-import { isPaidPlanId } from "@/lib/plans/registry";
+import { isPaidPlanId, isPlanId } from "@/lib/plans/registry";
 
 const REVEAL_MODES: RevealMode[] = ["after_event", "immediate", "custom"];
 const VISIBILITIES: GalleryVisibility[] = ["anyone_with_link", "only_me"];
@@ -275,13 +275,28 @@ export async function revealGalleryNowAction(eventId: string) {
 /**
  * Share step plan choice (product.md §7.2, §15.3, D24). Draft only: `setEventPlan` refuses an
  * activated event in the same statement, so a stale tab can't change a running event's plan.
- * Anything but a paid plan id is ignored; Free activates through its own action (D24 slice b).
+ * Anything but a plan id is ignored. Choosing Free only selects it (refused once the account's
+ * Free event is used); activating it is `activateFreeEventAction`.
  */
 export async function chooseEventPlanAction(eventId: string, formData: FormData) {
   const host = await requireHost();
   const plan = formData.get("plan");
-  if (isPaidPlanId(plan)) await setEventPlan(host.id, eventId, plan);
+  if (isPlanId(plan)) await setEventPlan(host.id, eventId, plan);
   redirect(`/events/${eventId}/setup?step=share`);
+}
+
+/**
+ * The Share step's "Activate free event" (product.md §7.2, criterion 71). The host activates
+ * it themselves; the server decides whether the account still has its Free event. A repeated
+ * tap or a second tab lands on the same result, never a second Free event.
+ */
+export async function activateFreeEventAction(eventId: string) {
+  const host = await requireHost();
+  const result = await activateFreeEvent(host.id, eventId);
+  if (result.outcome === "not_found") notFound();
+  redirect(
+    `/events/${eventId}/setup?step=share${result.outcome === "unavailable" ? "&free=unavailable" : ""}`,
+  );
 }
 
 export async function startCheckoutAction(eventId: string) {

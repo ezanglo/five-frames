@@ -9,7 +9,7 @@ import {
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import type { EventRow, GalleryLayout, GalleryVisibility, RevealMode } from "@/lib/db/types";
 import { isGalleryLayout } from "@/lib/gallery/layouts";
-import type { PaidPlanId } from "@/lib/plans/registry";
+import type { PlanId } from "@/lib/plans/registry";
 import { isAccentKey } from "@/lib/theme/accents";
 import { InvalidHashtagError, normalizeHashtag } from "@/lib/theme/hashtag";
 
@@ -203,16 +203,25 @@ export async function updateEventConfig(
 /**
  * The host's plan choice while Draft (product.md §7.2, §15.3, D24). Ownership-scoped, and
  * refused once the event is activated (`activated_at IS NULL` in the same statement), so a
- * plan is fixed from activation on, exactly as product.md says. Only paid plans for now: Free
- * has its own once-per-account activation (D24 slice b) and is never a plain choice here.
- * Returns null for "not found / not owned / already activated" alike.
+ * plan is fixed from activation on, exactly as product.md says. Free is a choice only while the
+ * account hasn't claimed its Free event, checked in the same statement (`choose_free_plan()`).
+ * Choosing Free activates nothing: that is `activateFreeEvent`. Returns null for "not found /
+ * not owned / already activated / Free already used" alike.
  */
 export async function setEventPlan(
   hostId: string,
   eventId: string,
-  plan: PaidPlanId,
+  plan: PlanId,
 ): Promise<EventRow | null> {
   const supabase = createServiceClient();
+  if (plan === "free") {
+    const { data, error } = await supabase
+      .rpc("choose_free_plan", { p_host_id: hostId, p_event_id: eventId })
+      .maybeSingle<EventRow>();
+    if (error) throw error;
+    return data;
+  }
+
   const { data, error } = await supabase
     .from("events")
     .update({ plan })
@@ -224,6 +233,21 @@ export async function setEventPlan(
 
   if (error) throw error;
   return data as EventRow | null;
+}
+
+/**
+ * Whether this host account can still activate its one Free event (product.md §7.2). The claim
+ * on `hosts` is permanent, so this never turns true again once false: deleting, expiring or
+ * abandoning the Free event doesn't return it.
+ */
+export async function isFreeEventAvailable(hostId: string): Promise<boolean> {
+  const { data, error } = await createServiceClient()
+    .from("hosts")
+    .select("free_event_claimed_at")
+    .eq("id", hostId)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data) && data!.free_event_claimed_at === null;
 }
 
 /**

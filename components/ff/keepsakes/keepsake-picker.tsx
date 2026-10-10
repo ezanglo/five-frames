@@ -23,13 +23,14 @@ import {
 import { keepsakeFilename } from "@/lib/keepsakes/filename";
 import {
   preselectedStyle,
-  stylesForFamily,
+  stylesForPlan,
   type KeepsakeFamily,
   type KeepsakeStyleId,
   type KeepsakeStyleMeta,
   type FullSetStyleId,
   type SingleStyleId,
 } from "@/lib/keepsakes/styles";
+import type { PlanFeatures } from "@/lib/plans/registry";
 import { browserShareCapability, canShareImageFiles, shareFile } from "@/lib/share/web-share";
 import { cn } from "@/lib/utils";
 import { KeepsakePreview, useImageSize } from "./keepsake-preview";
@@ -37,7 +38,8 @@ import { KeepsakePreview, useImageSize } from "./keepsake-preview";
 /**
  * "Make a keepsake" (design-direction → "Guest keepsake flow"; board §07/§08, §15/§16). One
  * screen, one choice: the family's five styles previewed on the guest's own photo(s) by the real
- * templates in the DOM, with the family's default preselected.
+ * templates in the DOM, with the family's default preselected. On a Free event the family has
+ * only its preselected style, so there is no picker (product.md §15.3.1).
  *
  * Bytes before the tap (architecture §7b): the selected style's JPEG is fetched when it is
  * selected (including the preselected one on open); a new selection aborts the previous fetch.
@@ -70,6 +72,7 @@ export function KeepsakePicker({
   initialFamily,
   photo,
   fullSetPhotos,
+  features,
   onClose,
 }: {
   token: string;
@@ -82,6 +85,8 @@ export function KeepsakePicker({
   photo: PickerPhoto;
   /** The session's five, in server (canonical) order, only while the Full Set is available. */
   fullSetPhotos: readonly PickerPhoto[] | null;
+  /** The event plan's entitlement. One style per family (Free) means no style choice at all. */
+  features: PlanFeatures;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -192,7 +197,7 @@ export function KeepsakePicker({
   }
 
   const saveHref = `${routeFor(family, style)}?download=1`;
-  const styles = stylesForFamily(family);
+  const styles = stylesForPlan(family, features);
   const fivePhotos = family === "fullSet" && fullSetPhotos ? fullSetPhotos : null;
 
   const preview = (fit: "width" | "contain", source: "display" | "thumbnail", s: KeepsakeStyleId, className?: string) => {
@@ -365,14 +370,16 @@ export function KeepsakePicker({
             </div>
           </div>
 
-          <StylePicker
-            label={family === "single" ? "Keepsake style" : "Keepsake style for your five"}
-            styles={styles}
-            family={family}
-            value={style}
-            onChange={select}
-            renderThumb={(s) => preview("width", "thumbnail", s)}
-          />
+          {styles.length > 1 && (
+            <StylePicker
+              label={family === "single" ? "Keepsake style" : "Keepsake style for your five"}
+              styles={styles}
+              family={family}
+              value={style}
+              onChange={select}
+              renderThumb={(s) => preview("width", "thumbnail", s)}
+            />
+          )}
         </div>
 
         {actions}

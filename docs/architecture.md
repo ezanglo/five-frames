@@ -1640,6 +1640,40 @@ lowers a live event's cap.
   `content.test.ts` forbids literal guest counts, "one price"/"no tiers", "renew" and
   "Google Drive".
 
+**As built (Slice 21, Free):**
+- **The claim and the activation are one transaction, not two statements.** The design above
+  claims, then activates. That leaves a gap: an operator confirming a payment for the same
+  draft between the two would burn the account's Free event on a paid event. Migration
+  `20261011010000_free_event.sql` therefore moves the one guarded update into
+  `activate_event()`, which every source now calls through `activateEvent(eventId, source)`
+  (`{ kind: 'payment', paymentId } | { kind: 'free' }`). For Free it:
+  1. locks the `hosts` row first, so two Free activations on one account queue instead of
+     deadlocking on each other's events;
+  2. refuses (`free_event_unavailable`, P0005 → `FreeEventUnavailableError`) when the claim
+     names another event;
+  3. runs the guarded `WHERE activated_at IS NULL` update with plan `'free'` and no payment;
+  4. if that update hit a row, claims the host row and clears `plan = 'free'` on the host's
+     other drafts.
+  An event a payment already activated touches no claim, and a repeated tap is zero rows plus
+  an unchanged claim. The function also refuses a paid plan without a payment, and Free with
+  one.
+- `hosts.free_event_claimed_at` and `free_event_id` have a both-or-neither check and no foreign
+  key. `isFreeEventAvailable(hostId)` reads them.
+- Choosing Free is `choose_free_plan()`. It sets `plan = 'free'` on an owned draft only while
+  the account is unclaimed (`for share` on the host row). Choosing activates nothing:
+  `activateFreeEvent(hostId, eventId)` (owner-checked) does that, from the Share step's
+  "Activate free event".
+- Readers of a null `activating_payment_id`:
+  - the webhook now flags any payment that didn't activate the event as `paid_duplicate`,
+    including one that lands after a Free activation, which also supersedes pending checkouts;
+  - `recordManualRefund` refuses `plan = 'free'` (`free_event`);
+  - the Console shows "Free · Activated" and offers no refund.
+- Free's limits are gated where the bytes are served, from `eventPlanFeatures(event)`:
+  - `isSignageFormatAllowed` in both signage reads (download and preview): digital only;
+  - `isStyleAllowed` in both keepsake routes: Print and Signature only.
+  The host and guest screens list only `signageFormatsFor` / `stylesForPlan`. A draft that chose
+  Free previews Free's set, and a draft with no plan previews the paid set.
+
 ---
 
 ## 9. Reliability

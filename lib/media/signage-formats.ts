@@ -5,6 +5,8 @@
  * rendering, no event data.
  */
 
+import type { PlanFeatures } from "@/lib/plans/registry";
+
 export type SignageFormat = "qr" | "table-card" | "poster" | "digital";
 
 export type SignageFormatSpec = {
@@ -63,4 +65,19 @@ export function isSignageFormat(value: unknown): value is SignageFormat {
 
 export function signageFormatSpec(format: SignageFormat): SignageFormatSpec {
   return SIGNAGE_FORMAT_SPECS.find((f) => f.id === format)!;
+}
+
+/**
+ * The formats a plan's event gets (product.md §15.3.1). Without print signage (Free) that is
+ * the phone-screen format only: the link and on-screen QR need no signage file. The download and
+ * preview routes refuse the rest; the host screens list only these.
+ */
+export function signageFormatsFor(features: PlanFeatures): readonly SignageFormatSpec[] {
+  return features.printSignage
+    ? SIGNAGE_FORMAT_SPECS
+    : SIGNAGE_FORMAT_SPECS.filter((f) => f.id === "digital");
+}
+
+export function isSignageFormatAllowed(format: SignageFormat, features: PlanFeatures): boolean {
+  return signageFormatsFor(features).some((f) => f.id === format);
 }

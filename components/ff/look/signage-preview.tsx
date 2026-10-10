@@ -5,10 +5,11 @@ import { Download, Lock } from "lucide-react";
 import { Button, ButtonAnchor } from "@/components/ff/button";
 import type { AccentKey } from "@/lib/theme/accents";
 import {
-  SIGNAGE_FORMAT_SPECS,
+  signageFormatsFor,
   signageFormatSpec,
   type SignageFormat,
 } from "@/lib/media/signage-formats";
+import type { PlanFeatures } from "@/lib/plans/registry";
 import { cn } from "@/lib/utils";
 import { SegmentedTabs, tabPanelProps } from "./segmented-tabs";
 
@@ -127,19 +128,25 @@ export function SignagePanel({
   look,
   activated,
   liveCode,
+  features,
   dirty,
   large,
 }: {
   look: SignageLook;
-  /** Payment confirmed. */
+  /** Activated: paid for, or the account's Free event. */
   activated: boolean;
   /** Activated and the capture link is current: the real QR exists. */
   liveCode: boolean;
+  /** The plan's formats: a Free event has the phone-screen format only (product.md §15.3.1). */
+  features: PlanFeatures;
   dirty: boolean;
   large?: boolean;
 }) {
   const idBase = useId();
-  const [format, setFormat] = useState<SignageFormat>("table-card");
+  const formats = signageFormatsFor(features);
+  const [format, setFormat] = useState<SignageFormat>(
+    formats.some((f) => f.id === "table-card") ? "table-card" : formats[0].id,
+  );
   const spec = signageFormatSpec(format);
   const portrait = spec.height > spec.width;
   const downloadLabel = `Download ${format === "qr" ? "QR" : spec.label.toLowerCase()}`;
@@ -153,16 +160,25 @@ export function SignagePanel({
   return (
     <div className="flex flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SegmentedTabs
-          idBase={idBase}
-          label="Signage format"
-          size="sm"
-          value={format}
-          onChange={setFormat}
-          // All four chips stay visible on a phone rather than scrolling out of view.
-          className="w-full sm:w-auto [&>button]:px-2.5 sm:[&>button]:px-4"
-          tabs={SIGNAGE_FORMAT_SPECS.map((f) => ({ id: f.id, label: f.label }))}
-        />
+        {formats.length > 1 ? (
+          <SegmentedTabs
+            idBase={idBase}
+            label="Signage format"
+            size="sm"
+            value={format}
+            onChange={setFormat}
+            // All four chips stay visible on a phone rather than scrolling out of view.
+            className="w-full sm:w-auto [&>button]:px-2.5 sm:[&>button]:px-4"
+            tabs={formats.map((f) => ({ id: f.id, label: f.label }))}
+          />
+        ) : (
+          <p className="text-label font-semibold text-ink">
+            Phone-screen sign
+            <span className="block text-caption font-medium text-ink-muted">
+              Printable signs come with Standard and Premium.
+            </span>
+          </p>
+        )}
         {!liveCode ? (
           <DraftBadge />
         ) : dirty ? (
@@ -178,7 +194,7 @@ export function SignagePanel({
         )}
       </div>
       <div
-        {...tabPanelProps(idBase, format)}
+        {...(formats.length > 1 ? tabPanelProps(idBase, format) : {})}
         className="flex flex-1 flex-col items-center justify-center gap-4"
       >
         <div

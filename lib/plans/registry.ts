@@ -27,7 +27,8 @@ export type PaidPlanId = (typeof PAID_PLAN_IDS)[number];
 
 /**
  * What a plan's event can do beyond the shared core (product.md §15.3.1). Enforced on the
- * server for Free events in Slice 21 (Invariant 15); marketing reads the same flags.
+ * server at each gate (signage download and preview, keepsake routes; Invariant 15), read by the
+ * host and guest screens to offer only what the plan has, and by marketing.
  */
 export type PlanFeatures = {
   /** Printable QR, table card and poster. Without it: link, on-screen QR and phone-screen only. */
@@ -103,6 +104,15 @@ export const PLANS: Record<PlanId, Plan> = {
 };
 
 export const PAID_PLANS: Plan[] = PAID_PLAN_IDS.map((id) => PLANS[id]);
+
+/**
+ * What an event can do, from its plan (Invariant 15). Activation stamps the plan, so on an active
+ * event this is what was bought. A draft with no plan yet previews the full paid feature set; one
+ * that chose Free previews Free's.
+ */
+export function eventPlanFeatures(event: { plan: PlanId | null }): PlanFeatures {
+  return event.plan ? PLANS[event.plan].features : PAID_FEATURES;
+}
 
 export function isPlanId(value: unknown): value is PlanId {
   return typeof value === "string" && (PLAN_IDS as readonly string[]).includes(value);

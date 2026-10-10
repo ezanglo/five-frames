@@ -25,7 +25,7 @@ import { formatEventDateTime, formatEventTime } from "@/lib/events/format";
 import { DRAFT_PAYMENT_COPY, deriveDraftPaymentState } from "@/lib/payments/draft-payment";
 import { PAYMENT_MODE } from "@/lib/payments/mode";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
-import { PLANS } from "@/lib/plans/registry";
+import { eventPlanFeatures, PLANS } from "@/lib/plans/registry";
 import { qrSvgDataUri } from "@/lib/media/qr";
 import {
   closeCaptureAction,
@@ -76,7 +76,7 @@ export default async function EventDashboardPage({
   const revealed = isGalleryRevealed(event);
   const expiryWarning = getExpiryWarning(event);
   const draftPayment = DRAFT_PAYMENT_COPY[
-    deriveDraftPaymentState({ mode: PAYMENT_MODE, checkoutParam: checkout, latestPayment })
+    deriveDraftPaymentState({ mode: PAYMENT_MODE, checkoutParam: checkout, latestPayment, plan: event.plan })
   ];
   const tz = event.timezone;
 
@@ -233,6 +233,7 @@ export default async function EventDashboardPage({
     return "Capture has closed for good. Moderation, downloads and sharing still work.";
   }
 
+  const { printSignage } = eventPlanFeatures(event);
   const shareCard = capturePath ? (
     <SectionCard title="Share with guests" caption="Guests scan or open this to join.">
       <div className="flex gap-4">
@@ -250,30 +251,34 @@ export default async function EventDashboardPage({
             {capturePath}
           </p>
           <CopyLinkButton path={capturePath} className="w-full" />
+          {/* A Free event gets the link, this on-screen QR and the phone-screen format only
+              (product.md §15.3.1); the signage routes refuse the rest. */}
           <ButtonAnchor
-            href={`/events/${eventId}/signage/qr`}
+            href={`/events/${eventId}/signage/${printSignage ? "qr" : "digital"}`}
             download
             variant="secondary"
             size="sm"
             className="w-full"
           >
             <Download aria-hidden />
-            Download QR
+            {printSignage ? "Download QR" : "Phone-screen sign"}
           </ButtonAnchor>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-caption font-semibold">
-        <span className="text-ink-muted">More signage:</span>
-        <SignageLink eventId={eventId} format="table-card" label="Table card" />
-        <SignageLink eventId={eventId} format="poster" label="Poster" />
-        <SignageLink eventId={eventId} format="digital" label="Digital" />
-      </div>
+      {printSignage && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line pt-3 text-caption font-semibold">
+          <span className="text-ink-muted">More signage:</span>
+          <SignageLink eventId={eventId} format="table-card" label="Table card" />
+          <SignageLink eventId={eventId} format="poster" label="Poster" />
+          <SignageLink eventId={eventId} format="digital" label="Digital" />
+        </div>
+      )}
     </SectionCard>
   ) : (
     <SectionCard title="Share with guests" caption="Your link and QR code appear once the event is activated.">
       <p className="flex items-start gap-2.5 rounded-md bg-surface-subtle px-4 py-3 text-caption font-medium text-ink-muted">
         <Link2 className="mt-0.5 size-4 shrink-0" aria-hidden />
-        Nothing can be shared before payment — so no one can join an event that isn’t active.
+        Nothing can be shared before activation — so no one can join an event that isn’t active.
       </p>
     </SectionCard>
   );

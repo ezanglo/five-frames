@@ -139,6 +139,22 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
     }
   });
 
+  it("a Free event gets the phone-screen format only, even by requesting another's address (criterion 82)", async () => {
+    const event = await update((await activated()).id, { plan: "free" });
+    const captureUrl = `${ORIGIN}/e/${event.event_token}`;
+    for (const format of SIGNAGE_FORMATS) {
+      const download = await getSignageDownload(hostAId, event.id, format, ORIGIN);
+      const preview = await getSignagePreview(hostAId, event.id, format, ORIGIN);
+      if (format === "digital") {
+        expect(await decodeSvgQr(download!.svg)).toBe(captureUrl);
+        expect(await decodeSvgQr(preview!)).toBe(captureUrl);
+      } else {
+        expect(download).toBeNull();
+        expect(preview).toBeNull();
+      }
+    }
+  });
+
   it("another host can neither download nor preview", async () => {
     const draftEvent = await draft();
     const live = await activated();

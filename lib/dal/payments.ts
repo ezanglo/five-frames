@@ -283,21 +283,40 @@ export async function getLatestPaymentForEvent(
  * host has since moved away from still activates exactly what was paid for. The plan, its guest
  * capacity and its hosted access period are all written in the same guarded statement, so an
  * activated event can never carry one plan's capacity and another's access period.
+ *
+ * Free is the third source (product.md §7.2). It has no payment and always activates the Free
+ * plan. `activate_event()` claims the host account's one Free event in the same transaction as
+ * the guarded update, so the claim and the Free event exist together or not at all; a second
+ * Free event on the account throws `FreeEventUnavailableError`. The caller owns the trust
+ * boundary here too: `activateFreeEvent` checks the host owns the event first.
  */
+export type ActivationSource = { kind: "payment"; paymentId: string } | { kind: "free" };
+
+export class FreeEventUnavailableError extends Error {
+  constructor() {
+    super("This account has already used its Free event.");
+    this.name = "FreeEventUnavailableError";
+  }
+}
+
 export async function activateEvent(
   eventId: string,
-  paymentId: string,
+  source: ActivationSource,
 ): Promise<{ event: EventRow; activatedByThisCall: boolean }> {
   const supabase = createServiceClient();
 
-  const { data: payment, error: paymentError } = await supabase
-    .from("payments")
-    .select("plan")
-    .eq("id", paymentId)
-    .eq("event_id", eventId)
-    .single();
-  if (paymentError) throw paymentError;
-  const plan = PLANS[planForPayment(payment as Pick<PaymentRow, "plan">)];
+  let plan = PLANS.free;
+  if (source.kind === "payment") {
+    const { data: payment, error: paymentError } = await supabase
+      .from("payments")
+      .select("plan")
+      .eq("id", source.paymentId)
+      .eq("event_id", eventId)
+      .single();
+    if (paymentError) throw paymentError;
+    plan = PLANS[planForPayment(payment as Pick<PaymentRow, "plan">)];
+  }
+  const paymentId = source.kind === "payment" ? source.paymentId : null;
 
   const activatedAt = new Date().toISOString();
   // Hosted access and its grace period (product.md §15.2, decision D8) are computed once from
@@ -308,28 +327,30 @@ export async function activateEvent(
   const hostedUntil = addDays(activatedAt, plan.hostedAccessDays);
   const graceUntil = addDays(hostedUntil, GRACE_PERIOD_DAYS);
 
+  // `activate_event()` (migration 20261011010000) is the one guarded
+  // `UPDATE events … WHERE activated_at IS NULL`, for every source.
   const { data: activated, error } = await supabase
-    .from("events")
-    .update({
-      activated_at: activatedAt,
-      event_token: generateLinkToken(),
-      gallery_token: generateLinkToken(),
-      activating_payment_id: paymentId,
-      plan: plan.id,
-      guest_session_cap: plan.guestSessionCap,
-      hosted_until: hostedUntil,
-      grace_until: graceUntil,
+    .rpc("activate_event", {
+      p_event_id: eventId,
+      p_payment_id: paymentId,
+      p_plan: plan.id,
+      p_guest_session_cap: plan.guestSessionCap,
+      p_activated_at: activatedAt,
+      p_hosted_until: hostedUntil,
+      p_grace_until: graceUntil,
+      p_event_token: generateLinkToken(),
+      p_gallery_token: generateLinkToken(),
     })
-    .eq("id", eventId)
-    .is("activated_at", null)
-    .select()
-    .maybeSingle();
+    .maybeSingle<EventRow>();
 
-  if (error) throw error;
+  if (error) {
+    if (error.code === "P0005") throw new FreeEventUnavailableError();
+    throw error;
+  }
 
   if (activated) {
     await supersedeSiblingPendingCheckouts(supabase, eventId, paymentId);
-    return { event: activated as EventRow, activatedByThisCall: true };
+    return { event: activated, activatedByThisCall: true };
   }
 
   // Zero rows updated ⇒ already activated by an earlier call (this delivery, a race, or a
@@ -344,18 +365,20 @@ export async function activateEvent(
   return { event: existing as EventRow, activatedByThisCall: false };
 }
 
+/** `winningPaymentId` is null for a Free activation: then every pending checkout is superseded. */
 async function supersedeSiblingPendingCheckouts(
   supabase: ReturnType<typeof createServiceClient>,
   eventId: string,
-  winningPaymentId: string,
+  winningPaymentId: string | null,
 ): Promise<void> {
-  const { data: siblings, error } = await supabase
+  let query = supabase
     .from("payments")
     .select("id, provider_checkout_session_id")
     .eq("event_id", eventId)
     .eq("source", "provider")
-    .eq("provider_status", "pending")
-    .neq("id", winningPaymentId);
+    .eq("provider_status", "pending");
+  if (winningPaymentId) query = query.neq("id", winningPaymentId);
+  const { data: siblings, error } = await query;
 
   if (error) throw error;
   if (!siblings || siblings.length === 0) return;
@@ -389,6 +412,40 @@ async function supersedeSiblingPendingCheckouts(
       .eq("id", sibling.id)
       .eq("provider_status", "pending");
     if (updateError) throw updateError;
+  }
+}
+
+export type ActivateFreeEventResult =
+  | { outcome: "not_found" }
+  | { outcome: "unavailable" }
+  | { outcome: "activated"; event: EventRow };
+
+/**
+ * The host's own Free activation (product.md §7.2, criterion 71): no payment, no operator, no
+ * waiting. Ownership-checked (invariant 9). The server decides whether the account still has its
+ * Free event; `activate_event()` claims it atomically with the activation.
+ *
+ * - A repeated tap after success finds the event already active on Free and succeeds again.
+ * - An event someone already activated by payment stays as it is. It is `unavailable` here, and
+ *   the Free event stays unclaimed.
+ * - A second draft racing the first for Free is `unavailable`: exactly one wins.
+ */
+export async function activateFreeEvent(
+  hostId: string,
+  eventId: string,
+): Promise<ActivateFreeEventResult> {
+  const event = await getEventForHost(hostId, eventId);
+  if (!event) return { outcome: "not_found" };
+  if (event.activated_at) {
+    return event.plan === "free" ? { outcome: "activated", event } : { outcome: "unavailable" };
+  }
+
+  try {
+    const { event: activated } = await activateEvent(eventId, { kind: "free" });
+    return activated.plan === "free" ? { outcome: "activated", event: activated } : { outcome: "unavailable" };
+  } catch (err) {
+    if (err instanceof FreeEventUnavailableError) return { outcome: "unavailable" };
+    throw err;
   }
 }
 
@@ -457,11 +514,15 @@ export async function recordProviderWebhookAndActivate(
   if (claimError) throw claimError;
 
   const paymentId = claimed?.id ?? payment.id;
-  const { event: activatedEvent } = await activateEvent(payment.event_id, paymentId);
+  const { event: activatedEvent, activatedByThisCall } = await activateEvent(payment.event_id, {
+    kind: "payment",
+    paymentId,
+  });
 
-  const isDuplicate =
-    activatedEvent.activating_payment_id !== null &&
-    activatedEvent.activating_payment_id !== paymentId;
+  // A replay of this payment's own webhook finds itself as the activating payment. Anything else
+  // that already activated the event — another payment, or the host's Free activation, which has
+  // no payment at all — makes this a genuine second payment to follow up.
+  const isDuplicate = !activatedByThisCall && activatedEvent.activating_payment_id !== paymentId;
 
   const { error: statusError } = await supabase
     .from("payments")
@@ -539,10 +600,10 @@ export async function confirmManualPayment(
     .single();
   if (error) throw error;
 
-  const { event: activatedEvent, activatedByThisCall } = await activateEvent(
-    eventId,
-    payment.id as string,
-  );
+  const { event: activatedEvent, activatedByThisCall } = await activateEvent(eventId, {
+    kind: "payment",
+    paymentId: payment.id as string,
+  });
 
   return {
     outcome: activatedByThisCall ? "activated" : "duplicate",
@@ -557,6 +618,7 @@ export type RecordManualRefundResult =
   | { outcome: "not_found" }
   | { outcome: "owns_event" }
   | { outcome: "not_activated" }
+  | { outcome: "free_event" }
   | { outcome: "refunded"; event: EventRow; payment: PaymentRow | null };
 
 /**
@@ -581,6 +643,9 @@ export async function recordManualRefund(
   if (!event) return { outcome: "not_found" };
   if (event.host_id === operatorId) return { outcome: "owns_event" };
   if (!event.activated_at) return { outcome: "not_activated" };
+  // Nothing was paid for a Free event, so there is nothing to refund (product.md §15.3), and
+  // returning it to Draft would strand the account's one Free claim on an unpaid event.
+  if (event.plan === "free") return { outcome: "free_event" };
 
   const supabase = createServiceClient();
 

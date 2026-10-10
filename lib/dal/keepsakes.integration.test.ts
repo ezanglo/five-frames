@@ -6,7 +6,7 @@ import { createGuestSession } from "@/lib/dal/guest-sessions";
 import { commitCapture, moderateCapture, reserveCapture } from "@/lib/dal/captures";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import { makeSingleKeepsake } from "@/lib/dal/keepsakes";
-import { SINGLE_STYLES } from "@/lib/keepsakes/styles";
+import { PRESELECTED_SINGLE_STYLE, SINGLE_STYLES } from "@/lib/keepsakes/styles";
 import type { CaptureRow, EventRow } from "@/lib/db/types";
 
 /**
@@ -169,6 +169,16 @@ describe("Single-photo keepsakes (real Postgres + Storage)", () => {
     const capture = await commit(event.id, session);
     for (const style of ["signature", "grid", "nope", "PRINT", ""]) {
       expect((await makeSingleKeepsake(event.event_token!, session, capture.id, style)).kind).toBe("not_found");
+    }
+  }, 60_000);
+
+  it("on a Free event, makes only the preselected style and refuses every other one (criterion 84)", async () => {
+    const event = await openEvent({ plan: "free" });
+    const session = await guest(event.id);
+    const capture = await commit(event.id, session);
+    for (const { id } of SINGLE_STYLES) {
+      const outcome = await makeSingleKeepsake(event.event_token!, session, capture.id, id);
+      expect(outcome.kind).toBe(id === PRESELECTED_SINGLE_STYLE ? "ok" : "not_found");
     }
   }, 60_000);
 

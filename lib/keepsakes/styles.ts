@@ -9,6 +9,8 @@
  * code never lists the ten together.
  */
 
+import type { PlanFeatures } from "@/lib/plans/registry";
+
 export type KeepsakeFamily = "single" | "fullSet";
 
 export type KeepsakeStyleMeta = {
@@ -64,4 +66,18 @@ export function isFullSetStyleId(value: unknown): value is FullSetStyleId {
 
 export function styleMeta(id: KeepsakeStyleId): KeepsakeStyleMeta {
   return [...SINGLE_STYLES, ...FULL_SET_STYLES].find((s) => s.id === id)!;
+}
+
+/**
+ * The styles a plan's event offers in a family (product.md §15.3.1). Without every style (Free),
+ * only the family's preselected one, so there is no choice to make. The keepsake routes refuse
+ * any other style for that event.
+ */
+export function stylesForPlan(family: KeepsakeFamily, features: PlanFeatures): readonly KeepsakeStyleMeta[] {
+  const styles = stylesForFamily(family);
+  return features.allKeepsakeStyles ? styles : styles.filter((s) => s.id === preselectedStyle(family));
+}
+
+export function isStyleAllowed(id: KeepsakeStyleId, features: PlanFeatures): boolean {
+  return features.allKeepsakeStyles || id === preselectedStyle(styleMeta(id).family);
 }

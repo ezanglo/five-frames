@@ -135,6 +135,11 @@ export async function recordManualRefundAction(
         status: "error",
         message: "This event isn't currently paid/active — nothing to refund.",
       };
+    case "free_event":
+      return {
+        status: "error",
+        message: "This is the host's Free event. Nothing was paid, so there is nothing to refund.",
+      };
     case "refunded":
       return { status: "refunded" };
   }

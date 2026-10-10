@@ -1,5 +1,6 @@
 import type { PaymentMode } from "@/lib/payments/mode";
 import { hasPendingProviderPayment } from "@/lib/payments/pricing";
+import type { PlanId } from "@/lib/plans/registry";
 
 /**
  * What an unpaid event's host screens may say about payment (HOST-05). Only the verified PayMongo
@@ -14,15 +15,20 @@ import { hasPendingProviderPayment } from "@/lib/payments/pricing";
  *   (anyone can open that URL), so the copy says it is being checked, not that it arrived.
  * - `manual`: `manual` payment mode (D23). There is no checkout to continue, so a leftover
  *   provider row or redirect param means nothing; the event waits for an operator to confirm.
+ * - `free`: the host chose Free (D24). Nothing is paid or confirmed; the host activates it
+ *   themselves on the Share step, in either payment mode.
  */
-export type DraftPaymentState = "none" | "checkout_unfinished" | "confirming" | "manual";
+export type DraftPaymentState = "none" | "checkout_unfinished" | "confirming" | "manual" | "free";
 
 export function deriveDraftPaymentState(input: {
   mode: PaymentMode;
   /** The `checkout` search param: `pending` after PayMongo's success redirect. */
   checkoutParam: string | undefined;
   latestPayment: { provider_status: string | null } | null | undefined;
+  /** The draft's chosen plan. */
+  plan: PlanId | null;
 }): DraftPaymentState {
+  if (input.plan === "free") return "free";
   if (input.mode === "manual") return "manual";
   if (input.checkoutParam === "pending") return "confirming";
   if (hasPendingProviderPayment(input.latestPayment)) return "checkout_unfinished";
@@ -63,6 +69,14 @@ export const DRAFT_PAYMENT_COPY: Record<DraftPaymentState, DraftPaymentCopy> = {
     cardTitle: "Confirming payment",
     cardBody: "Your link and QR code appear as soon as PayMongo confirms the payment.",
     cardAction: "View payment status",
+    checkoutStatus: null,
+  },
+  free: {
+    notice: null,
+    cardTitle: "Ready to activate",
+    cardBody:
+      "Activate your Free event to get its link and QR code straight away. Capture stays closed until you open it.",
+    cardAction: "Activate free event",
     checkoutStatus: null,
   },
   manual: {

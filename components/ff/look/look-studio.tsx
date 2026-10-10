@@ -14,6 +14,7 @@ import { AccentSwatches } from "./accent-swatches";
 import { HashtagField } from "./hashtag-field";
 import { GuestKeepsakesToggle, WelcomeMessageField } from "./look-fields";
 import { LookPreview } from "./look-preview";
+import type { PlanFeatures } from "@/lib/plans/registry";
 import { ThemeImageControl } from "./theme-image-control";
 
 export type LookInitial = {
@@ -44,6 +45,7 @@ export function LookStudio({
   eventDate,
   activated,
   liveCode = false,
+  features,
   initialTab,
   initial,
   action,
@@ -59,6 +61,9 @@ export function LookStudio({
   activated: boolean;
   /** Activated with a current capture link, so signage has its real QR. */
   liveCode?: boolean;
+  /** The event plan's features: a Free event previews one keepsake style per family and the
+   *  phone-screen sign only (product.md §15.3.1). */
+  features: PlanFeatures;
   initialTab?: "signage";
   initial: LookInitial;
   action: (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -151,6 +156,7 @@ export function LookStudio({
       sharingEnabled={values.sharingEnabled}
       activated={activated}
       liveCode={liveCode}
+      features={features}
       dirty={dirty}
       initialTab={initialTab}
     />

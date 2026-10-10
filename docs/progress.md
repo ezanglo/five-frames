@@ -1,12 +1,12 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Operator support access (D27) is planned as Slice 27, not started.** **Slice 20, the plan model (D24), is complete: human verification passed. Slice 21 (Free first event) is next, and Slice 20 can't deploy without it. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.**)
+Last updated: 2026-10-11 (**Slice 21, the Free first event, is `awaiting human verification`: the migration is on dev and all 618 tests pass.** Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
-  because the site already advertises Free.
+  because the site already advertises Free. Slice 21, the Free first event, is `awaiting human verification`.
+  See [Slice 21](#slice-21--free-first-event-2026-10-11-awaiting-human-verification).
   Not started:
-  - 21 Free first event;
   - 22 capacity override;
   - 23 time sections;
   - 24 table-number cards.
@@ -53,6 +53,92 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 21 — Free first event (2026-10-11): `awaiting human verification`
+
+A host account activates one event on Free (₱0, 10 guests, 7 days) itself, with no payment and
+no operator. Free's lighter event is enforced on the server (product.md §7.2, §15.3.1, criteria
+70–73, 82, 84, 86; architecture §8c "As built (Slice 21)"). Not committed, not deployed.
+
+**Migration applied to the dev project** (by the user, 2026-10-11, `supabase db query --linked -f`
+plus `migration repair`). The new app code needs it: every activation now goes through
+`activate_event()`, so the new code must never run against a database without it. Production
+needs it applied before (or with) the deploy.
+
+**Built:**
+- Migration `20261011010000_free_event.sql`:
+  - the `hosts` claim columns;
+  - `activate_event()`, now the one guarded activation update for payment and Free;
+  - `choose_free_plan()`.
+  The claim and the activation are one transaction (architecture §8c says why).
+- `activateEvent(eventId, source)`. `activateFreeEvent` and `isFreeEventAvailable` are in the
+  DAL. `setEventPlan` accepts Free.
+- Share step:
+  - Free is the first plan card while the account still has it;
+  - the Free breakdown shows ₱0, 10 guests, 7 days, one keepsake style and no printable signs;
+  - then "Activate free event", and the QR hand-over straight away;
+  - after activation, Free offers a "Phone-screen sign" download instead of QR and table card.
+- Dashboard:
+  - the draft card reads "Ready to activate";
+  - on a Free event, the share card offers only the phone-screen sign.
+- Look studio: Free shows the phone-screen format only, with no format switcher, and one keepsake
+  style per family.
+- Guest keepsake picker: no style picker on Free.
+- Console: "Free · Activated", "No payment was made", "Nothing to refund". The refund DAL
+  refuses Free.
+- Webhook: a payment landing after a Free activation is `paid_duplicate`, and Free activation
+  supersedes pending checkouts.
+
+**Automated verification so far:**
+- `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
+- unit 452/452 ✔, including the new `lib/plans/entitlements.test.ts` and the Free draft state.
+- Full suite after the migration: **618/618 ✔ across 61 files**, all integration suites included.
+  New:
+  - `free-event.integration.test.ts` (13):
+    - happy path and never offered again;
+    - a repeated tap;
+    - 5 drafts × 2 concurrent taps (exactly one Free);
+    - deleting the Free event doesn't return it;
+    - a paid event can't use or burn the claim;
+    - Free racing an operator confirm, 4 rounds (one activation; the claim matches the winner);
+    - another host refused;
+    - other Free drafts cleared;
+    - a paid draft activates as Free with Free's limits, and the function refuses mismatched
+      sources;
+    - `FreeEventUnavailableError`;
+    - no refund;
+    - a late webhook is a duplicate;
+    - exactly 10 joins under concurrency.
+  - Free cases added to the signage, keepsake and Full Set integration tests.
+- Updated call sites in `payments` and `plans` integration tests for the new `activateEvent`
+  signature.
+
+**Human verification checklist (Slice 21 exit).** An earlier "testing passed" (2026-10-11) came
+before the migration reached dev. On dev, the Share step, Free choice and every activation would
+have failed then, so it isn't counted. Run the list against dev:
+1. New account → new event → Share step: Free, Standard and Premium cards. Pick Free. You
+   should see ₱0, "up to 10 guests", "hosted for 7 days", the one-style/printable-signs line
+   and "Activate free event". Tap it. The QR, the link and a "Phone-screen sign" download
+   appear at once, with no "Download QR" or "Table card".
+2. Dashboard of that event:
+   - the share card has the QR, Copy link and Phone-screen sign, and no "More signage" row;
+   - the guest tile reads "Free · up to 10 guests · hosted until …", 7 days out;
+   - the expiry notice shows.
+3. Settings → Look → Signage: the phone-screen sign only, with no format switcher, and it
+   downloads. Open `/events/<id>/signage/poster` (and `/qr`, `/table-card`) directly: not
+   found.
+4. Settings → Look → Keepsakes: one style in each family (Print; Signature), with the Free
+   wording.
+5. As a guest:
+   - join and keep a photo, then Make a keepsake: no style row, and the keepsake is Print;
+   - with five photos, "Your five" is Signature, with no style row;
+   - with fewer than five, nothing mentions a Full Set.
+6. The same account, a second draft → Share step: only Standard and Premium. The dashboard
+   draft card says "Not active yet".
+7. Console: the Free event reads "Free · Activated", "No payment was made" and "Nothing to
+   refund".
+8. Regression: a Standard or Premium event still has all four signage formats and five styles
+   per family, and manual confirmation still activates it.
 
 ## Slice 20 — Plan model (2026-10-11): `complete`
 

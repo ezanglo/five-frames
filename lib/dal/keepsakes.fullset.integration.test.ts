@@ -7,7 +7,7 @@ import { commitCapture, moderateCapture, reserveCapture } from "@/lib/dal/captur
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import { getFullSetAvailability, getFullSetSources, makeFullSetKeepsake } from "@/lib/dal/keepsakes";
 import { FULL_SET_SLOTS } from "@/lib/keepsakes/geometry";
-import { FULL_SET_STYLES } from "@/lib/keepsakes/styles";
+import { FULL_SET_STYLES, PRESELECTED_FULL_SET_STYLE } from "@/lib/keepsakes/styles";
 import type { CaptureRow, EventRow } from "@/lib/db/types";
 
 /**
@@ -226,6 +226,16 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
     await update(event.id, { hosted_until: null, media_deleted_at: new Date().toISOString() });
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
+  }, 60_000);
+
+  it("on a Free event, makes the Full Set only in the signature style (criterion 84)", async () => {
+    const event = await openEvent({ plan: "free" });
+    const session = await guest(event.id);
+    await commitMany(event.id, session);
+    for (const { id } of FULL_SET_STYLES) {
+      const outcome = await makeFullSetKeepsake(event.event_token!, session, id);
+      expect(outcome.kind).toBe(id === PRESELECTED_FULL_SET_STYLE ? "ok" : "not_found");
+    }
   }, 60_000);
 
   it("works after capture closes and before reveal; writes nothing; originals and derivatives stay byte-identical", async () => {

@@ -14,17 +14,18 @@ import {
   QrCode,
 } from "lucide-react";
 import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
+import { getEventForHost, isFreeEventAvailable } from "@/lib/dal/events";
 import { getDashboardVersion } from "@/lib/dal/dashboard-live";
 import { getLatestPaymentForEvent } from "@/lib/dal/payments";
 import { firstName, formatEventDate } from "@/lib/events/format";
 import { getRequestBaseUrl } from "@/lib/http/base-url";
 import { qrSvgDataUri } from "@/lib/media/qr";
 import { hasPendingProviderPayment, REFUND_POLICY_COPY } from "@/lib/payments/pricing";
-import { formatPrice, isPaidPlanId, PLANS } from "@/lib/plans/registry";
+import { eventPlanFeatures, formatPrice, PLANS } from "@/lib/plans/registry";
 import { DRAFT_PAYMENT_COPY } from "@/lib/payments/draft-payment";
 import { isOnlinePaymentEnabled, SALES_CONTACT } from "@/lib/payments/mode";
 import {
+  activateFreeEventAction,
   chooseEventPlanAction,
   saveDetailsStepAction,
   saveLookStepAction,
@@ -32,7 +33,7 @@ import {
 } from "../../actions";
 import { DetailsStepForm } from "../../wizard-forms";
 import { DashboardLive } from "../dashboard-live";
-import { PlanPicker } from "@/components/ff/host/plan-picker";
+import { ActivateFreeButton, PlanPicker } from "@/components/ff/host/plan-picker";
 import { LookStudio } from "@/components/ff/look/look-studio";
 import { getEventThemeForHost } from "@/lib/dal/event-theme";
 import { Button, ButtonAnchor, ButtonLink } from "@/components/ff/button";
@@ -57,10 +58,10 @@ export default async function EventSetupPage({
   searchParams,
 }: {
   params: Promise<{ eventId: string }>;
-  searchParams: Promise<{ step?: string; checkout?: string }>;
+  searchParams: Promise<{ step?: string; checkout?: string; free?: string }>;
 }) {
   const { eventId } = await params;
-  const { step: stepParam, checkout } = await searchParams;
+  const { step: stepParam, checkout, free: freeParam } = await searchParams;
   const host = await requireHost();
   const event = await getEventForHost(host.id, eventId);
   if (!event) notFound();
@@ -89,8 +90,8 @@ export default async function EventSetupPage({
       done: step > 1 || activated,
     },
     {
-      title: "After payment · Share",
-      body: "Print the QR or send the link.",
+      title: "After activation · Share",
+      body: event.plan === "free" ? "Show the QR or send the link." : "Print the QR or send the link.",
       icon: <Link2 />,
       done: activated,
     },
@@ -135,6 +136,7 @@ export default async function EventSetupPage({
           dateLabel={formatEventDate(event.event_date)}
           eventDate={event.event_date}
           activated={false}
+          features={eventPlanFeatures(event)}
           initial={{
             accent: theme?.accent ?? "violet",
             hashtag: event.hashtag ?? "",
@@ -174,16 +176,20 @@ export default async function EventSetupPage({
 
   if (!activated) {
     const online = isOnlinePaymentEnabled();
-    const [latestPayment, version] = await Promise.all([
+    const [latestPayment, version, freeAvailable] = await Promise.all([
       online ? getLatestPaymentForEvent(host.id, eventId) : Promise.resolve(null),
       // Manual mode: the host is often beside the operator who confirms, so this page refreshes
       // itself into the QR hand-over the moment activation lands (D21's stream, D23).
       online ? Promise.resolve(null) : getDashboardVersion(host.id, eventId),
+      isFreeEventAvailable(host.id),
     ]);
     const isPending = hasPendingProviderPayment(latestPayment);
     const name = firstName(host.name);
-    // The host's paid plan choice (D24). Nothing is payable or confirmable until there is one.
-    const plan = isPaidPlanId(event.plan) ? PLANS[event.plan] : null;
+    // The host's plan choice (D24). Nothing is payable, confirmable or activatable until there is
+    // one. A Free choice the account can no longer use counts as no choice.
+    const chosen = event.plan === "free" && !freeAvailable ? null : event.plan;
+    const plan = chosen ? PLANS[chosen] : null;
+    const isFree = plan?.id === "free";
     const price = plan ? formatPrice(plan.pricePhp) : null;
 
     return (
@@ -191,9 +197,11 @@ export default async function EventSetupPage({
         {...shared}
         title={`Ready to activate${name ? `, ${name}` : ""}?`}
         subtitle={
-          online
-            ? "Pay once to get your event link and QR code. Capture stays closed until you open it."
-            : "Your event link and QR code are issued once FiveFrames confirms your payment. Capture stays closed until you open it."
+          isFree
+            ? "Activate your Free event to get its link and QR code straight away. Capture stays closed until you open it."
+            : online
+              ? "Pay once to get your event link and QR code. Capture stays closed until you open it."
+              : "Your event link and QR code are issued once FiveFrames confirms your payment. Capture stays closed until you open it."
         }
         aside={<NextStepsTimeline items={timeline} />}
       >
@@ -213,12 +221,56 @@ export default async function EventSetupPage({
             </p>
           )}
 
+          {freeParam === "unavailable" && !freeAvailable && (
+            <p role="status" className="rounded-lg border border-line p-4 text-label font-medium text-ink">
+              This account has already used its Free event, so this one needs Standard or
+              Premium.
+            </p>
+          )}
+
           <PlanPicker
             action={chooseEventPlanAction.bind(null, eventId)}
-            value={isPaidPlanId(event.plan) ? event.plan : null}
+            value={chosen}
+            offerFree={freeAvailable}
           />
 
-          {plan && price && (
+          {plan && price && isFree && (
+            <>
+              <ul className="flex flex-col gap-2.5">
+                <Benefit icon={<QrCode />}>
+                  Your event link, its QR on screen and a phone-screen sign to send in a group
+                  chat — issued the moment you activate.
+                </Benefit>
+                <Benefit icon={<Camera />}>
+                  Five shots per guest, for up to {plan.guestSessionCap} guests.
+                </Benefit>
+                <Benefit icon={<CalendarCheck />}>
+                  Your gallery is hosted for {plan.hostedAccessLabel} from activation. Download
+                  your photos any time in that period.
+                </Benefit>
+                <Benefit icon={<ImageIcon />}>
+                  Guests’ keepsakes come in one style. Printable signs and every keepsake style
+                  come with Standard and Premium.
+                </Benefit>
+                <Benefit icon={<Clock />} muted>
+                  Guests can’t shoot yet — capture opens only when you switch it on.
+                </Benefit>
+              </ul>
+
+              <dl className="flex flex-col gap-3 rounded-lg bg-surface-subtle p-4">
+                <PriceRow label={`FiveFrames ${plan.label}`} value={price} />
+                <div className="border-t border-line pt-3">
+                  <PriceRow label="Total" value={price} strong />
+                </div>
+                <p className="text-caption font-medium text-ink-muted">
+                  Nothing to pay. Each account gets one Free event, and once it’s activated, Free
+                  isn’t offered again.
+                </p>
+              </dl>
+            </>
+          )}
+
+          {plan && price && !isFree && (
             <>
               <ul className="flex flex-col gap-2.5">
                 <Benefit icon={<QrCode />}>
@@ -262,6 +314,13 @@ export default async function EventSetupPage({
               Choose a plan to see your total.
             </p>
           </WizardActions>
+        ) : isFree ? (
+          // The host's own Free activation (product.md §7.2): no payment, no operator, no wait.
+          <form action={activateFreeEventAction.bind(null, eventId)} className="contents">
+            <WizardActions backHref={stepHref(2)}>
+              <ActivateFreeButton />
+            </WizardActions>
+          </form>
         ) : online ? (
           <>
             <form action={startCheckoutAction.bind(null, eventId)} className="contents">
@@ -331,6 +390,7 @@ export default async function EventSetupPage({
   }
 
   const baseUrl = await getRequestBaseUrl();
+  const { printSignage } = eventPlanFeatures(event);
   const capturePath = event.event_token ? `/e/${event.event_token}` : null;
   const qr = capturePath ? await qrSvgDataUri(`${baseUrl}${capturePath}`) : null;
   const displayHost = baseUrl.replace(/^https?:\/\//, "");
@@ -362,27 +422,44 @@ export default async function EventSetupPage({
                 </span>
                 <CopyLinkButton path={capturePath} label="Copy" size="compact" />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <ButtonAnchor href={`/events/${eventId}/signage/qr`} download variant="secondary" size="sm">
-                  <Download aria-hidden />
-                  Download QR
-                </ButtonAnchor>
-                <ButtonAnchor href={`/events/${eventId}/signage/table-card`} download variant="secondary" size="sm">
-                  <Printer aria-hidden />
-                  Table card
-                </ButtonAnchor>
-              </div>
-              <p className="text-caption font-medium text-ink-muted">
-                Tip: print the QR on table cards or show it on a screen near the entrance. All four
-                signage formats (QR, table card, poster and digital) are in{" "}
-                <Link
-                  href={`/events/${eventId}/settings/look?preview=signage`}
-                  className="ff-focus rounded-sm font-semibold text-brand-ink underline-offset-4 hover:underline"
-                >
-                  Look → Signage
-                </Link>
-                .
-              </p>
+              {printSignage ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <ButtonAnchor href={`/events/${eventId}/signage/qr`} download variant="secondary" size="sm">
+                      <Download aria-hidden />
+                      Download QR
+                    </ButtonAnchor>
+                    <ButtonAnchor href={`/events/${eventId}/signage/table-card`} download variant="secondary" size="sm">
+                      <Printer aria-hidden />
+                      Table card
+                    </ButtonAnchor>
+                  </div>
+                  <p className="text-caption font-medium text-ink-muted">
+                    Tip: print the QR on table cards or show it on a screen near the entrance. All
+                    four signage formats (QR, table card, poster and digital) are in{" "}
+                    <Link
+                      href={`/events/${eventId}/settings/look?preview=signage`}
+                      className="ff-focus rounded-sm font-semibold text-brand-ink underline-offset-4 hover:underline"
+                    >
+                      Look → Signage
+                    </Link>
+                    .
+                  </p>
+                </>
+              ) : (
+                <>
+                  {/* Free (product.md §15.3.1): the link, this on-screen QR and the phone-screen
+                      format. No printable signage is offered or served. */}
+                  <ButtonAnchor href={`/events/${eventId}/signage/digital`} download variant="secondary" size="sm">
+                    <Download aria-hidden />
+                    Phone-screen sign
+                  </ButtonAnchor>
+                  <p className="text-caption font-medium text-ink-muted">
+                    Tip: show this QR on your phone, or send the link or the phone-screen sign in
+                    your group chat.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         ) : (

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { eventPlanFeatures } from "@/lib/plans/registry";
 import { requireHost } from "@/lib/auth/host-session";
 import { getEventForHost } from "@/lib/dal/events";
 import { getEventThemeForHost } from "@/lib/dal/event-theme";
@@ -37,6 +38,7 @@ export default async function LookSettingsPage({
       eventDate={event.event_date}
       activated={Boolean(event.activated_at)}
       liveCode={Boolean(event.activated_at && event.event_token)}
+      features={eventPlanFeatures(event)}
       initialTab={preview === "signage" ? "signage" : undefined}
       initial={{
         accent: theme?.accent ?? "violet",

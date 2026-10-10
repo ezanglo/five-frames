@@ -8,7 +8,14 @@ import { downloadCaptureObject } from "@/lib/media/storage";
 import { readThemeImageBytes } from "@/lib/dal/event-theme";
 import { keepsakeFilename } from "@/lib/keepsakes/filename";
 import { renderFullSetKeepsakeJpeg, renderSingleKeepsakeJpeg } from "@/lib/keepsakes/render";
-import { isFullSetStyleId, isSingleStyleId, type FullSetStyleId, type SingleStyleId } from "@/lib/keepsakes/styles";
+import {
+  isFullSetStyleId,
+  isSingleStyleId,
+  isStyleAllowed,
+  type FullSetStyleId,
+  type SingleStyleId,
+} from "@/lib/keepsakes/styles";
+import { eventPlanFeatures } from "@/lib/plans/registry";
 import type { CaptureRow, EventRow } from "@/lib/db/types";
 
 /**
@@ -19,7 +26,8 @@ import type { CaptureRow, EventRow } from "@/lib/db/types";
  *    expired, archived or media-deleted. This is NOT the capture gate — keepsakes work before,
  *    during and after capture is open (`isCaptureOpen` belongs only to reserve and commit);
  * 2. the signed guest cookie's session exists for this event;
- * 3. the style id belongs to this route's family;
+ * 3. the style id belongs to this route's family, and the event's plan offers it (a Free event
+ *    has only each family's preselected style, product.md §15.3.1);
  * 4. the host's sharing setting is on (the only refusal that isn't a generic not-found);
  * 5. the sources: for a Single-photo keepsake, the capture is the session's own, committed, not
  *    hidden, not deleted, with a display derivative; for a Full Set, `getFullSetSources` derives
@@ -174,7 +182,9 @@ export async function makeSingleKeepsake(
 ): Promise<KeepsakeOutcome> {
   const access = await resolveGuestKeepsakeAccess(token, guestSessionId);
   if (!access) return { kind: "not_found" };
-  if (!isSingleStyleId(styleId)) return { kind: "not_found" };
+  if (!isSingleStyleId(styleId) || !isStyleAllowed(styleId, eventPlanFeatures(access.event))) {
+    return { kind: "not_found" };
+  }
   if (!access.event.sharing_enabled) return { kind: "sharing_disabled" };
 
   const capture = await getSingleKeepsakeSource(access.event.id, access.guestSessionId, captureId);
@@ -272,7 +282,9 @@ export async function makeFullSetKeepsake(
 ): Promise<KeepsakeOutcome> {
   const access = await resolveGuestKeepsakeAccess(token, guestSessionId);
   if (!access) return { kind: "not_found" };
-  if (!isFullSetStyleId(styleId)) return { kind: "not_found" };
+  if (!isFullSetStyleId(styleId) || !isStyleAllowed(styleId, eventPlanFeatures(access.event))) {
+    return { kind: "not_found" };
+  }
   if (!access.event.sharing_enabled) return { kind: "sharing_disabled" };
 
   const sources = await getFullSetSources(access.event.id, access.guestSessionId);

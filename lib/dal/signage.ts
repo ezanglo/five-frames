@@ -3,6 +3,8 @@ import "server-only";
 import { getEventForHost } from "@/lib/dal/events";
 import { readThemeImageBytes } from "@/lib/dal/event-theme";
 import { canEditEventTheme } from "@/lib/events/lifecycle";
+import { isSignageFormatAllowed } from "@/lib/media/signage-formats";
+import { eventPlanFeatures } from "@/lib/plans/registry";
 import {
   PREVIEW_QR,
   isSignageFormat,
@@ -24,6 +26,10 @@ import type { EventRow } from "@/lib/db/types";
  *   live QR once one exists and the URL-less placeholder before that; no token is ever minted for
  *   it. It may apply the host's unsaved accent and hashtag, validated here exactly as a save
  *   would be; it never changes the QR's destination.
+ *
+ * Both serve only the formats the event's plan includes (product.md §15.3.1, criterion 82): a
+ * Free event gets the phone-screen format, and a request for any other is not found, even by
+ * its address.
  */
 
 /** The preview's `<img>` is small; the crop is the download's, just at a lower resolution. */
@@ -39,7 +45,7 @@ export async function getSignageDownload(
 ): Promise<SignageDownload | null> {
   if (!isSignageFormat(format)) return null;
   const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
+  if (!event || !isSignageFormatAllowed(format, eventPlanFeatures(event))) return null;
   const qr = liveSignageQr(event, origin);
   if (!qr) return null;
 
@@ -68,6 +74,7 @@ export async function getSignagePreview(
   if (!isSignageFormat(format)) return null;
   const event = await getEventForHost(hostId, eventId);
   if (!event || !canEditEventTheme(event)) return null;
+  if (!isSignageFormatAllowed(format, eventPlanFeatures(event))) return null;
 
   return renderEventSignageSvg(
     format,
