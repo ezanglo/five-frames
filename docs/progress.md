@@ -16,7 +16,7 @@ Last updated: 2026-10-11 (**Slice 20, the plan model (D24), is complete: human v
   co-hosts are refused.
 - **Deferred to the first update after launch: Send to Google Drive** (D24, architecture.md §7e).
   Not in this release, and nothing may offer it until it ships. To test it when it ships:
-  product.md criterion 77. A Celebration export is complete, matches "Download all", survives
+  product.md criterion 77. A Premium export is complete, matches "Download all", survives
   closing the tab, and a retry duplicates nothing. Run it on an event big enough to need the
   background job, and check the Google consent screen asks only for files the app creates. Its
   cases go into release-validation.md at that point. Needs infrastructure approval (job runner)
@@ -45,14 +45,14 @@ appending narrative.
 
 ## Slice 20 — Plan model (2026-10-11): `complete`
 
-Intimate ₱499 (100 guests, 6 months) and Celebration ₱999 (300 guests, 12 months), one-time
+Standard ₱499 (100 guests, 6 months) and Premium ₱999 (300 guests, 12 months), one-time
 (product.md §15.3, D24, architecture §8c "As built"). Free activation arrives in Slice 21. Not
 committed, not deployed.
 
 **Deploy blocker:** the marketing site already shows three things the product doesn't provide
 yet (at the user's request, 2026-10-11):
 - the Free first event, until Slice 21;
-- Celebration's numbered table cards, until Slice 24;
+- numbered table cards on the paid plans, until Slice 24;
 - "Download all as ZIP files", until Slice 26 (which needs Slice 25, R2 storage, first).
 
 Don't deploy Slice 20 until all three have landed.
@@ -62,9 +62,9 @@ Don't deploy Slice 20 until all three have landed.
   replaces `EVENT_PRICE_*` and `HOSTED_ACCESS_DAYS`.
 - Migration `20261011000000_event_plans.sql`: `events.plan`, `payments.plan` (nullable for
   older code) and `begin_provider_checkout_for_plan()`. Activated events and existing payments
-  were backfilled to Celebration, with their caps and expiry untouched. **Applied to the dev
+  were backfilled to Premium, with their caps and expiry untouched. **Applied to the dev
   project** with `supabase db query --linked -f` plus `migration repair`, so `20260930020000`
-  stays unapplied: 30 events and 15 payments now read Celebration, and drafts are null.
+  stays unapplied: 30 events and 15 payments now read Premium, and drafts are null.
 - Activation stamps plan, cap, `hosted_until` and `grace_until` from `payments.plan` in the one
   guarded update. Checkout prices and records the chosen plan, and supersedes a pending checkout
   for a different plan. Manual confirm requires a paid plan and records it.
@@ -87,8 +87,8 @@ Don't deploy Slice 20 until all three have landed.
 - unit 440/440 ✔
 - all integration files 16/16, 150 tests ✔, including the new `plans.integration.test.ts`
   (12): owner-only plan choice refused after activation; confirm refused with no plan;
-  stamping for Intimate; a late webhook activates the plan paid for after the draft switched;
-  legacy null → Celebration; two plans' payments racing (one winner, consistent stamp); a
+  stamping for Standard; a late webhook activates the plan paid for after the draft switched;
+  legacy null → Premium; two plans' payments racing (one winner, consistent stamp); a
   foreign payment id refused; checkout reuse vs supersede on a plan switch; one pending
   checkout under 6 concurrent starts; joins stop at exactly 100 and 300.
 
@@ -98,22 +98,22 @@ home pricing card.
 
 **Human verification checklist (Slice 20 exit, all passed):**
 1. Share step on a new draft: no plan selected; "Choose a plan to see your total"; no waiting
-   status. Pick Intimate → it saves (brief "Saving your plan…"), breakdown shows "FiveFrames
-   Intimate ₱499", "up to 100 guests", "hosted for 6 months". Switch to Celebration → ₱999,
+   status. Pick Standard → it saves (brief "Saving your plan…"), breakdown shows "FiveFrames
+   Standard ₱499", "up to 100 guests", "hosted for 6 months". Switch to Premium → ₱999,
    300, 12 months. Reload: the choice persists.
-2. Operator Console on that draft: plan "Celebration", confirm form pre-filled ₱999. In another
-   tab switch the host to Intimate, then submit the operator form → refused, naming Intimate.
+2. Operator Console on that draft: plan "Premium", confirm form pre-filled ₱999. In another
+   tab switch the host to Standard, then submit the operator form → refused, naming Standard.
    Reload and confirm → activates. The host's Share step turns into the QR hand-over; the
-   dashboard guest tile reads "Intimate · up to 100 guests · hosted until …" about 6 months out.
+   dashboard guest tile reads "Standard · up to 100 guests · hosted until …" about 6 months out.
 3. A draft with no plan in the Console: no confirm form, just the "hasn't chosen a paid plan"
    note.
 4. Marketing at phone and desktop width:
    - home hero "First event free · then from ₱499…";
-   - home pricing section "Start free. Pay once per event." with Free, Intimate and Celebration
+   - home pricing section "Start free. Pay once per event." with Free, Standard and Premium
      rows;
    - /pricing: three plan cards (side by side on desktop, stacked on phone). Each card shows
      price, who it suits, a guests/hosted pair, the plan's extras (Free: no payment, one per
-     account; Celebration: set up with you, help on the day), then "Every plan includes";
+     account; Premium: set up with you, help on the day), then "Every plan includes";
    - /pricing "Compare plans" table: seven groups. Only Price, Guests, Hosted and the two
      "Help from us" rows differ; every other row is a check in all three columns. At phone
      width it fits without the page scrolling sideways, and the rows are readable;
@@ -121,12 +121,12 @@ home pricing card.
      "Compare everything in each plan" link that lands on the table;
    - the FAQ "Which plan should I choose?";
    - nothing says "one price" or "no tiers", or mentions Google Drive.
-5. An existing activated event (before plans): dashboard reads "Celebration · up to 250 guests"
+5. An existing activated event (before plans): dashboard reads "Premium · up to 250 guests"
    with its original expiry. Nothing about it changed.
 
 **Follow-up after verification (2026-10-11, user request):** the plan cards now build on each
-other. Free lists everything it includes, Intimate says "Everything in Free, plus" (more guests,
-longer hosting, any event), and Celebration says "Everything in Intimate, plus" (more guests, 12
+other. Free lists everything it includes, Standard says "Everything in Free, plus" (more guests,
+longer hosting, any event), and Premium says "Everything in Standard, plus" (more guests, 12
 months, set up with you, help on the day). The "plus" lines come from the registry
 (`planFeatures` in content.ts, with a unit test). The comparison table gains a "Which events"
 row (Free: your first; paid: any). Free still has every feature, limited by guests, time and
@@ -134,17 +134,17 @@ once per account (product.md §15.3). Automated checks pass. **Needs a quick vis
 /pricing** at phone and desktop width.
 
 **Product change after verification (2026-10-11, founder's call): Free is a lighter event**
-(product.md §15.3.1, D24 amendment, criteria 82–86):
+(product.md §15.3.1, D24 amendment, criteria 82, 84, 86):
 - link, on-screen QR and the phone-screen format only;
-- accent color only;
-- one keepsake style per family (Print and Signature);
-- no dashboard counts.
+- one keepsake style per family (Print and Signature).
+
+The accent-color-only theme and "no dashboard counts" limits were withdrawn the same day (see
+"Plan names, homepage cards and the popular badge" below).
 
 The gallery, moderation, downloads and five frames are unchanged. The limits are recorded as
 `features` in the registry. Marketing now reflects them:
 - the Free card lists the essentials;
-- Intimate's "plus" adds printable signage, theme photo and hashtag, every keepsake style, and
-  counts;
+- Standard's "plus" adds printable signage and every keepsake style;
 - the comparison table shows "1 style" vs "5 styles";
 - downloads stay in the table but are no longer featured on the cards.
 
@@ -154,16 +154,16 @@ it. Automated checks pass (unit 444/444, build). **Needs a quick visual look at 
 **Pricing copy follow-ups (2026-10-11, founder's requests):**
 - The cards share one structure, one icon and one button, and Free shows as ₱0.
 - Lines are short and plain: "Up to 300 guests", "Live guest and photo counts", and so on.
-- Celebration's "plus" now lists:
+- Premium's "plus" now lists:
   - photo room (up to 1,500);
   - set-up with you, signage prepared with you, direct help on the day;
   - numbered table cards;
   - Save to Google Drive and Add a co-host, both marked "Coming soon".
-- Intimate lists "Download all your photos".
+- Standard lists "Download all your photos".
 - The comparison table is simplified to match.
 
 **Product changes behind these:**
-- co-host access for Celebration after launch (product.md §11.2.2, criterion 87, architecture
+- co-host access for Premium after launch (product.md §11.2.2, criterion 87, architecture
   §7f);
 - Drive and co-host may be shown as "coming soon";
 - table-number cards are listed now, so **Slice 24 must land before deploying too**.
@@ -174,11 +174,41 @@ it. Automated checks pass (unit 444/444, build). **Needs a quick visual look at 
 - no new infrastructure;
 - falls back to one-by-one saving.
 
-The site already says "Download all as ZIP files" (home, how-it-works, FAQ, Intimate's card,
+The site already says "Download all as ZIP files" (home, how-it-works, FAQ, Standard's card,
 comparison table), and the old test banning "ZIP" is gone.
 
 Automated checks pass (unit 444/444, build). **Needs a quick visual look at /pricing and the home
 pricing card.**
+
+**Plan names, homepage cards and the popular badge (2026-10-11, founder's requests):**
+- The paid plans are now **Standard** (₱499) and **Premium** (₱999). "Intimate" and
+  "Celebration" read as event types and put hosts off. Only the labels changed: the stored ids
+  stay `intimate` / `celebration` (`events.plan`, `payments.plan`, the migration's checks), so
+  no migration was needed. The D24 amendment records it.
+- Both paid cards now say "Everything in Free, plus". The lines sit in titled groups. Free has
+  "For your guests" and "For you". The paid plans have "Room for your event", "Signage and
+  keepsakes", "Running your event" and, on Premium only, "Help from us". Premium repeats
+  Standard's lines in the same groups and order, and adds numbered table cards, the two
+  "Coming soon" lines (under "Running your event") and its help from us.
+- Standard carries a "Most popular" badge, a brand border and the primary button. The other
+  cards use the secondary button. `FEATURED_PLAN_ID` in content.ts sets which plan, and a unit
+  test keeps it to one paid plan. There's no sales data behind "popular" before launch.
+- The homepage pricing section now uses the same three `PlanCard`s as /pricing. The old
+  compact `PlansCard` is gone.
+
+- **Free now gets its own photo and hashtag and live counts** (founder's call; product.md
+  §15.3.1, D24 amendment; criteria 83 and 85 withdrawn). Free's card lists them under "For
+  you", so the paid cards no longer do. The comparison table shows both as included on every
+  plan. The `themeImageAndHashtag` and `liveCounts` flags are gone from the registry. Slice 21
+  now enforces only two Free limits: no print signage, and one keepsake style per family.
+
+- **Standard gets numbered table cards too** (founder's call; product.md §11.3, criterion 78,
+  D24 amendment). Both paid cards list them under "Signage and keepsakes", and the comparison
+  table checks them for Standard and Premium. Slice 24 gates them on
+  `PLANS[plan].features.tableNumberCards`, not on Premium.
+
+Automated checks pass (typecheck, lint, unit 446/446). **Needs a visual look at the home pricing
+section and /pricing**, at phone and desktop width.
 
 **Release follow-ups added:** see the two Slice 20 rows in Release follow-ups.
 
@@ -2461,7 +2491,7 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
    claim, then activate"). It needs:
    - a migration for `hosts.free_event_claimed_at` / `free_event_id`, the claim function, and
      its concurrency test;
-   - server-side enforcement of Free's lighter event (product.md §15.3.1, criteria 82–86).
+   - server-side enforcement of Free's lighter event (product.md §15.3.1, criteria 82, 84, 86: print signage and keepsake styles only).
    Then Slices 22–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
    before anything deploys, because the site already advertises them.
    - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user

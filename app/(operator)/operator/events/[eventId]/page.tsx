@@ -8,7 +8,7 @@ import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
 import { REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
 import { deriveEventLifecycleState, isGalleryRevealed } from "@/lib/events/lifecycle";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
-import { isPaidPlanId, PLANS } from "@/lib/plans/registry";
+import { isPaidPlanId, PAID_PLANS, PLANS } from "@/lib/plans/registry";
 import { SectionCard, StatTile } from "@/components/ff/cards";
 import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { StatusPill } from "@/components/ff/pill";
@@ -187,7 +187,7 @@ export default async function OperatorEventDetailPage({
             ) : (
               <p className="text-caption font-medium text-ink-muted">
                 The host hasn’t chosen a paid plan yet. Payment can be confirmed once they choose
-                Intimate or Celebration on their Share step.
+                {PAID_PLANS.map((p) => p.label).join(" or ")} on their Share step.
               </p>
             )}
           </section>

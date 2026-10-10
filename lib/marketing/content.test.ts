@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { REFUND_POLICY_COPY } from "@/lib/payments/pricing";
-import { PAID_PLANS, PLANS } from "@/lib/plans/registry";
+import { isPaidPlanId, PAID_PLANS, PLANS } from "@/lib/plans/registry";
 import {
   FAQ_GROUPS,
   HOME_FAQ_IDS,
@@ -17,6 +17,7 @@ import {
   REFUND_SUMMARY,
   TESTIMONIALS,
   faqItemsById,
+  FEATURED_PLAN_ID,
 } from "./content";
 
 /**
@@ -43,39 +44,55 @@ describe("marketing facts come from the product", () => {
     expect(HOSTED_ACCESS_LABEL).toBe("up to 12 months");
   });
 
-  it("builds each plan card on the one before it (D24)", () => {
-    const [free, intimate, celebration] = MARKETING_PLANS.map(planFeatures);
+  it("builds every paid plan card on Free, in titled groups (D24)", () => {
+    const [free, standard, premium] = MARKETING_PLANS.map(planFeatures);
+    const texts = (f: ReturnType<typeof planFeatures>) =>
+      Object.fromEntries(f.groups.map((g) => [g.title, g.lines.map((l) => l.text)]));
     expect(free).toMatchObject({ heading: "Includes", additions: false });
-    expect(intimate.heading).toBe("Everything in Free, plus");
-    expect(intimate.lines.map((l) => l.text)).toEqual([
-      "Up to 100 guests",
-      "Up to 500 photos",
-      "Hosted for 6 months",
-      "Download all as ZIP files",
-      "Printable QR cards and posters",
-      "Your own photo and hashtag",
-      "All keepsake styles",
-      "Live guest and photo counts",
-    ]);
-    expect(celebration.heading).toBe("Everything in Intimate, plus");
-    expect(celebration.lines).toEqual([
-      { text: "Up to 300 guests" },
-      { text: "Up to 1,500 photos" },
-      { text: "Hosted for 12 months" },
-      { text: "We set it up with you" },
-      { text: "Signage prepared with you" },
-      { text: "Direct help on the day" },
-      { text: "Numbered table cards" },
-      { text: "Save to Google Drive", soon: true },
-      { text: "Add a co-host", soon: true },
-    ]);
+    expect(texts(free)).toEqual({
+      "For your guests": ["5 photos per guest", "No app or sign-up for guests", "Photo keepsakes for guests"],
+      "For you": [
+        "Share by link or QR",
+        "Your own photo, color and hashtag",
+        "Live guest and photo counts",
+        "Private gallery",
+      ],
+    });
+    expect(standard.heading).toBe("Everything in Free, plus");
+    expect(texts(standard)).toEqual({
+      "Room for your event": ["Up to 100 guests", "Up to 500 photos", "Hosted for 6 months"],
+      "Signage and keepsakes": ["Printable QR cards and posters", "Numbered table cards", "All keepsake styles"],
+      "Running your event": ["Download all as ZIP files"],
+    });
+    expect(premium.heading).toBe("Everything in Free, plus");
+    expect(texts(premium)).toEqual({
+      "Room for your event": ["Up to 300 guests", "Up to 1,500 photos", "Hosted for 12 months"],
+      "Signage and keepsakes": ["Printable QR cards and posters", "Numbered table cards", "All keepsake styles"],
+      "Running your event": [
+        "Download all as ZIP files",
+        "Save to Google Drive",
+        "Add a co-host",
+      ],
+      "Help from us": ["We set it up with you", "Signage prepared with you", "Direct help on the day"],
+    });
+    // Groups keep one order on every paid card.
+    expect(premium.groups.map((g) => g.title).slice(0, standard.groups.length)).toEqual(
+      standard.groups.map((g) => g.title),
+    );
     // Only what isn't built yet is marked soon, and nothing else is.
-    expect(intimate.lines.some((l) => l.soon)).toBe(false);
+    const soon = premium.groups.flatMap((g) => g.lines).filter((l) => l.soon).map((l) => l.text);
+    expect(soon).toEqual(["Save to Google Drive", "Add a co-host"]);
+    expect(standard.groups.flatMap((g) => g.lines).some((l) => l.soon)).toBe(false);
+  });
+
+  it("features exactly one paid plan", () => {
+    expect(isPaidPlanId(FEATURED_PLAN_ID)).toBe(true);
+    expect(MARKETING_PLANS.filter((p) => p.id === FEATURED_PLAN_ID)).toHaveLength(1);
   });
 
   it("never claims Free can do what product.md §15.3.1 leaves out", () => {
-    const free = planFeatures(PLANS.free).lines.map((l) => l.text).join(" ");
-    expect(free).not.toMatch(/printable|table card|poster|theme photo|hashtag|counts|download/i);
+    const free = planFeatures(PLANS.free).groups.flatMap((g) => g.lines).map((l) => l.text).join(" ");
+    expect(free).not.toMatch(/printable|table card|poster|keepsake styles|download/i);
   });
 
   it("compares plans only on what really differs (product.md §15.3)", () => {
@@ -87,12 +104,10 @@ describe("marketing facts come from the product", () => {
       "Guests",
       "Hosted for",
       // Free's lighter event (product.md §15.3.1), from the registry's `features`:
-      "Live guest and photo counts",
-      "Your own photo and hashtag",
       "Printable QR cards and posters",
       "Keepsakes of one photo",
       "Keepsakes of all five photos",
-      // Celebration's extras, built and coming soon:
+      // Premium's extras, built and coming soon:
       "Numbered table cards",
       "Save to Google Drive",
       "We set it up with you",
@@ -192,7 +207,8 @@ describe("marketing copy stays honest and on-brand", () => {
     [/google drive(?![^\n]*soon)/i, "Google Drive may only be offered as coming soon (D24)"],
     [/co-?host(?![^\n]*soon)/i, "co-host access ships after launch; only as coming soon (§11.2.2)"],
     [/one price|no tiers|nothing to compare/i, "there are two plans now (D24)"],
-    [/most popular|best value|recommended plan/i, "no upsell framing between plans"],
+    // "Most popular" is allowed only as FEATURED_PLAN_BADGE, on one plan (founder's call).
+    [/most popular(?!";)|best value|recommended plan/i, "no upsell framing between plans"],
     [/real[- ]?time/i, "counts are polled, not realtime (D9)"],
     [/\bvideo\b/i, "there is no video feature"],
     [/slide ?show|live (photo )?wall/i, "the gallery is scrolled, never played (D22)"],

@@ -27,7 +27,7 @@ import {
 } from "lucide-react";
 import { ButtonLink } from "@/components/ff/button";
 import { StatusPill } from "@/components/ff/pill";
-import { CtaBand, FaqList, PlansCard } from "@/components/ff/marketing/blocks";
+import { CtaBand, FaqList, PlanCard } from "@/components/ff/marketing/blocks";
 import { GuestJourney } from "@/components/ff/marketing/guest-journey";
 import { KeepsakeShowcase } from "@/components/ff/marketing/keepsake-showcase";
 import { GalleryLayoutsShowcase } from "@/components/ff/marketing/gallery-layouts-showcase";
@@ -48,6 +48,7 @@ import {
   FRAMES,
   HOME_FAQ_IDS,
   HOSTED_ACCESS_LABEL,
+  MARKETING_PLANS,
   PAYMENT_COPY,
   PRICE_FROM_LABEL,
   TESTIMONIALS,
@@ -686,38 +687,43 @@ function TrustSection() {
   );
 }
 
+/** The same plan cards as /pricing, so the homepage can't show a plan differently. */
 function PricingSection() {
   return (
     <Section id="pricing" labelledBy="pricing-title">
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_460px] lg:items-center lg:gap-20">
-        <div className="flex flex-col gap-8">
-          <SectionHeader
-            id="pricing-title"
-            eyebrow="Pricing"
-            title="Start free. Pay once per event."
-            lead="Your first event is free. After that, choose by the size of your event. Every plan gets the same five frames, keepsakes and gallery."
-          />
-          <ul className="flex flex-col gap-3">
+      <div className="flex flex-col gap-10 lg:gap-12">
+        <SectionHeader
+          id="pricing-title"
+          eyebrow="Pricing"
+          title="Start free. Pay once per event."
+          lead="Your first event is free. After that, choose by the size of your event. Every plan gets the same five frames, keepsakes and gallery."
+        />
+        <div className="grid gap-6 lg:grid-cols-3">
+          {MARKETING_PLANS.map((plan) => (
+            <PlanCard key={plan.id} plan={plan} />
+          ))}
+        </div>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+          <ul className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:gap-x-8">
             {[
               "Guests never pay, and there are no extra frames to buy",
               PAYMENT_COPY.line,
               "Paying activates your event — you still choose when capture opens",
             ].map((line) => (
-              <li key={line} className="flex items-start gap-3 text-body font-medium text-ink">
-                <Check className="mt-1 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
+              <li key={line} className="flex items-start gap-3 text-label font-medium text-ink">
+                <Check className="mt-0.5 size-4 shrink-0 text-brand" strokeWidth={2.5} aria-hidden />
                 {line}
               </li>
             ))}
           </ul>
           <Link
             href="/pricing"
-            className="ff-focus inline-flex w-fit items-center gap-1.5 rounded-md text-label font-semibold text-brand underline-offset-4 hover:underline"
+            className="ff-focus inline-flex w-fit shrink-0 items-center gap-1.5 rounded-md text-label font-semibold text-brand underline-offset-4 hover:underline"
           >
-            Pricing details, payment and refunds
+            Compare plans, payment and refunds
             <ArrowRight className="size-4" aria-hidden />
           </Link>
         </div>
-        <PlansCard />
       </div>
     </Section>
   );

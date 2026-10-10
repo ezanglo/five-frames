@@ -25,12 +25,14 @@ describe("plan registry (product.md §15.3, D24)", () => {
     expect(PLANS.celebration.hostedAccessLabel).toBe("12 months");
   });
 
+  it("names plans by label, never by their stored ids", () => {
+    expect(Object.values(PLANS).map((p) => p.label)).toEqual(["Free", "Standard", "Premium"]);
+  });
+
   it("makes Free the lighter event and gives paid plans every feature (product.md §15.3.1)", () => {
     expect(Object.values(PLANS.free.features).every((on) => on === false)).toBe(true);
-    const { tableNumberCards, ...shared } = PLANS.intimate.features;
-    expect(Object.values(shared).every((on) => on === true)).toBe(true);
-    expect(PLANS.celebration.features).toEqual({ ...PLANS.intimate.features, tableNumberCards: true });
-    expect(tableNumberCards).toBe(false);
+    expect(Object.values(PLANS.intimate.features).every((on) => on === true)).toBe(true);
+    expect(PLANS.celebration.features).toEqual(PLANS.intimate.features);
   });
 
   it("only sells paid plans; Free is never a payment", () => {
@@ -42,7 +44,7 @@ describe("plan registry (product.md §15.3, D24)", () => {
   });
 
   it("rejects anything that isn't a plan id", () => {
-    for (const value of [null, undefined, "", "Celebration", "premium", 1]) {
+    for (const value of [null, undefined, "", "Celebration", "Standard", "Premium", "premium", 1]) {
       expect(isPlanId(value)).toBe(false);
       expect(isPaidPlanId(value)).toBe(false);
     }

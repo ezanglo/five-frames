@@ -887,7 +887,7 @@ and a view of all money received for bookkeeping.
 
 ---
 
-## D24 — Plans: Free first event, Intimate ₱499, Celebration ₱999
+## D24 — Plans: Free first event, Standard ₱499, Premium ₱999
 
 **Status:** Accepted as a product change (2026-10-11). Technical design is open and is settled in
 the implementation slices below. Amends the single launch price (D23 consequences,
@@ -898,8 +898,8 @@ entry price for small events, a plan for big ones, and a way to let a host try F
 real before paying.
 **Decision (product.md §15.3):**
 1. **Three plans, one guest experience.** Free (10 sessions, 7 days, once per host account,
-   ever), Intimate ₱499 (100 sessions, 6 months), Celebration ₱999 (300 sessions, 12 months).
-   Plans differ only in capacity, hosted access and Celebration extras. Five frames, keepsakes,
+   ever), Standard ₱499 (100 sessions, 6 months), Premium ₱999 (300 sessions, 12 months).
+   Plans differ only in capacity, hosted access and Premium extras. Five frames, keepsakes,
    theme, gallery and the brandmark are identical on every plan. Every plan is a one-time fee:
    no renewals, extensions or subscriptions. The ₱1,490 target and the ₱499/year renewal
    hypothesis are retired.
@@ -912,7 +912,7 @@ real before paying.
    refunds. Unlike them, it is its own record, since it isn't a payment.
    This is the overflow answer at the venue, since there's no self-service upgrade and payment
    is manual at launch (D23).
-4. **Celebration extras that take no host time:** Send to Google Drive (host-initiated, after
+4. **Premium extras that take no host time:** Send to Google Drive (host-initiated, after
    the event), table-number cards, and two human services (set-up together, help on the day)
    that grant operators nothing new.
 5. **Time sections are the default gallery view on every plan.** Presentation only, under
@@ -938,17 +938,39 @@ The limits are enforced server-side for Free events (Invariant 15) in Slice 21, 
 activation. They are recorded as entitlement flags in `lib/plans/registry.ts`, which marketing
 already reads.
 
-**Amended 2026-10-11 (founder's call): Celebration gets co-host access after launch, and both
+**Amended 2026-10-11 (founder's call): Premium gets co-host access after launch, and both
 after-launch features may be advertised as "coming soon."**
-- **Co-host access** (product.md §11.2.2): one invited co-host per Celebration event. They can
+- **Co-host access** (product.md §11.2.2): one invited co-host per Premium event. They can
   run the event but not own it: no plan, payment, refund, invites or deletion. It ships in the
   first update with Send to Google Drive. It touches every host ownership check (Invariant 9,
   CLAUDE.md "every event query carries an ownership predicate"), so it gets its own design pass
   then (architecture §7f).
-- **Coming soon:** the site may list both on Celebration only as clearly labelled "coming soon"
+- **Coming soon:** the site may list both on Premium only as clearly labelled "coming soon"
   (§11.2.1). `content.test.ts` rejects any mention of either without "soon" on the same line.
-- **Table-number cards** (Slice 24) are listed on Celebration now, so Slice 24 must land before
+- **Table-number cards** (Slice 24) are listed on the paid plans now, so Slice 24 must land before
   the site deploys, the same as Free and Slice 21.
+
+**Amended 2026-10-11 (founder's call): the paid plans are renamed Standard and Premium.**
+"Intimate" and "Celebration" named event types, and hosts with other events read them as "not
+for me". Nothing else about the plans changes. The stored ids stay `intimate` and
+`celebration`. They are in `events.plan`, `payments.plan` and the migration's check
+constraints, and the UI only ever shows the registry's `label`, so renaming them would mean a
+data migration for no visible gain. The site marks one paid plan (Standard) "Most popular", and
+both paid plan cards build on Free.
+
+**Amended 2026-10-11 (founder's call): Free gets the full theme and live counts.** Two of the
+lighter-event limits above are withdrawn. Free hosts can add a theme image and hashtag, and see
+live guest and photo counts. Both cost nothing to serve: the theme is one small image per event,
+and counts are the existing D21 stream. Both also let a host try the parts that sell the product.
+Free still leaves out printable signage and keeps one keepsake style per family. The
+`themeImageAndHashtag` and `liveCounts` registry flags are removed, since no plan differs on them
+now (product.md §15.3.1; criteria 83 and 85 withdrawn).
+
+**Amended 2026-10-11 (founder's call): Standard gets table-number cards too.** They are a
+signage format like the others, cost the same to render on either plan, and suit Standard's
+events (dinners, birthdays) as much as Premium's. They leave item 4's Premium extras. Premium
+now differs from Standard by its capacity, hosted access, help from us, and the after-launch
+Drive and co-host features (product.md §11.3, criterion 78).
 
 **Technical shape (2026-10-11):** settled in architecture.md §6a (override function and
 append-only log), §7c (table-number cards), §7d (time sections), §7e (Drive, deferred) and §8c
@@ -987,7 +1009,7 @@ sections; (e) table-number cards. Next update: (f) Send to Google Drive.
 **Status:** Accepted (2026-10-11). Supersedes D11's "no zip" in part. D11's client-driven
 principle stands.
 **Context:** The founder wants "Download all" to give ZIP files in MVP, in parts of 500 photos
-(product.md §11.2.3). A Celebration event can hold 1,500 photos, several GB. The obvious design
+(product.md §11.2.3). A Premium event can hold 1,500 photos, several GB. The obvious design
 is to build the ZIPs on a server and store them, and current provider limits rule it out without
 new infrastructure and a paid plan:
 - A Vercel Function response is capped at 4.5 MB
@@ -1016,7 +1038,7 @@ back to D11's one-by-one save. The details are in architecture §7 "Bulk downloa
   (Invariant 10).
 - Streaming keeps memory flat whatever the part size.
 - 500-photo parts stay well under the 4 GB classic ZIP limit even without ZIP64, and match the
-  plans: Free and Intimate fit in one file.
+  plans: Free and Standard fit in one file.
 
 **Alternatives rejected:**
 - A server-built archive in Storage: needs Supabase Pro for files over 50 MB, plus a background
@@ -1039,7 +1061,7 @@ back to D11's one-by-one save. The details are in architecture §7 "Bulk downloa
 It amends D1 (Supabase stays for Postgres, Auth and the DAL) and supersedes D7's TUS mechanism.
 
 **Context:** FiveFrames sends far more data out than it takes in: guests scroll galleries, hosts
-download whole events (as ZIPs, D25), and the Drive export will come later. A full Celebration
+download whole events (as ZIPs, D25), and the Drive export will come later. A full Premium
 event is about 6 GB of originals, and a busy gallery can serve over 100 GB.
 - **Supabase** counts Storage egress against one shared quota: 5 GB on Free, 250 GB on Pro,
   then $0.09/GB uncached

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
 import {
   ArrowRight,
   CalendarClock,
@@ -7,16 +6,14 @@ import {
   ChevronDown,
   Clock,
   Minus,
-  Sparkles,
   Users,
 } from "lucide-react";
 import { ButtonLink } from "@/components/ff/button";
 import {
-  EVERY_PLAN_HIGHLIGHTS,
+  FEATURED_PLAN_BADGE,
+  FEATURED_PLAN_ID,
   MARKETING_PLANS,
-  PAYMENT_COPY,
   PLAN_COMPARISON,
-  planExtras,
   planFeatures,
   type ComparisonValue,
   type FaqItem,
@@ -107,13 +104,13 @@ function CheckLine({ children, soon }: { children: ReactNode; soon?: boolean }) 
 }
 
 /**
- * One plan (product.md §15.3, D24): name, price (₱0 for the Free first event), who it suits, its
- * guests and hosting, then its features built up plan by plan: Free lists what it includes, and
- * each paid plan says "Everything in <previous>, plus" what it adds (`planFeatures`). Every card
- * has the same structure, spacing, icon and button, so the plans read as one set; the only
- * thing that varies is the content. No anchors, no
- * favourite-plan badge, no per-photo upsells. Everything comes from the registry and
- * lib/marketing/content.ts.
+ * One plan (product.md §15.3, D24), on /pricing and the homepage alike: name, price (₱0 for the
+ * Free first event), who it suits, its guests and hosting, then its features in short titled
+ * groups: Free lists what it includes, and each paid plan says "Everything in Free, plus" what
+ * it adds (`planFeatures`). Every card has the same structure and spacing, so the plans read as
+ * one set. The one featured plan (`FEATURED_PLAN_ID`) gets a badge, a brand border and the primary
+ * button; the others get the secondary one. No anchor prices, no per-photo upsells. Everything
+ * comes from the registry and lib/marketing/content.ts.
  */
 export function PlanCard({
   plan,
@@ -126,15 +123,25 @@ export function PlanCard({
 }) {
   const Heading = headingLevel;
   const features = planFeatures(plan);
+  const featured = plan.id === FEATURED_PLAN_ID;
   return (
     <div
       className={cn(
-        "flex flex-col gap-6 rounded-3xl border border-line bg-surface p-6 shadow-[0_24px_48px_-32px_rgb(21_20_26/0.3)] sm:p-8",
+        "flex flex-col gap-6 rounded-3xl border bg-surface p-6 shadow-[0_24px_48px_-32px_rgb(21_20_26/0.3)] sm:p-8",
+        featured ? "border-brand ring-1 ring-brand" : "border-line",
         className,
       )}
     >
       <div className="flex flex-col gap-2">
-        <Heading className="text-label font-bold text-brand">{plan.label}</Heading>
+        {/* The badge sits in the name row, so every card's price starts at the same height. */}
+        <div className="flex min-h-6 items-center justify-between gap-3">
+          <Heading className="text-label font-bold text-brand">{plan.label}</Heading>
+          {featured && (
+            <span className="rounded-full bg-brand px-2.5 py-1 text-micro font-bold text-brand-foreground">
+              {FEATURED_PLAN_BADGE}
+            </span>
+          )}
+        </div>
         <p className="flex flex-wrap items-baseline gap-x-2">
           <span className="tabular text-[48px] leading-none font-extrabold tracking-[-0.02em] text-ink sm:text-[56px]">
             {formatPrice(plan.pricePhp)}
@@ -149,20 +156,25 @@ export function PlanCard({
 
       <PlanStats plan={plan} />
 
-      <div className="flex flex-col gap-3 border-t border-line pt-5">
+      <div className="flex flex-col gap-5 border-t border-line pt-5">
         <p className="text-caption font-semibold tracking-wide text-ink-muted uppercase">
           {features.heading}
         </p>
-        <ul className="flex flex-col gap-3">
-          {features.lines.map((line) => (
-            <CheckLine key={line.text} soon={line.soon}>
-              {line.text}
-            </CheckLine>
-          ))}
-        </ul>
+        {features.groups.map((group) => (
+          <div key={group.title} className="flex flex-col gap-3">
+            <p className="text-caption font-bold text-ink">{group.title}</p>
+            <ul className="flex flex-col gap-3">
+              {group.lines.map((line) => (
+                <CheckLine key={line.text} soon={line.soon}>
+                  {line.text}
+                </CheckLine>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
 
-      <ButtonLink href="/signup" className="mt-auto w-full">
+      <ButtonLink href="/signup" variant={featured ? "primary" : "secondary"} className="mt-auto w-full">
         {plan.pricePhp === 0 ? "Start your free event" : "Create your event"}
         <ArrowRight aria-hidden />
       </ButtonLink>
@@ -171,74 +183,9 @@ export function PlanCard({
 }
 
 /**
- * Every plan in one compact card, for the homepage pricing section: a row per plan with its
- * price, guests and hosting, then what every plan includes and one call to action. Guests
- * never pay on any of them.
- */
-export function PlansCard({ className }: { className?: string }) {
-  return (
-    <div
-      className={cn(
-        "flex flex-col gap-6 rounded-3xl border border-line bg-surface p-6 shadow-[0_24px_48px_-32px_rgb(21_20_26/0.3)] sm:p-8",
-        className,
-      )}
-    >
-      <ul className="flex flex-col divide-y divide-line">
-        {MARKETING_PLANS.map((plan) => (
-          <li key={plan.id} className="flex flex-col gap-3 py-4 first:pt-0">
-            <div className="flex items-baseline justify-between gap-4">
-              <div className="flex min-w-0 flex-col">
-                <span className="text-[19px] font-bold text-ink">{plan.label}</span>
-                <span className="text-caption font-medium text-ink-muted">{plan.forWhom}</span>
-              </div>
-              <span className="tabular shrink-0 text-[32px] leading-none font-extrabold tracking-[-0.02em] text-ink">
-                {formatPrice(plan.pricePhp)}
-              </span>
-            </div>
-            <PlanStats plan={plan} compact />
-            {planExtras(plan).length > 0 && (
-              <p className="flex items-center gap-1.5 text-caption font-semibold text-ink">
-                <Sparkles className="size-3.5 shrink-0 text-brand" aria-hidden />
-                {planExtras(plan).join(" · ")}
-              </p>
-            )}
-          </li>
-        ))}
-      </ul>
-      <div className="flex flex-col gap-3 rounded-xl bg-surface-subtle p-4">
-        <p className="text-caption font-semibold tracking-wide text-ink-muted uppercase">
-          Every plan includes
-        </p>
-        <ul className="flex flex-col gap-2.5">
-          {EVERY_PLAN_HIGHLIGHTS.map((line) => (
-            <CheckLine key={line}>{line}</CheckLine>
-          ))}
-        </ul>
-        <Link
-          href="/pricing#compare-title"
-          className="ff-focus w-fit rounded-md text-label font-semibold text-brand underline-offset-4 hover:underline"
-        >
-          Compare everything in each plan
-        </Link>
-      </div>
-      <div className="flex flex-col gap-3">
-        <ButtonLink href="/signup" className="w-full">
-          Create your event
-          <ArrowRight aria-hidden />
-        </ButtonLink>
-        <p className="text-center text-caption font-medium text-ink-muted">
-          Your first event is free. After that, each event is paid once.{" "}
-          {PAYMENT_COPY.priceCardNote}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/**
- * The full plan comparison on /pricing: every feature, grouped, against Free, Intimate and
- * Celebration. Free is the lighter event (product.md §15.3.1); the paid plans differ only in
- * guests, hosting and Celebration's help from us (§15.3). A real table, so screen
+ * The full plan comparison on /pricing: every feature, grouped, against Free, Standard and
+ * Premium. Free is the lighter event (product.md §15.3.1); the paid plans differ only in
+ * guests, hosting and Premium's help from us (§15.3). A real table, so screen
  * readers announce each cell with its plan and feature. At phone width the plan columns stay
  * narrow (checks and short values), so the table fits without scrolling the page.
  */

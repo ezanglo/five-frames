@@ -1,7 +1,7 @@
 import { SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { PAYMENT_MODE, type PaymentMode } from "@/lib/payments/mode";
 import { REFUND_POLICY_COPY } from "@/lib/payments/pricing";
-import { formatPrice, PAID_PLANS, PLANS, type Plan } from "@/lib/plans/registry";
+import { formatPrice, PAID_PLANS, PLANS, type PaidPlanId, type Plan } from "@/lib/plans/registry";
 
 /**
  * Public marketing copy that states product facts. Every number here derives from the constant
@@ -33,108 +33,136 @@ export const FRAMES = SHOTS_PER_GUEST;
 export const ZIP_PART_SIZE = 500;
 
 /** "up to 12 months" — the longest hosted access any plan has (product.md §15.2). Copy using it
- *  says "depending on your plan", since Free is 7 days and Intimate 6 months. */
+ *  says "depending on your plan", since Free is 7 days and Standard 6 months. */
 export const HOSTED_ACCESS_LABEL = `up to ${
   MARKETING_PLANS.reduce((a, b) => (b.hostedAccessDays > a.hostedAccessDays ? b : a)).hostedAccessLabel
 }`;
 
-/** "Free for 7 days, Intimate for 6 months and Celebration for 12 months". */
+/** "Free for 7 days, Standard for 6 months and Premium for 12 months". */
 export const HOSTED_ACCESS_BY_PLAN = MARKETING_PLANS.map((p) => `${p.label} for ${p.hostedAccessLabel}`)
   .join(", ")
   .replace(/, ([^,]*)$/, " and $1");
 
-/**
- * What every plan does, including Free (product.md §15.3.1). Free's card lists these; paid plans
- * build on them. Only things the product does today: table-number cards (Slice 24) and the cloud
- * export (after launch, architecture §7e) stay off until they exist. Downloads are on every plan
- * (Invariant 11) but aren't featured on the cards, at the founder's request; the comparison
- * table still shows them.
- */
 /** A plan card line. `soon` marks something a plan will get that isn't built yet. */
 export type FeatureLine = { text: string; soon?: boolean };
 
-export const EVERY_PLAN_HIGHLIGHTS = [
-  `${FRAMES} photos per guest`,
-  "No app or sign-up for guests",
-  "Share by link or QR",
-  "Your event color",
-  "Photo keepsakes for guests",
-  "Private gallery",
+/** A titled group of lines on a plan card, so each line reads as being for something. */
+export type FeatureGroup = { title: string; lines: FeatureLine[] };
+
+/**
+ * What every plan does, including Free (product.md §15.3.1). Free's card lists these; paid plans
+ * build on them. Only things the product does today. Downloads are on every plan (Invariant 11)
+ * but aren't featured on Free's card, at the founder's request; the comparison table still
+ * shows them.
+ */
+const EVERY_PLAN_GROUPS: FeatureGroup[] = [
+  {
+    title: "For your guests",
+    lines: [
+      { text: `${FRAMES} photos per guest` },
+      { text: "No app or sign-up for guests" },
+      { text: "Photo keepsakes for guests" },
+    ],
+  },
+  {
+    title: "For you",
+    lines: [
+      { text: "Share by link or QR" },
+      { text: "Your own photo, color and hashtag" },
+      { text: "Live guest and photo counts" },
+      { text: "Private gallery" },
+    ],
+  },
 ];
 
-/** Copy for each feature a plan adds over a plan without it (registry `features`). */
-const FEATURE_LINES: Record<keyof Plan["features"], string> = {
-  printSignage: "Printable QR cards and posters",
-  themeImageAndHashtag: "Your own photo and hashtag",
-  allKeepsakeStyles: "All keepsake styles",
-  liveCounts: "Live guest and photo counts",
-  tableNumberCards: "Numbered table cards",
+/**
+ * The groups a paid plan's additions fall into, in card order. Each paid card shows only the
+ * groups it has lines in, so a plan above another repeats its groups, in the same order.
+ */
+const PAID_GROUP_TITLES = {
+  capacity: "Room for your event",
+  look: "Signage and keepsakes",
+  hosting: "Running your event",
+  help: "Help from us",
+} as const;
+type PaidGroup = keyof typeof PAID_GROUP_TITLES;
+
+/** Copy and group for each feature a plan adds over Free (registry `features`). */
+const FEATURE_LINES: Record<keyof Plan["features"], { group: PaidGroup; text: string }> = {
+  printSignage: { group: "look", text: "Printable QR cards and posters" },
+  tableNumberCards: { group: "look", text: "Numbered table cards" },
+  allKeepsakeStyles: { group: "look", text: "All keepsake styles" },
 };
 
 /**
  * Promised to a plan but not built yet, shown only as "coming soon" (product.md §11.2.1,
  * §11.2.2). Each line names "soon" so content.test.ts can tell a promise from a claim.
  */
-const COMING_SOON: Partial<Record<Plan["id"], FeatureLine[]>> = {
+const COMING_SOON: Partial<Record<Plan["id"], { group: PaidGroup; line: FeatureLine }[]>> = {
   celebration: [
-    { text: "Save to Google Drive", soon: true },
-    { text: "Add a co-host", soon: true },
+    { group: "hosting", line: { text: "Save to Google Drive", soon: true } },
+    { group: "hosting", line: { text: "Add a co-host", soon: true } },
   ],
 };
 
-/** A plan's own notes: Free's terms, and what each paid plan adds that isn't a number. */
-export function planExtras(plan: Plan): string[] {
-  if (plan.id === "free") return ["No payment", "Your first event only"];
-  if (plan.id === "intimate") return [];
+/** What a paid plan adds that isn't a number or a registry feature: help from us. */
+function planHelp(plan: Plan): string[] {
+  if (plan.id !== "celebration") return [];
   return ["We set it up with you", "Signage prepared with you", "Direct help on the day"];
 }
 
 /**
- * The plan card's feature list, built up plan by plan (D24). Free lists what every plan does.
- * Each paid plan says "Everything in <previous>, plus" and lists only what it adds, read from
- * the registry: more guests, longer hosting, its own extras, and the features Free leaves out
- * (product.md §15.3.1). So every "plus" item is a real difference.
+ * The plan card's feature list (D24), in titled groups. Free lists what every plan does. Each
+ * paid plan says "Everything in Free, plus" and lists everything it has beyond Free, read from
+ * the registry: more guests, longer hosting, the features Free leaves out (product.md §15.3.1),
+ * its help from us and what's coming soon. So every "plus" item is a real difference from Free,
+ * and a lower paid plan's lines reappear on the plan above it, in the same groups and order.
  */
 export function planFeatures(plan: Plan): {
   heading: string;
-  lines: FeatureLine[];
+  groups: FeatureGroup[];
   additions: boolean;
 } {
-  const index = MARKETING_PLANS.findIndex((p) => p.id === plan.id);
-  const previous = index > 0 ? MARKETING_PLANS[index - 1] : null;
-  if (!previous) {
-    return {
-      heading: "Includes",
-      lines: EVERY_PLAN_HIGHLIGHTS.map((text) => ({ text })),
-      additions: false,
-    };
+  if (plan.id === "free") {
+    return { heading: "Includes", groups: EVERY_PLAN_GROUPS, additions: false };
   }
 
-  const lines: string[] = [];
-  if (plan.guestSessionCap > previous.guestSessionCap) {
-    lines.push(`Up to ${plan.guestSessionCap} guests`);
+  const base = FREE_PLAN;
+  const lines: Record<PaidGroup, FeatureLine[]> = { capacity: [], look: [], hosting: [], help: [] };
+  if (plan.guestSessionCap > base.guestSessionCap) {
+    lines.capacity.push({ text: `Up to ${plan.guestSessionCap} guests` });
     // The theoretical most a full event can hold: every guest keeping all their frames.
-    lines.push(`Up to ${(plan.guestSessionCap * FRAMES).toLocaleString("en-PH")} photos`);
+    lines.capacity.push({ text: `Up to ${(plan.guestSessionCap * FRAMES).toLocaleString("en-PH")} photos` });
   }
-  if (plan.hostedAccessDays > previous.hostedAccessDays) {
-    lines.push(`Hosted for ${plan.hostedAccessLabel}`);
+  if (plan.hostedAccessDays > base.hostedAccessDays) {
+    lines.capacity.push({ text: `Hosted for ${plan.hostedAccessLabel}` });
+  }
+  for (const key of Object.keys(FEATURE_LINES) as (keyof Plan["features"])[]) {
+    if (plan.features[key] && !base.features[key]) {
+      lines[FEATURE_LINES[key].group].push({ text: FEATURE_LINES[key].text });
+    }
   }
   // Free events can download too (Invariant 11), only for 7 days, and its card doesn't feature
-  // downloads (founder's call). The first paid plan names the longer download window, which is
-  // a real addition; later plans inherit it through "Everything in …, plus".
-  if (previous.id === "free") {
-    lines.push("Download all as ZIP files");
-  }
-  lines.push(...planExtras(plan));
-  for (const key of Object.keys(FEATURE_LINES) as (keyof Plan["features"])[]) {
-    if (plan.features[key] && !previous.features[key]) lines.push(FEATURE_LINES[key]);
-  }
+  // downloads (founder's call). Paid plans name the longer download window, a real addition.
+  lines.hosting.push({ text: "Download all as ZIP files" });
+  for (const { group, line } of COMING_SOON[plan.id] ?? []) lines[group].push(line);
+  lines.help.push(...planHelp(plan).map((text) => ({ text })));
+
   return {
-    heading: `Everything in ${previous.label}, plus`,
-    lines: [...lines.map((text) => ({ text })), ...(COMING_SOON[plan.id] ?? [])],
+    heading: `Everything in ${base.label}, plus`,
+    groups: (Object.keys(PAID_GROUP_TITLES) as PaidGroup[])
+      .filter((group) => lines[group].length > 0)
+      .map((group) => ({ title: PAID_GROUP_TITLES[group], lines: lines[group] })),
     additions: true,
   };
 }
+
+/**
+ * The one plan the site badges as the popular choice (founder’s call, 2026-10-11): the ₱499 plan, the
+ * one most events fit. A single highlighted plan, never Free, never a crossed-out price.
+ */
+export const FEATURED_PLAN_ID: PaidPlanId = "intimate";
+export const FEATURED_PLAN_BADGE = "Most popular";
 
 /** A comparison cell: included, not included, or a value that differs by plan. */
 export type ComparisonValue = boolean | string;
@@ -161,7 +189,7 @@ export const PLAN_COMPARISON: ComparisonGroup[] = [
       { label: `${FRAMES} photos per guest`, value: everyPlan },
       { label: "No app or sign-up for guests", value: everyPlan },
       { label: "You choose when guests can shoot", value: everyPlan },
-      { label: "Live guest and photo counts", value: (p) => p.features.liveCounts },
+      { label: "Live guest and photo counts", value: everyPlan },
     ],
   },
   {
@@ -169,7 +197,7 @@ export const PLAN_COMPARISON: ComparisonGroup[] = [
     rows: [
       { label: "Share by link or QR", value: everyPlan },
       { label: "Your event color", value: everyPlan },
-      { label: "Your own photo and hashtag", value: (p) => p.features.themeImageAndHashtag },
+      { label: "Your own photo and hashtag", value: everyPlan },
       { label: "Printable QR cards and posters", value: (p) => p.features.printSignage },
       { label: "Numbered table cards", value: (p) => p.features.tableNumberCards },
     ],
@@ -298,7 +326,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         answer: [
           `Yes. The demo lets you take ${FRAMES} shots and keep them, just as a guest would, right in your browser, and try the keepsake styles on a sample look.`,
           "The demo isn’t an event. Nothing you do there is uploaded or saved, and it never gives you a link or QR code to share.",
-          `For a real event, your first one is free: up to ${FREE_PLAN.guestSessionCap} guests, hosted for ${FREE_PLAN.hostedAccessLabel}, with the essentials: your event link and QR to share, your accent color, and keepsakes for guests.`,
+          `For a real event, your first one is free: up to ${FREE_PLAN.guestSessionCap} guests, hosted for ${FREE_PLAN.hostedAccessLabel}, with the essentials: your event link and QR to share, your own photo, color and hashtag, live counts, and keepsakes for guests.`,
         ],
       },
       {
@@ -503,7 +531,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: "Which plan should I choose?",
         answer: [
           `Go by how many guests you expect. ${PAID_PLANS.map((p) => `${p.label} suits ${p.forWhom.toLowerCase()}, up to ${p.guestSessionCap} guests`).join("; ")}.`,
-          "Celebration also comes with us: we set up your look and get your signage print-ready with you, and you have a direct line to us on the day. It adds numbered table cards too, and sending your photos to Google Drive and a co-host are coming soon.",
+          `${PLANS.celebration.label} also comes with us: we set up your look and get your signage print-ready with you, and you have a direct line to us on the day. Sending your photos to Google Drive and adding a co-host are coming soon too.`,
           `Free is there to try FiveFrames for real once, with up to ${FREE_PLAN.guestSessionCap} guests. It’s one per account, so save it for a small gathering rather than the event that matters most.`,
         ],
       },

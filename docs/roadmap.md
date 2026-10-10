@@ -651,24 +651,24 @@ homepage. Human: GAL-07, VIS-05.
 ## Plans (D24), R2 storage (D26) and ZIP downloads (D25): Slices 20–26
 
 A product change requested on 2026-10-11 (product.md §15.3, decision D24, architecture §6a,
-§7c–§7e, §8c): a Free first event, Intimate ₱499 and Celebration ₱999, an operator capacity
+§7c–§7e, §8c): a Free first event, Standard ₱499 and Premium ₱999, an operator capacity
 override, time sections and table-number cards. Send to Google Drive is deferred to the first
 update after launch (architecture §7e) and is not a slice here.
 
 | Slice | Scope | Criteria | Status |
 |---|---|---|---|
-| **20 — Plan model** | Plan registry; `events.plan` / `payments.plan`; activation stamps plan, cap and hosted access from what was paid for; plan choice on the Share step; plan on the dashboard and in the Console; marketing shows all three plans (Free ahead of Slice 21, so deploy 20 with 21) | 70 (paid plans), 72, 73 (Intimate, Celebration), 74, 75 | `complete` (2026-10-11) |
-| 21 — Free first event | Free activation through `activateEvent` with the once-per-account claim on `hosts`; Free on the Share step; Free's lighter event enforced server-side from `PLANS.free.features` (product.md §15.3.1): link, on-screen QR and phone-screen signage only, accent color only, one keepsake style per family, no dashboard counts | 70 (Free), 71, 73 (Free), 82–86 | `not started` |
+| **20 — Plan model** | Plan registry; `events.plan` / `payments.plan`; activation stamps plan, cap and hosted access from what was paid for; plan choice on the Share step; plan on the dashboard and in the Console; marketing shows all three plans (Free ahead of Slice 21, so deploy 20 with 21) | 70 (paid plans), 72, 73 (Standard, Premium), 74, 75 | `complete` (2026-10-11) |
+| 21 — Free first event | Free activation through `activateEvent` with the once-per-account claim on `hosts`; Free on the Share step; Free's lighter event enforced server-side from `PLANS.free.features` (product.md §15.3.1): link, on-screen QR and phone-screen signage only, one keepsake style per family | 70 (Free), 71, 73 (Free), 82, 84, 86 | `not started` |
 | 22 — Capacity override | Operator override with required reason and append-only log; history on the Console event page | 76, 21, 22 | `not started` |
 | 23 — Time sections | Hourly sections in the revealed gallery, on by default, host switch | 79, 80 | `not started` |
-| 24 — Table-number cards | Celebration signage format and ZIP download. Already listed on the site, so it must land before the site deploys | 78 | `not started` |
+| 24 — Table-number cards | Paid-plan (Standard and Premium) signage format and ZIP download. Already listed on the site, so it must land before the site deploys | 78 | `not started` |
 
 | 25 — Storage on Cloudflare R2 | Move captures and theme images from Supabase Storage to private R2 buckets: presigned reads and uploads behind `lib/storage/`, a new resumable or restartable upload in place of TUS, deletion by prefix, CORS, dev-object decision (D26, architecture §7h). Needs the founder's Cloudflare account and keys first | 3, 4, 27, 33 (unchanged behavior on new storage) | `not started` |
 | 26 — Download all as ZIP files | Browser-built ZIP parts of up to 500 photos, with the one-by-one fallback (D25, architecture §7 "Bulk download"). Built on R2 (Slice 25). Already on the site, so it must land before the site deploys | 33, 88 | `not started` |
 
 **After launch (first update), shown on the site as "coming soon":** Send to Google Drive
 (architecture §7e, criterion 77) and Co-host access (architecture §7f, criterion 87). Both are
-Celebration-only, and neither is a launch slice.
+Premium-only, and neither is a launch slice.
 
 ---
 

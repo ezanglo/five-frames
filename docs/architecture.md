@@ -173,7 +173,7 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   - `plan` — `'intimate' | 'celebration'`: what this payment bought (§8c, D24). Set when the
     row is created and never changed. Activation copies it to `events.plan`. There is never a
     `'free'` payment row. Nullable only for rows older code may still create; a null reads as
-    Celebration (`planForPayment`). NOT NULL is a deployment-order follow-up (§8c "As built").
+    Premium (`planForPayment`). NOT NULL is a deployment-order follow-up (§8c "As built").
   - Provider fields (nullable, `source = 'provider'` only): PayMongo checkout session id,
     amounts, fee breakdown, provider status, webhook delivery id (idempotency).
   - Manual fields (nullable, `source = 'manual'` only): `manual_method`
@@ -386,7 +386,7 @@ returns a frame. There is no guest-initiated path to any of these transitions.
 
 [product.md §9.5](./product.md#9-frames-commitment-and-limits) adds a second, independent limit:
 the number of guest sessions that may join one event. Since D24 it comes from the event's plan:
-**10 / 100 / 300** for Free / Intimate / Celebration (launch hypotheses, not product invariants
+**10 / 100 / 300** for Free / Standard / Premium (launch hypotheses, not product invariants
 like the five-frame allowance). Activation stamps the plan's cap onto `guest_session_cap` (§8c),
 and an operator override can raise it afterwards (below). It does not touch the per-session frame
 mechanism in §6 at all.
@@ -1181,7 +1181,7 @@ DOM/Satori rendering differences, which each style's visual check covers.
 - The plate is sized for a 29-module symbol, the smallest a capture URL can produce. Longer URLs
   keep the format's QR size, and their quiet zone only grows.
 
-### Table-number cards (D24, Celebration)
+### Table-number cards (D24, Standard and Premium)
 
 product.md §11.3. A fifth format, `table-number`, in the same layout model and renderer. Its
 input is the closed signage input plus `tableNumber: 1..100`.
@@ -1197,15 +1197,16 @@ input is the closed signage input plus `tableNumber: 1..100`.
   token, query parameter or tracking.
 - **Download:** `/events/[id]/signage/table-numbers?count=N` returns one ZIP of N SVGs
   (`table-01.svg` …), built in memory with `fflate` (a new, small, pure-JS dependency). Gating:
-  owning host, activated, `event_token` set, `plan = 'celebration'`, `1 ≤ N ≤ 100`. The count is
+  owning host, activated, `event_token` set, `PLANS[plan].features.tableNumberCards` (Standard and
+  Premium), `1 ≤ N ≤ 100`. The count is
   not stored. A Vercel Function response is capped at **4.5 MB**
   ([Vercel limits](https://vercel.com/docs/functions/limitations#request-body-size)), so a test
   renders 100 cards with the longest allowed event name and hashtag and asserts the ZIP is under
   4 MB. If a design change ever breaks that, move to per-card downloads through `save-files.ts`,
   never a larger response.
 - **Preview:** card number 12 (a sample), through the existing preview route and QR union.
-  Draft previews use `preview`. The Look page shows it only when the event's plan is
-  Celebration.
+  Draft previews use `preview`. The Look page shows it only when the event's plan has
+  `tableNumberCards` (Standard or Premium).
 - `test/qr-decode.ts` decodes the format's rasterized output, like the other formats.
 
 ---
@@ -1276,7 +1277,7 @@ product.md §7.5: on by default for every event, display only.
 ## 7e. Send to Google Drive (D24) — deferred to the first update
 
 Not built in this update. product.md §11.2.1 defines it. Until it ships, the site may list it on
-Celebration only as "coming soon", and no host screen offers it.
+Premium only as "coming soon", and no host screen offers it.
 Recorded here so the later slice starts from settled constraints:
 
 - **Source set:** the same rows as `listOriginalDownloadUrlsForEventHost` (committed,
@@ -1284,7 +1285,7 @@ Recorded here so the later slice starts from settled constraints:
 - **Scope:** `drive.file` only (non-sensitive; files the app creates). Never a restricted Drive
   scope, which would trigger a security assessment (D24 cites Google's page).
 - **Transfer:** Drive has no import-from-URL, so FiveFrames streams every original out of Storage
-  with Drive resumable uploads. A Celebration event can hold several GB, so this is a background
+  with Drive resumable uploads. A Premium event can hold several GB, so this is a background
   job (one item per capture, idempotent by capture id within an export folder), not one request.
   Candidates are Vercel Workflows (Vercel's documented answer for work beyond function duration
   limits, [limits page](https://vercel.com/docs/functions/limitations#max-duration)) or a
@@ -1302,7 +1303,7 @@ Not built in this update. product.md §11.2.2 defines it, with the same "coming 
   `events.host_id = hostId`. Co-hosts need one shared check, `getEventForHostOrCohost(userId,
   eventId, capability)`, where capability is `run` or `own`.
   - `own` stays owner-only: plan, payment, refund, invites, deletion.
-  - `run` admits an accepted, unrevoked co-host on a Celebration event.
+  - `run` admits an accepted, unrevoked co-host on a Premium event.
   - Every existing host query moves to it deliberately, one by one. There is no blanket "or
     co-host" predicate.
 - **Shape:** an `event_cohosts` table (`event_id`, `user_id`, invited email, `invited_at`,
@@ -1464,7 +1465,7 @@ marketing and DAL all read it):
 ```ts
 PLANS = {
   free:        { priceCentavos: 0,     guestSessionCap: 10,  hostedAccessDays: 7,   tableNumberCards: false },
-  intimate:    { priceCentavos: 49900, guestSessionCap: 100, hostedAccessDays: 183, tableNumberCards: false },
+  intimate:    { priceCentavos: 49900, guestSessionCap: 100, hostedAccessDays: 183, tableNumberCards: true  },
   celebration: { priceCentavos: 99900, guestSessionCap: 300, hostedAccessDays: 365, tableNumberCards: true  },
 }
 ```
@@ -1500,8 +1501,8 @@ UPDATE events
   RETURNING *;
 ```
 
-A late webhook for a superseded Intimate checkout therefore activates Intimate, which is what
-was paid for, even if the draft now says Celebration. A paid plan can't be activated without its
+A late webhook for a superseded Standard checkout therefore activates Standard, which is what
+was paid for, even if the draft now says Premium. A paid plan can't be activated without its
 payment row, and the Free branch hardcodes `'free'`.
 
 **Free: claim, then activate.** "Once per account, ever" is its own atomic guard on the
@@ -1560,14 +1561,12 @@ lowers a live event's cap.
   operator agreed an amount for a specific plan.
 - `setEventPlan` (`lib/dal/events.ts`) is owner-scoped with `activated_at IS NULL` in the same
   statement. The Share step's `PlanPicker` saves on change, with a no-JS submit.
-- `Plan.features` (`printSignage`, `themeImageAndHashtag`, `allKeepsakeStyles`, `liveCounts`)
+- `Plan.features` (`printSignage`, `allKeepsakeStyles`, `tableNumberCards`)
   describes Free's lighter event (product.md §15.3.1, D24 amendment). Marketing reads it now.
   Slice 21 enforces it on the server for Free events, each at the existing gate:
   - the signage download route refuses print formats;
-  - theme reads drop the image and hashtag for Free;
-  - keepsake render routes refuse non-preselected styles;
-  - the dashboard and its D21 version omit counts.
-- Marketing reads `MARKETING_PLANS` (Free, Intimate, Celebration). It shows Free ahead of Slice
+  - keepsake render routes refuse non-preselected styles.
+- Marketing reads `MARKETING_PLANS` (Free, Standard, Premium). It shows Free ahead of Slice
   21 at the user's request, so the site must not be deployed until Slice 21 lands.
   `content.test.ts` forbids literal guest counts, "one price"/"no tiers", "renew" and
   "Google Drive".
@@ -1787,7 +1786,7 @@ traffic to track, not before.
 | HEIC conversion needed and expensive or lossy | Photo pipeline rework | Materialized in Slice 15: the prebuilt `sharp` can't decode HEVC HEIC. MVP accepts JPEG/PNG/WebP directly and relies on browser conversion where it happens (§7 "HEIC/HEIF"); no client conversion or custom image stack. Originals stay untouched; the derivative path is isolated behind `lib/media/` |
 | Venue network worse than resumable upload can absorb | Guests lose captures | Reservation TTL guarantees no permanently lost frame; measure real failure rates during capture-slice device testing |
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
-| Plan capacities (up to 300 sessions, 1,500 captures) not yet load-tested; no load test has run at any size | Join/reserve contention or storage throughput surprises at a big Celebration event | Load-test the Celebration cap (300 joins, then captures) against a preview deployment before launch. Operators can raise a cap, so the test also covers a few hundred above 300 |
+| Plan capacities (up to 300 sessions, 1,500 captures) not yet load-tested; no load test has run at any size | Join/reserve contention or storage throughput surprises at a big Premium event | Load-test the Premium cap (300 joins, then captures) against a preview deployment before launch. Operators can raise a cap, so the test also covers a few hundred above 300 |
 | Free event abused through new accounts | Free storage and hosting for repeat users | Email-confirmed sign-up, 10 sessions and 7 days bound the value. Accepted (product.md §19) |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |
 | Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | D25: ZIP parts of up to 500 built in the browser (§7 "Bulk download"), with the one-by-one fallback below. Previously: MVP ships sequential signed-URL downloads (host "Download all" and guest "Download my photos" share `lib/media/save-files.ts`: each original is fetched in full and saved from a blob before the next starts, because a link navigation per file let later ones cancel earlier ones, HOST-10); server-side archive is a known follow-up |
