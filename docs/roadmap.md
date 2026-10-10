@@ -660,7 +660,7 @@ update after launch (architecture §7e) and is not a slice here. Operator suppor
 |---|---|---|---|
 | **20 — Plan model** | Plan registry; `events.plan` / `payments.plan`; activation stamps plan, cap and hosted access from what was paid for; plan choice on the Share step; plan on the dashboard and in the Console; marketing shows all three plans (Free ahead of Slice 21, so deploy 20 with 21) | 70 (paid plans), 72, 73 (Standard, Premium), 74, 75 | `complete` (2026-10-11) |
 | 21 — Free first event | Free activation through `activateEvent` with the once-per-account claim on `hosts`; Free on the Share step; Free's lighter event enforced server-side from `PLANS.free.features` (product.md §15.3.1): link, on-screen QR and phone-screen signage only, one keepsake style per family | 70 (Free), 71, 73 (Free), 82, 84, 86 | `awaiting human verification` (built, migration on dev, tests pass) |
-| 22 — Capacity override | Operator override with required reason and append-only log; history on the Console event page | 76, 21, 22 | `not started` |
+| 22 — Capacity override | Operator override with required reason and append-only log; history on the Console event page | 76, 21, 22 | `complete` (2026-10-11) |
 | 23 — Time sections | Hourly sections in the revealed gallery, on by default, host switch | 79, 80 | `not started` |
 | 24 — Table-number cards | Paid-plan (Standard and Premium) signage format and ZIP download. Already listed on the site, so it must land before the site deploys | 78 | `not started` |
 

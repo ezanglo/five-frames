@@ -1,13 +1,14 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 21, the Free first event, is `awaiting human verification`: the migration is on dev and all 618 tests pass.** Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 22, the operator capacity override, is `complete`: migration on dev, integration suite and human checklist passed.** Slice 21, the Free first event, is `awaiting human verification`: its migration is on dev and all 618 tests pass. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
   because the site already advertises Free. Slice 21, the Free first event, is `awaiting human verification`.
   See [Slice 21](#slice-21--free-first-event-2026-10-11-awaiting-human-verification).
+  Slice 22, the capacity override, is `complete`. See
+  [Slice 22](#slice-22--capacity-override-2026-10-11-complete).
   Not started:
-  - 22 capacity override;
   - 23 time sections;
   - 24 table-number cards.
 - **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
@@ -53,6 +54,42 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 22 — Capacity override (2026-10-11): `complete`
+
+An operator raises any activated event's guest capacity in the Console, on any plan, with a
+required reason. Each raise is a permanent log entry, shown as history on the event's Console
+page (product.md §9.5, criterion 76; architecture §6a "As built (Slice 22)"). Not committed, not
+deployed.
+
+**Migration applied to the dev project** by the user (2026-10-11), with `db query` for the one
+file plus `migration repair`, not `db push` (that would also apply the `share_path` drop). The
+Console event page reads `capacity_overrides`, so this code must never run against a database
+without it. Production needs it before (or with) the deploy (Release follow-ups).
+
+**Built:**
+- Migration `20261011020000_capacity_overrides.sql`: the append-only `capacity_overrides` table
+  (`update`, `delete` and `truncate` revoked from the service role) and
+  `override_guest_capacity()`, which locks the event row, then checks, raises and logs in one
+  transaction.
+- DAL `lib/dal/capacity-overrides.ts`: `overrideGuestCapacity` (checks first, then the RPC
+  repeats every check under the lock) and `listCapacityOverridesForOperator`.
+- `overrideGuestCapacityAction` (`requireOperator()`, then `refresh()` on success).
+- Console event page "Capacity" card: "N of M guests", the raise form behind a confirm dialog
+  (an explanation instead on the operator's own event or a draft), and history newest first,
+  ending at the starting capacity. The host dashboard shows only the new cap.
+
+**Verification:**
+- `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ · unit 452/452 ✔
+- `capacity-overrides.integration.test.ts` (9 tests) ✔, reported by the user after applying
+  the migration: concurrent overrides form an unbroken `previous_cap` chain, joins racing an
+  override never exceed the cap in force, every refusal holds in SQL on its own, and the log is
+  append-only but cascades with a host-account delete.
+- Human checklist on local dev against the dev database, **all 6 passed** (reported by the user
+  2026-10-11): the full state, refusals with no reason or no raise, a raise with its history
+  entry, the turned-away guest joining after a reload, the host dashboard showing only the new
+  cap with plan and payment unchanged, and no form on an owned event or a draft.
+- release-validation.md CAP-03 is the same check for the release candidate, and still runs then.
 
 ## Slice 21 — Free first event (2026-10-11): `awaiting human verification`
 
@@ -2583,13 +2620,8 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. In a fresh session, **Slice 21: Free first event**. The site already advertises it,
-   so Slice 20 can't deploy without it (roadmap.md, architecture §8c "Free:
-   claim, then activate"). It needs:
-   - a migration for `hosts.free_event_claimed_at` / `free_event_id`, the claim function, and
-     its concurrency test;
-   - server-side enforcement of Free's lighter event (product.md §15.3.1, criteria 82, 84, 86: print signage and keepsake styles only).
-   Then Slices 22–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
+1. **Slice 21 still needs its human checklist** (the Slice 21 section). In a fresh session,
+   **Slice 23: time sections**. Then Slices 24–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
    before anything deploys, because the site already advertises them.
    - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user
      to create the Cloudflare account, enable R2 and put its keys in `.env.local` / Vercel
@@ -2599,7 +2631,7 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
    pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.
    Cutting the RC after the plan slices avoids rerunning those twice. If an RC is cut sooner,
    recheck those screens after the plan slices land.
-   - The dev database already has `20261001000000`, `20261002000000` and `20261011000000`.
+   - The dev database already has `20261001000000`, `20261002000000`, `20261011000000`, `20261011010000` and `20261011020000`.
    - Don't deploy code from Slice 19 or Slice 20 against a database that lacks them.
 3. For that RC: deploy to `five-frames.vercel.app`, then run `/e2e-validate`:
    - the targeted reruns from "Gallery-layout change after RC `6d8aca8`" and "Sales-led payment
@@ -2624,6 +2656,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
 | **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |
 | **Plans migration on a production database (Slice 20).** Apply `20261011000000_event_plans.sql` **before** deploying Slice 20 code anywhere (the code reads `events.plan`, `payments.plan` and calls `begin_provider_checkout_for_plan`). It is additive and safe under older code. Already applied to dev | Migration (needs explicit approval for production) | Next deploy / release |
+| **Free event and capacity-override migrations on a production database (Slices 21, 22).** Apply `20261011010000_free_event.sql` and `20261011020000_capacity_overrides.sql`, in that order, **before** deploying code from those slices. Both are additive. The Slice 21 code activates every event through `activate_event()`, and the Slice 22 Console page reads `capacity_overrides` | Migration (needs explicit approval for production) | Next deploy / release |
 | **`payments.plan` NOT NULL and drop `begin_provider_checkout()`** once no deployment runs pre-plans code (architecture §8c "As built"). Backfill any null `payments.plan` to `celebration` first | Deployment-order dependency | After Slice 20 is deployed everywhere this database is served |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |

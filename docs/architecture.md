@@ -540,6 +540,19 @@ revoke update, delete on public.capacity_overrides from anon, authenticated, ser
   overrides, and the operator re-applies one if it's still wanted. This is rare and visible in
   the history, so it isn't worth reconciling automatically.
 
+**As built (Slice 22).** Migration `20261011020000_capacity_overrides.sql`, DAL
+`lib/dal/capacity-overrides.ts` (operator-only, no host page imports it), the "Capacity" card on
+the Console event page. Beyond the sketch above:
+- The function also refuses a caller with no `operators` row and an overlong reason. Every
+  refusal is `P0006` with the reason key as the message, which the DAL maps to an outcome.
+- `created_at` is `clock_timestamp()`, taken after the row lock, not `now()`. Under `now()`, an
+  override whose transaction started first but waited on the lock would sort before the one it
+  queued behind, and the history would show the wrong `previous_cap` order.
+- `truncate` is revoked from the service role along with `update` and `delete`. The browser
+  roles get no grants on the table.
+- The history's starting row reads the oldest entry's `previous_cap` (or the current cap when
+  there are none), not today's registry, which may have changed since activation.
+
 ---
 
 ## 6b. Public pre-purchase demo

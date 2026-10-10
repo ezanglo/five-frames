@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { requireOperator } from "@/lib/auth/operator-session";
 import {
   confirmManualPayment,
@@ -7,6 +8,11 @@ import {
   type ManualPaymentInput,
 } from "@/lib/dal/payments";
 import { getEventForOperatorMutation } from "@/lib/dal/operator-events";
+import {
+  MAX_GUEST_SESSION_CAP,
+  MAX_OVERRIDE_REASON_LENGTH,
+  overrideGuestCapacity,
+} from "@/lib/dal/capacity-overrides";
 import { zonedDateTimeLocalToUtcIso } from "@/lib/events/timezone";
 import { CURRENCY } from "@/lib/payments/pricing";
 import { PLANS } from "@/lib/plans/registry";
@@ -142,5 +148,67 @@ export async function recordManualRefundAction(
       };
     case "refunded":
       return { status: "refunded" };
+  }
+}
+
+export type CapacityOverrideFormState =
+  | { status: "idle" }
+  | { status: "error"; message: string }
+  | { status: "raised"; newCap: number };
+
+/** Raises an event's guest capacity (product.md §9.5). Raise-only, with a required reason. */
+export async function overrideGuestCapacityAction(
+  eventId: string,
+  _prevState: CapacityOverrideFormState,
+  formData: FormData,
+): Promise<CapacityOverrideFormState> {
+  const operator = await requireOperator();
+
+  const newCapRaw = String(formData.get("newCap") ?? "").trim();
+  const newCap = Number(newCapRaw);
+  const reason = String(formData.get("reason") ?? "");
+
+  if (!newCapRaw || !Number.isInteger(newCap) || newCap < 1) {
+    return { status: "error", message: "Enter the new capacity as a whole number of guests." };
+  }
+
+  const result = await overrideGuestCapacity(operator.id, eventId, { newCap, reason });
+
+  switch (result.outcome) {
+    case "raised":
+      // The capacity tile and the history on this page re-render with the new entry.
+      refresh();
+      return { status: "raised", newCap: result.entry.new_cap };
+    case "not_found":
+      return { status: "error", message: "Event not found." };
+    case "owns_event":
+      return { status: "error", message: "You cannot raise capacity for an event you own." };
+    case "not_activated":
+      return {
+        status: "error",
+        message: "This event isn’t activated, so there’s no capacity to raise yet.",
+      };
+    case "not_a_raise":
+      return {
+        status: "error",
+        message:
+          result.currentCap !== undefined
+            ? `Capacity is already ${result.currentCap} guests. Enter a higher number. It can only be raised.`
+            : "Enter a number higher than the current capacity. It can only be raised.",
+      };
+    case "reason_required":
+      return { status: "error", message: "Enter a reason. It’s kept in the event’s history." };
+    case "reason_too_long":
+      return {
+        status: "error",
+        message: `Keep the reason under ${MAX_OVERRIDE_REASON_LENGTH} characters.`,
+      };
+    case "cap_too_large":
+      return {
+        status: "error",
+        message: `${MAX_GUEST_SESSION_CAP.toLocaleString("en-US")} guests is the most the Console allows. Check the number for a typo.`,
+      };
+    case "not_operator":
+      return { status: "error", message: "Only an operator can raise capacity." };
   }
 }

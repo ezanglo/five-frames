@@ -3,6 +3,13 @@ import { notFound } from "next/navigation";
 import { ChevronLeft, CircleAlert, ShieldCheck } from "lucide-react";
 import { paymentAuditRows, type OperatorPaymentView } from "@/lib/payments/audit";
 import { getOperatorEventDetail } from "@/lib/dal/operator-events";
+import {
+  listCapacityOverridesForOperator,
+  MAX_GUEST_SESSION_CAP,
+  MAX_OVERRIDE_REASON_LENGTH,
+  type CapacityOverrideView,
+} from "@/lib/dal/capacity-overrides";
+import { requireOperator } from "@/lib/auth/operator-session";
 import { isDuplicatePayment } from "@/lib/dal/payments";
 import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
 import { REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
@@ -14,6 +21,7 @@ import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { StatusPill } from "@/components/ff/pill";
 import { ManualPaymentForm } from "@/app/(operator)/operator/events/[eventId]/manual-payment-form";
 import { ManualRefundForm } from "@/app/(operator)/operator/events/[eventId]/manual-refund-form";
+import { CapacityOverrideForm } from "@/app/(operator)/operator/events/[eventId]/capacity-override-form";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -36,7 +44,11 @@ export default async function OperatorEventDetailPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const detail = await getOperatorEventDetail(eventId);
+  const [operator, detail, overrides] = await Promise.all([
+    requireOperator(),
+    getOperatorEventDetail(eventId),
+    listCapacityOverridesForOperator(eventId),
+  ]);
   if (!detail) notFound();
 
   const { event, hostEmail, captureCounts, payments } = detail;
@@ -207,6 +219,43 @@ export default async function OperatorEventDetailPage({
               </p>
             )}
           </section>
+
+          <SectionCard
+            title="Capacity"
+            caption={`Times in ${tz.replaceAll("_", " ")}.`}
+            action={
+              <span className="text-label font-semibold text-ink tabular">
+                {event.guest_session_count} of {event.guest_session_cap} guests
+              </span>
+            }
+          >
+            {!event.activated_at ? (
+              <p className="text-caption font-medium text-ink-muted">
+                Capacity comes from the plan when the event is activated. It can be raised after
+                that.
+              </p>
+            ) : event.host_id === operator.id ? (
+              // overrideGuestCapacity refuses this too; the form isn't offered.
+              <p className="text-caption font-medium text-ink-muted">
+                You own this event, so you can&rsquo;t raise its capacity. Ask another operator.
+              </p>
+            ) : (
+              <CapacityOverrideForm
+                eventId={event.id}
+                currentCap={event.guest_session_cap}
+                maxCap={MAX_GUEST_SESSION_CAP}
+                maxReasonLength={MAX_OVERRIDE_REASON_LENGTH}
+              />
+            )}
+            {event.activated_at && (
+              <CapacityHistory
+                overrides={overrides}
+                currentCap={event.guest_session_cap}
+                planLabel={event.plan ? PLANS[event.plan].label : null}
+                when={when}
+              />
+            )}
+          </SectionCard>
         </aside>
       </div>
     </div>
@@ -248,5 +297,48 @@ function PaymentAttempt({
         ))}
       </dl>
     </li>
+  );
+}
+
+/**
+ * Newest first, ending at the cap the event started with (product.md §5.1). The starting cap is
+ * read from the log itself (the oldest entry's previous cap), not from today's registry, which
+ * may have changed since this event was activated.
+ */
+function CapacityHistory({
+  overrides,
+  currentCap,
+  planLabel,
+  when,
+}: {
+  overrides: CapacityOverrideView[];
+  currentCap: number;
+  planLabel: string | null;
+  when: (iso: string | null) => string;
+}) {
+  const startingCap = overrides.at(-1)?.previous_cap ?? currentCap;
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-4">
+      <h3 className="text-label font-semibold text-ink">History</h3>
+      <ol className="flex flex-col gap-2">
+        {overrides.map((entry) => (
+          <li key={entry.id} className="flex flex-col gap-1 rounded-lg bg-surface-subtle p-3">
+            <p className="text-label font-semibold text-ink tabular">
+              {entry.previous_cap} → {entry.new_cap} guests
+            </p>
+            <p className="text-caption font-medium break-words text-ink">{entry.reason}</p>
+            <p className="text-caption font-medium break-all text-ink-muted">
+              {when(entry.created_at)} · {entry.operatorEmail ?? "Unknown operator"}
+            </p>
+          </li>
+        ))}
+        <li className="rounded-lg border border-line p-3">
+          <p className="text-caption font-medium text-ink-muted">
+            <span className="font-semibold text-ink tabular">{startingCap} guests</span>,{" "}
+            {planLabel ? `the ${planLabel} plan’s capacity` : "the plan’s capacity"} at activation
+          </p>
+        </li>
+      </ol>
+    </div>
   );
 }

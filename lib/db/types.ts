@@ -121,3 +121,15 @@ export type PaymentRow = {
   created_at: string;
   updated_at: string;
 };
+
+/** One operator capacity override (product.md §9.5, architecture §6a). Append-only: the
+ *  database refuses an update or delete, even from the service role. */
+export type CapacityOverrideRow = {
+  id: string;
+  event_id: string;
+  previous_cap: number;
+  new_cap: number;
+  reason: string;
+  operator_id: string;
+  created_at: string;
+};

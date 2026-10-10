@@ -414,7 +414,7 @@ earlier ones create:
 10. **B** HOST-08 … HOST-11 (moderation, downloads, state)
 11. **E** GAL-04, GAL-07, then GAL-05, GAL-06
 12. **F** OPS-01 … OPS-06
-13. **G** CAP-01, CAP-02
+13. **G** CAP-01, CAP-02, CAP-03
 14. **H** CRON-01 … CRON-03
 15. **J** VIS-01 … VIS-05. Note visual issues all along; record them here at the end.
 16. **K** SMOKE-01, always last
@@ -1165,6 +1165,27 @@ app and recorded through the Operator Console (D17).
   succeeds. The guest count stays at 2.
 - **Result:** BLOCKED
 - **Evidence / notes:** Depends on CAP-01.
+
+#### CAP-03 · Operator capacity override (Slice 22, criterion 76)
+- **Where:** desktop (Console) + a phone or private window (guest)
+- **Needs:** operator O; a full event. A Free event (capacity 10) is the easiest one to fill.
+  It belongs to a host other than O, with capture open
+- **Steps:**
+  1. Fill the event, then open its link in one more window. It shows "This event is full for
+     now".
+  2. In the Console, open the event. Try to raise capacity with no reason, then with a number at
+     or below the current cap. Both are refused.
+  3. Raise it by 2, with a reason.
+  4. Reload the "full" window and join.
+  5. On an event O owns, open its Console page.
+- **PASS when:**
+  - step 3 shows the new cap at once, with a history entry (old → new, reason, O's email,
+    time) above a starting row that names the plan's capacity;
+  - in step 4 the guest gets the join form and joins;
+  - the host dashboard shows the new "up to N guests" and no reason or operator;
+  - the plan, hosted-until date and payment section are unchanged;
+  - in step 5 there's no form, only "You own this event…".
+- **Result:** NOT RUN
 
 ### H. Lifecycle cron
 
