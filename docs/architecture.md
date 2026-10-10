@@ -4,7 +4,12 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-10-01 (Slice 18, decision D21: live host-dashboard updates over the app's own
+Last updated: 2026-10-11 (plans, decision D24: a plan registry (`lib/plans/`), `events.plan` set
+by activation from what was bought, Free as a third `activateEvent` source behind a
+once-per-account claim, per-plan cap and hosted access stamped at activation, an append-only
+operator capacity-override log, time sections in the revealed gallery, table-number cards, and
+Send to Google Drive designed but deferred to the first update — §4, §5a, §6a, §7c, §7d, §7e, §8c,
+§8b, §11, §13). Earlier: 2026-10-01 (Slice 18, decision D21: live host-dashboard updates over the app's own
 server-mediated SSE route, with polling kept as the fallback, and no browser Supabase client — §9,
 §10; the public demo shows both keepsake families with the shared templates — §6b. Earlier:
 2026-09-30, Full Set keepsakes, decision D20: a second keepsake family of five
@@ -135,7 +140,9 @@ if they justify it.
 
 Schema lives in `supabase/migrations/`. The shape that matters architecturally:
 
-- **`hosts`** — mirrors Supabase Auth users.
+- **`hosts`** — mirrors Supabase Auth users. `free_event_claimed_at`, `free_event_id`: the
+  account's one Free event, claimed atomically (§8c, D24). `free_event_id` has no foreign key on
+  purpose, so deleting that event can never hand the Free event back.
 - **`operators`** — internal grant table, not a role platform (§5a, D15). `user_id` references
   the same `auth.users` a host session is issued against; a row's mere existence is the
   authorization.
@@ -145,7 +152,10 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   `activated_at`, `capture_opened_at`, `capture_closed_at`, `safety_net_closes_at`,
   `hosted_until`, `grace_until`, `media_deleted_at` (Slice 12, D18 — the durable "permanent
   deletion actually completed" marker, distinct from `grace_until` merely having elapsed),
-  `guest_session_cap`, `guest_session_count` (§6a, D13).
+  `guest_session_cap`, `guest_session_count` (§6a, D13), `plan` (§8c, D24; null until chosen
+  in Draft, fixed by activation), `gallery_time_sections` (§7d, default true).
+- **`capacity_overrides`** — append-only log of operator capacity overrides (§6a, D24): event,
+  previous and new cap, reason, operator, time. Never updated or deleted by the application.
 - **`guest_sessions`** — `event_id`, display name, created/last-seen. One row per browser
   session per event.
 - **`captures`** — `guest_session_id`, `event_id`, `slot_index` (0–4), `reserve_key`, `status`,
@@ -160,6 +170,9 @@ Schema lives in `supabase/migrations/`. The shape that matters architecturally:
   it), so it is designed to carry provider and manual payment together from the start rather than
   retrofitted:
   - `source` — `'provider' | 'manual'`.
+  - `plan` — `'intimate' | 'celebration'`: what this payment bought (§8c, D24). Set when the
+    row is created and never changed. Activation copies it to `events.plan`. There is never a
+    `'free'` payment row.
   - Provider fields (nullable, `source = 'provider'` only): PayMongo checkout session id,
     amounts, fee breakdown, provider status, webhook delivery id (idempotency).
   - Manual fields (nullable, `source = 'manual'` only): `manual_method`
@@ -246,7 +259,7 @@ management UI is a future, separately-decided addition — not something this ar
 space for now.
 
 **Ownership-conflict check.** product.md is explicit that an operator cannot confirm a manual
-payment or refund for an event they themselves own. Because operators and hosts share the same
+payment, record a refund, or override guest capacity (§6a) for an event they themselves own. Because operators and hosts share the same
 underlying `auth.users` identity, this is a single equality check in the DAL mutation:
 `event.host_id !== operatorUserId`, refused otherwise. No separate "conflict of interest" table or
 flag is needed — the check is structural, not a policy that must be remembered.
@@ -371,10 +384,11 @@ returns a frame. There is no guest-initiated path to any of these transitions.
 ## 6a. Event capacity enforcement
 
 [product.md §9.5](./product.md#9-frames-commitment-and-limits) adds a second, independent limit:
-up to **250 joined guest sessions per event** (a launch hypothesis to validate, not a product
-invariant like the five-frame allowance — it is not in the §12 invariant list and must stay easy
-to change). It bounds how large one flat-price event can grow; it does not touch the per-session
-frame mechanism in §6 at all.
+the number of guest sessions that may join one event. Since D24 it comes from the event's plan:
+**10 / 100 / 300** for Free / Intimate / Celebration (launch hypotheses, not product invariants
+like the five-frame allowance). Activation stamps the plan's cap onto `guest_session_cap` (§8c),
+and an operator override can raise it afterwards (below). It does not touch the per-session frame
+mechanism in §6 at all.
 
 **Decision (D13): an atomic counter on the `events` row, guarded in the same statement that
 increments it — not a count-then-insert check, and not a hardcoded constant.**
@@ -415,7 +429,49 @@ calm "this event is currently full" state (product.md §9.5, §13), not an error
 
 **Host visibility:** the dashboard (§11.2) reads `guest_session_count` /`guest_session_cap`
 alongside the existing session/photo counts it already shows — no new query shape, just two more
-columns on a row it already loads.
+columns on a row it already loads. `guest_session_cap` is part of the D21 dashboard version, so
+an override reaches an open dashboard like any other change.
+
+**The column default (250) is never what a live event uses.** Joining requires an activated
+event, and activation always writes the plan's cap. The default only covers drafts.
+
+### Operator capacity override (D24)
+
+product.md §9.5: any plan, raise-only, with a required reason and a permanent log entry, never
+on the operator's own event. One SQL function does the check, the raise and the log in one
+transaction. The `FOR UPDATE` lock serializes concurrent overrides with each other and with joins
+on the same row, so every log entry's `previous_cap` is the cap it actually replaced:
+
+```sql
+create table public.capacity_overrides (
+  id uuid primary key default gen_random_uuid(),
+  event_id uuid not null references public.events (id) on delete cascade,
+  previous_cap int not null,
+  new_cap int not null check (new_cap > previous_cap),
+  reason text not null check (char_length(btrim(reason)) between 1 and 500),
+  operator_id uuid not null references public.operators (user_id),
+  created_at timestamptz not null default now()
+);
+revoke update, delete on public.capacity_overrides from anon, authenticated, service_role;
+
+-- override_guest_capacity(p_event_id, p_operator_id, p_new_cap, p_reason):
+--   select host_id, guest_session_cap, activated_at ... for update;
+--   refuse: not found · not activated · host_id = p_operator_id · p_new_cap <= current
+--           · p_new_cap > 5000 · blank reason
+--   update events set guest_session_cap = p_new_cap; insert the log row; return it.
+```
+
+- **Append-only is enforced by grants, not convention.** The DAL's service role can insert but
+  can't update or delete a log row. Foreign-key cascades run as the table owner, so deleting a
+  host account still removes its events' entries. An integration test proves both.
+- **The DAL also checks first.** `overrideGuestCapacity` runs `requireOperator()` and the
+  `event.host_id !== operatorUserId` check before the RPC, the same way confirm and refund do
+  (CLAUDE.md). The SQL refusal is the second layer, not the only one.
+- **5,000 is a typo guard** ("3000" for "300"), not a product limit. Anything above it needs a
+  code change.
+- **Refund, then re-activation, resets the cap to the plan default.** The log keeps the earlier
+  overrides, and the operator re-applies one if it's still wanted. This is rare and visible in
+  the history, so it isn't worth reconciling automatically.
 
 ---
 
@@ -1102,6 +1158,33 @@ DOM/Satori rendering differences, which each style's visual check covers.
 - The plate is sized for a 29-module symbol, the smallest a capture URL can produce. Longer URLs
   keep the format's QR size, and their quiet zone only grows.
 
+### Table-number cards (D24, Celebration)
+
+product.md §11.3. A fifth format, `table-number`, in the same layout model and renderer. Its
+input is the closed signage input plus `tableNumber: 1..100`.
+
+- **Layout first.** The number, name, instruction and plate go into `signage-layout.ts`, so
+  `signage.test.ts` checks the plate, quiet zone and safe area as it does for the other four.
+  The number is outlined from the brand TTF like every other text. The card is one size,
+  standing (tent) style, and the number has to stay legible from across a room at 1–3 digits.
+- **No theme image on this format** (product.md lets FiveFrames decide per format). It keeps
+  the number dominant, and it keeps each card a few tens of KB, which the download below needs.
+  Accent and hashtag apply as usual.
+- **Same QR on every card.** All cards encode `{origin}/e/{event_token}`. There is no per-table
+  token, query parameter or tracking.
+- **Download:** `/events/[id]/signage/table-numbers?count=N` returns one ZIP of N SVGs
+  (`table-01.svg` …), built in memory with `fflate` (a new, small, pure-JS dependency). Gating:
+  owning host, activated, `event_token` set, `plan = 'celebration'`, `1 ≤ N ≤ 100`. The count is
+  not stored. A Vercel Function response is capped at **4.5 MB**
+  ([Vercel limits](https://vercel.com/docs/functions/limitations#request-body-size)), so a test
+  renders 100 cards with the longest allowed event name and hashtag and asserts the ZIP is under
+  4 MB. If a design change ever breaks that, move to per-card downloads through `save-files.ts`,
+  never a larger response.
+- **Preview:** card number 12 (a sample), through the existing preview route and QR union.
+  Draft previews use `preview`. The Look page shows it only when the event's plan is
+  Celebration.
+- `test/qr-decode.ts` decodes the format's rasterized output, like the other formats.
+
 ---
 
 ## 7d. Revealed-gallery layouts
@@ -1137,6 +1220,54 @@ Decision D22, product.md §7.5. The host picks how the revealed gallery is arran
 - **Marketing.** The homepage gallery section and the guest-journey collection mockup render
   through `GalleryLayoutList` with the marketing stock photos, so they show only real arrangements.
 - The host Photos page keeps its own management grid.
+
+### Time sections (D24)
+
+product.md §7.5: on by default for every event, display only.
+
+- **Same key for order and sections.** The gallery is ordered by `captures.created_at`, so
+  sections are hour buckets of `created_at` in the event's IANA timezone. Using one key keeps
+  every section contiguous. Bucketing by `committed_at` while ordering by `created_at` could
+  split an hour in two.
+- **Computed on the server.** A pure helper, `lib/gallery/time-sections.ts`
+  (`sectionFor(createdAt, timezone)`), runs alongside `listCapturesForGalleryViewer`'s mapping and
+  tags each item with `{ sectionKey, label }`. The key is the UTC instant of the local hour's
+  start, so a repeated DST hour gets two sections. The label is formatted through
+  `lib/events/timezone.ts` helpers, never the server's own zone. Including the day ("Sat, 7 PM")
+  is decided once per gallery, from the min and max `created_at` of the visible captures, and
+  sent with the first page. Labels are therefore identical on the server and the client, with no
+  hydration mismatch.
+- **Rendering.** Consecutive items with the same `sectionKey` form one `GalleryLayoutList` under a
+  heading. "Show more" appends to the last section when the key matches, or starts a new one.
+  Masonry placement is per section and prefix-stable, so appending never moves a tile. Section
+  headings are `h2` with the label, nothing else (no counts).
+- **What doesn't change:** `listCapturesForGalleryViewer`'s filters and order, access checks
+  (sections are computed only after access is granted), and the layout tiers.
+  `gallery_time_sections = false` renders the single flat list exactly as before.
+- **Host setting:** a checkbox beside "Gallery layout", saved by `saveEventAndGalleryAction`.
+  A save without the field leaves the stored value alone, like `gallery_layout`.
+- **Marketing** keeps calling `GalleryLayoutList` directly, without sections.
+
+---
+
+## 7e. Send to Google Drive (D24) — deferred to the first update
+
+Not built in this update. product.md §11.2.1 defines it, and nothing may offer it until it ships.
+Recorded here so the later slice starts from settled constraints:
+
+- **Source set:** the same rows as `listOriginalDownloadUrlsForEventHost` (committed,
+  non-deleted, hidden included). Originals are streamed byte-for-byte.
+- **Scope:** `drive.file` only (non-sensitive; files the app creates). Never a restricted Drive
+  scope, which would trigger a security assessment (D24 cites Google's page).
+- **Transfer:** Drive has no import-from-URL, so FiveFrames streams every original out of Storage
+  with Drive resumable uploads. A Celebration event can hold several GB, so this is a background
+  job (one item per capture, idempotent by capture id within an export folder), not one request.
+  Candidates are Vercel Workflows (Vercel's documented answer for work beyond function duration
+  limits, [limits page](https://vercel.com/docs/functions/limitations#max-duration)) or a
+  Postgres-backed queue drained by cron. Choosing one is the slice's first decision, and it
+  needs infrastructure approval.
+- **Token:** the refresh token is encrypted at rest, server-only, deleted and revoked when the
+  export ends.
 
 ---
 
@@ -1233,15 +1364,109 @@ route and every server action — never by page-level UI hiding alone.
   row becomes a payment line, plus a negative refund line dated `refunded_at`. Months and totals
   use Asia/Manila. The CSV route (`/operator/payments/export`) runs `requireOperator()` itself.
   Read-only, and no new table (D17).
-- **Confirm manual payment / record manual refund** are the only mutations the Console exposes
-  (§8a). Every other field the Console displays is read-only from this surface — editing an
+- **Confirm manual payment / record manual refund / override guest capacity** are the only
+  mutations the Console exposes (§8a, §6a). Every other field the Console displays is read-only from this surface — editing an
   event's configuration, moderating captures, or changing ownership all remain host-only or
   unavailable entirely (product.md §5.1.2), so the Console cannot become the "god mode" admin tool
   product.md explicitly excludes.
 
+- **Capacity on the event page (D24):** plan, `guest_session_count` of `guest_session_cap`, a
+  "Raise capacity" form (new cap and a required reason, refused for the operator's own event),
+  and the history read from `capacity_overrides`, newest first, starting from the plan default.
+  Confirm manual payment shows the event's chosen plan and pre-fills its list price as the
+  amount, which the operator can change for an agreed amount (D23 consequences).
+
 **Event signage (product.md §11.3)** is rendered from the event's `event_token`. Downloads exist
 only after activation. Theming and host-only Draft previews with a placeholder QR are covered in
 §7c.
+
+### 8c. Plans and Free activation (D24)
+
+product.md §15.3. Three plans, one closed registry, server-enforced (invariant 15).
+
+**Registry.** `lib/plans/registry.ts` replaces `EVENT_PRICE_*` in `lib/payments/pricing.ts`. No
+`server-only` import, for the same reason as the old price constant (Share step, Console,
+marketing and DAL all read it):
+
+```ts
+PLANS = {
+  free:        { priceCentavos: 0,     guestSessionCap: 10,  hostedAccessDays: 7,   tableNumberCards: false },
+  intimate:    { priceCentavos: 49900, guestSessionCap: 100, hostedAccessDays: 183, tableNumberCards: false },
+  celebration: { priceCentavos: 99900, guestSessionCap: 300, hostedAccessDays: 365, tableNumberCards: true  },
+}
+```
+
+Plan ids are registry keys and never reach the UI raw. Labels come from a label map (CLAUDE.md
+"labels, not identifiers"). `HOSTED_ACCESS_DAYS` leaves `lib/events/policy.ts`, and
+`GRACE_PERIOD_DAYS` (30) stays there because it is the same on every plan.
+`EXPIRY_WARNING_DAYS_BEFORE` (30) also stays: on a 7-day Free event it simply makes the warning
+visible from activation, which is what product.md §15.2 asks for. Marketing pricing copy reads
+the registry, and `content.test.ts` keeps forbidding "renew" and any mention of Google Drive
+until §7e ships.
+
+**Choosing.** `events.plan` is null on a new draft. The Share step asks for a plan before
+anything else and offers Free only while `hosts.free_event_claimed_at` is null. The host can
+change it until activation. A provider checkout created under one plan writes `payments.plan`.
+Changing `events.plan` afterwards supersedes that pending checkout (the existing
+`supersedeSiblingPendingCheckouts` path), so the new plan gets a new checkout.
+
+**Activation takes its plan from what was bought, not from the draft.** `activateEvent` changes
+from `(eventId, paymentId)` to `(eventId, source)`, where `source` is
+`{ kind: 'payment', paymentId } | { kind: 'free' }`. The one guarded update stays the one
+guarded update:
+
+```sql
+UPDATE events
+  SET activated_at = now(), event_token = $t, gallery_token = $g,
+      activating_payment_id = $payment_id_or_null,
+      plan = $plan,                       -- payments.plan, or 'free'
+      guest_session_cap = $plan_cap,      -- PLANS[plan].guestSessionCap
+      hosted_until = now() + $plan_days,  -- PLANS[plan].hostedAccessDays
+      grace_until = hosted_until + 30 days
+  WHERE id = $event_id AND activated_at IS NULL
+  RETURNING *;
+```
+
+A late webhook for a superseded Intimate checkout therefore activates Intimate, which is what
+was paid for, even if the draft now says Celebration. A paid plan can't be activated without its
+payment row, and the Free branch hardcodes `'free'`.
+
+**Free: claim, then activate.** "Once per account, ever" is its own atomic guard on the
+`hosts` row, the same pattern as D5/D13/D16. It is never a count of Free events:
+
+```sql
+-- claim_free_event(p_host_id, p_event_id): one statement
+UPDATE hosts
+  SET free_event_claimed_at = coalesce(free_event_claimed_at, now()), free_event_id = p_event_id
+  WHERE id = p_host_id
+    AND (free_event_claimed_at IS NULL OR free_event_id = p_event_id)
+    AND EXISTS (SELECT 1 FROM events
+                WHERE id = p_event_id AND host_id = p_host_id AND activated_at IS NULL)
+  RETURNING free_event_id;
+-- zero rows ⇒ Free already used on another event, not this host's event, or the event is
+-- already active → refuse. An already-active event can never consume the Free event.
+```
+
+`activateFreeEventAction` checks ownership with `getEventForHost`. If the event is already
+active on `free` (a repeated tap after success), it returns success without claiming. Otherwise
+it claims, then calls `activateEvent(eventId, { kind: 'free' })`. The claim is idempotent for the same event. A retry
+after a crash between the two statements re-claims the same event and activates it, so a
+failure can't burn the Free event without producing it. Two drafts racing for Free serialize on
+the `hosts` row, and exactly one wins.
+
+**Refunds and Free.** There is no payment row, so the Console offers no refund on a Free event.
+The refund path refuses `plan = 'free'` explicitly anyway.
+
+**`activating_payment_id` can now be null on an active event.** Every reader that assumed an
+active event has an activating payment must handle Free: `deriveDraftPaymentState`, the
+Console's payment panel and refund action, the ledger (which is unaffected, since it reads
+`payments`), and lifecycle derivation (which keys off `activated_at`, so is also unaffected).
+The slice greps for `activating_payment_id` and covers each reader with a test.
+
+**Existing rows.** The migration backfills activated events to `plan = 'celebration'` (they were
+sold as ₱999 / 12 months) and leaves their stored cap (250) and `hosted_until` alone. Drafts
+stay null. Existing `payments` rows backfill to `'celebration'`. Activation therefore never
+lowers a live event's cap.
 
 ---
 
@@ -1389,6 +1614,33 @@ Weighted toward the invariants, not toward coverage percentage.
   object is written and no frame is consumed. Each Full Set style is rendered for all-portrait,
   all-landscape and mixed sets, with and without theme image and hashtag, then human-inspected
   against its DOM preview.
+- **Plans (D24)**, integration against real Postgres, required by CLAUDE.md for activation and
+  capacity changes:
+  - concurrent Free activation of two drafts of one host: exactly one activates;
+  - a double-tapped Free activation of one draft: one activation, same tokens;
+  - Free is refused after its event is deleted, and on another host's event;
+  - payment activation stamps `payments.plan`, not a later-changed `events.plan`, and stamps the
+    plan's cap and `hosted_until`;
+  - a Free event has no refund path;
+  - joins at exactly 10, 100 and 300 under concurrency.
+- **Capacity override (D24)**, same requirement:
+  - two concurrent overrides serialize, and each log row's `previous_cap` is the cap it replaced;
+  - joins racing an override never exceed whichever cap is in force;
+  - raise-only, blank reason, own event, unactivated event and > 5,000 are all refused;
+  - the service role can't update or delete a log row, and a host-account cascade still removes
+    it.
+- **Time sections (D24), unit tests:**
+  - hour buckets in a non-Manila zone;
+  - a photo just before and just after local midnight, which must land in different sections
+    with the day label shown (the day-boundary case);
+  - a DST repeated hour;
+  - contiguity under the gallery order;
+  - "Show more" appending to the last section.
+- **Table-number cards (D24):**
+  - layout geometry and real-decoder checks for the format;
+  - count bounds;
+  - every card encodes the same capture URL;
+  - the 100-card ZIP stays under 4 MB.
 - **`pnpm typecheck` and `pnpm lint`** on every change.
 - **Manual device validation** on real iPhone and Android hardware, including in-app browsers,
   starting in the first capture slice rather than at final QA (see roadmap). It is human-run and
@@ -1431,6 +1683,8 @@ traffic to track, not before.
 | HEIC conversion needed and expensive or lossy | Photo pipeline rework | Materialized in Slice 15: the prebuilt `sharp` can't decode HEVC HEIC. MVP accepts JPEG/PNG/WebP directly and relies on browser conversion where it happens (§7 "HEIC/HEIF"); no client conversion or custom image stack. Originals stay untouched; the derivative path is isolated behind `lib/media/` |
 | Venue network worse than resumable upload can absorb | Guests lose captures | Reservation TTL guarantees no permanently lost frame; measure real failure rates during capture-slice device testing |
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
+| Plan capacities (up to 300 sessions, 1,500 captures) not yet load-tested; no load test has run at any size | Join/reserve contention or storage throughput surprises at a big Celebration event | Load-test the Celebration cap (300 joins, then captures) against a preview deployment before launch. Operators can raise a cap, so the test also covers a few hundred above 300 |
+| Free event abused through new accounts | Free storage and hosting for repeat users | Email-confirmed sign-up, 10 sessions and 7 days bound the value. Accepted (product.md §19) |
 | PayMongo merchant onboarding requires completed KYC | Blocks payment slice, not development | Capture slices are built before payment; activation is gated by `activated_at`, seeded directly in dev |
 | Bulk download of a full event exceeds serverless limits | Host cannot get their media conveniently | MVP ships sequential signed-URL downloads (host "Download all" and guest "Download my photos" share `lib/media/save-files.ts`: each original is fetched in full and saved from a blob before the next starts, because a link navigation per file let later ones cancel earlier ones, HOST-10); server-side archive is a known follow-up |
 | Keepsake render latency/cost higher than assumed (Single-photo target: p95 well under ~2 s, output a few hundred KB; Full Set gate in §7b: p95 ≤ 2.5 s warm, ≤ 5 s cold, ≤ ~800 KB) | Slow share/save on venue networks | Slice 16 measurement gate (§7b). If the Full Set misses it after tuning, add content-addressed persistence for that family (D19's runner-up) via a new decision; the render input is already deterministic |

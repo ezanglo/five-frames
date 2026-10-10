@@ -2,11 +2,18 @@
 
 Last updated: 2026-10-02 (**Sales-led manual payment (D23) implemented and verified locally, on top of Slice 19, gallery layouts. Both await a new RC, their targeted reruns and human verification.**)
 
-- **Plans (D24), specified, not implemented.** Free first event (10 guests, 7 days), Intimate
-  ₱499 (100, 6 months), Celebration ₱999 (300, 12 months), one-time fees with no renewals,
-  operator capacity override (any plan), Send to Google Drive, table-number cards, and default
-  time sections (product.md §15.3). Six slices are suggested in D24. architecture.md isn't updated yet, and the Drive export worker needs
-  infrastructure approval first.
+- **Plans (D24): specified and designed, not implemented.** Free first event (10 guests,
+  7 days), Intimate ₱499 (100, 6 months), Celebration ₱999 (300, 12 months), one-time fees with
+  no renewals, operator capacity override (any plan, reason required, append-only log),
+  table-number cards, and default time sections (product.md §15.3; architecture.md §6a, §7c,
+  §7d, §8c). D24 lists five slices for this update; none is built.
+- **Deferred to the first update after launch: Send to Google Drive** (D24, architecture.md §7e).
+  Not in this release, and nothing may offer it until it ships. To test it when it ships:
+  product.md criterion 77. A Celebration export is complete, matches "Download all", survives
+  closing the tab, and a retry duplicates nothing. Run it on an event big enough to need the
+  background job, and check the Google consent screen asks only for files the app creates. Its
+  cases go into release-validation.md at that point. Needs infrastructure approval (job runner)
+  and a Google Cloud OAuth setup first.
 - **Sales-led manual payment (D23)** switches online payment off for launch. Every sale is
   arranged in conversation and confirmed in the Operator Console, which also gains a payments
   ledger. `awaiting human verification`. See

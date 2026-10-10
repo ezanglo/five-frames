@@ -613,11 +613,13 @@ Event Theme & Keepsakes must not grow into a general design tool (a Canva-like e
 - Guest session count against the event's capacity, and photo count.
 - Gallery grid with moderation: **hide, unhide, delete, favorite**. (This is the host's management view; the revealed gallery's layout, §7.5, doesn't change it.)
 - Downloads: individual captures and bulk download of originals, on every plan.
-- Send to Google Drive (Celebration only, §11.2.1).
+- Send to Google Drive (Celebration only, after launch, §11.2.1).
 - Gallery link, capture link, and event signage (§11.3).
 - Sharing and visibility settings.
 
 #### 11.2.1 Send to Google Drive (Celebration)
+
+**Ships after launch, in the first update (not in this release).** Until it ships, no host screen, marketing page or sales conversation may offer it, and Celebration is sold on its other extras. Celebration events activated before it ships get it when it ships, for the rest of their hosted access.
 
 A Celebration host can copy all of the event's originals into their own Google Drive in one action, instead of downloading them one by one. It is a convenience on top of downloading, never a replacement for it: every plan keeps individual and bulk download (Invariant §12.11).
 
@@ -764,7 +766,7 @@ Every plan runs the same event. Guests get the same five frames, the same captur
 | Hosted access (§15.2) | 7 days | 6 months | 12 months |
 | Download grace period after expiry (§15.2) | ~30 days | ~30 days | ~30 days |
 | Signage | Printable QR, table card, poster, digital | Same | Same, plus table-number cards (§11.3) |
-| Send to Google Drive (§11.2.1) | — | — | Yes |
+| Send to Google Drive (§11.2.1) | — | — | Yes, after launch |
 | Set-up together | — | — | Yes |
 | Help on the day | — | — | Yes |
 | FiveFrames brandmark | On | On | On |
@@ -846,7 +848,6 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Separate view-only gallery link; visibility "anyone with link" or "only me"; link rotation/revocation.
 - Host moderation: hide, unhide, delete, favorite.
 - Host downloads: individual and bulk originals, on every plan.
-- Send to Google Drive for Celebration events (§11.2.1).
 - Event theme (§10.1): optional theme image, accent color (default violet, with an automatic contrast safeguard), and optional hashtag, configurable in Draft and afterwards, with host-only previews of guest screens, keepsake styles, and signage. Polished defaults when nothing is set.
 - Keepsakes (§10.2), in two families, the same for every event. Each keepsake is themed, carries a subtle, non-removable FiveFrames brandmark, and never contains the guest's display name. Keepsakes replace the single branded share card.
   - **Single-photo keepsakes** (§10.2.1): exactly five Single-photo styles, which a guest chooses between when sharing or saving one of their own captures. Works for portrait, landscape and square photos.
@@ -868,6 +869,7 @@ Classified so bootstrap can tell what is fixed from what is preferred.
 - Keepsake styles (either family) shown in the pre-purchase demo on sample/local content (§7.1).
 
 ### Post-MVP
+- Send to Google Drive for Celebration events (§11.2.1): the first update after launch.
 - Replay: browser-based "memories" experience from guest photos, timestamps, messages, host favorites and licensed music.
 - Physical photobook from the same collection.
 - AI-assisted duplicate detection, curation, moment grouping, and first-draft Replay/Book.
@@ -1039,7 +1041,7 @@ Observable behavior that defines launch readiness.
 **Operator capacity override (§9.5)**
 76. An authorized operator can raise any event's guest capacity, on any plan including Free, in the Operator Console, and can't save it without typing a reason. Each override is a permanent log entry showing the event, old and new capacity, the reason, the operator and the time, and the event's Console page lists that history newest first. No one can edit or delete an entry. They can't lower capacity, or raise capacity for an event they own. Raising capacity creates no payment record and changes no plan, price or access period. A guest who was turned away as "full" can join as soon as it's raised.
 
-**Send to Google Drive (§11.2.1)**
+**Send to Google Drive (§11.2.1)** *(first update after launch; not a launch criterion)*
 77. A Celebration host can send every committed, non-deleted original (the same set as bulk download) to a new folder in their own Google Drive. FiveFrames asks only for permission to create its own files. The export keeps going after the host closes the page, the dashboard shows its progress and completion, and retrying after a failure never puts the same photo in the folder twice. The copied files are byte-for-byte the originals. Free and Intimate events don't offer it, and bulk download works on every plan.
 
 **Table-number cards (§11.3)**

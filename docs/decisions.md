@@ -915,21 +915,32 @@ real before paying.
 a wedding. Feature-gating the guest experience would make the cheaper plans feel broken and
 undercut the brandmark's discovery loop (§19). "First event free" over a repeatable small
 free event was the founder's call. It is simpler to explain, and accounts are email-confirmed.
-**Open technical questions (to settle when implementing, not decided here):**
-- **Drive export needs background work.** Google Drive has no import-from-URL. Its documented
-  upload types (simple, multipart, resumable) all send the bytes from the app
-  ([Drive uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads)),
-  so FiveFrames must stream GBs out of Storage. D11's reasoning rules out one serverless
-  request, so this needs a queue/worker, which is new infrastructure and needs approval first.
-  It is D11's "server-side follow-up" in a different form.
-- **Google scope:** `drive.file` is classed as non-sensitive and limited to files the app
-  creates or the user opens with it
+**Technical shape (2026-10-11):** settled in architecture.md §6a (override function and
+append-only log), §7c (table-number cards), §7d (time sections), §7e (Drive, deferred) and §8c
+(plan registry, `activateEvent(eventId, source)` stamping plan, cap and `hosted_until` from what
+was bought, and the Free claim on `hosts`). The choices that matter most:
+- Activation reads the plan from `payments.plan`, never the mutable draft choice, so a late
+  webhook activates exactly what was paid for.
+- The Free guard is a claim on the `hosts` row with no foreign key to the event, so deleting the
+  event can't return it. The claim refuses an already-active event, so a paid event can never
+  consume the Free event.
+- The override log is append-only by revoked grants, not by convention.
+**Send to Google Drive is deferred to the first update after launch (2026-10-11).** It is not
+in this release, and nothing may offer it until it ships (product.md §11.2.1, §18). Constraints
+for that slice, kept from Google's own documentation:
+- Drive has no import-from-URL. Its documented upload types (simple, multipart, resumable) all
+  send the bytes from the app
+  ([Drive uploads](https://developers.google.com/workspace/drive/api/guides/manage-uploads)).
+  So FiveFrames must stream GBs out of Storage, and D11's reasoning rules out one serverless
+  request. It needs a background job, which is new infrastructure needing approval
+  (architecture §7e). It is D11's "server-side follow-up" in a different form.
+- `drive.file` is classed as non-sensitive and limited to files the app creates or the user
+  opens with it
   ([Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)).
-  Restricted Drive scopes would need a security assessment, so don't use them. An OAuth
-  consent-screen setup and brand verification are still needed. The refresh-token lifetime and
-  encryption are to be designed, and the token is revoked when the export completes (§11.2.1).
-- **Capacity at 300** must be load-tested before launch. None has run at any size yet.
-**Suggested slices:** (a) plan model: per-plan cap, `expires_at` and the price map, with the
-plan on the Share step and the Console; (b) Free activation and its once-per-account guard;
-(c) operator capacity override; (d) time sections; (e) table-number cards through
-`signage-layout.ts`; (f) Send to Google Drive.
+  Restricted Drive scopes would need a security assessment, so don't use them. The OAuth consent
+  screen and brand verification are still needed.
+**Still open:** load-testing capacity at 300 (no load test has run at any size).
+**Slices for this update:** (a) plan model: registry, `events.plan` / `payments.plan`, per-plan
+cap and `hosted_until` at activation, the plan on the Share step, dashboard, Console and
+marketing; (b) Free activation and its claim; (c) operator capacity override and log; (d) time
+sections; (e) table-number cards. Next update: (f) Send to Google Drive.
