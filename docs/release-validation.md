@@ -305,7 +305,9 @@ all change:
 - host downloads (HOST-10);
 - keepsakes and theme image;
 - signage downloads;
-- lifecycle deletion (H).
+- lifecycle deletion (H);
+- the bucket has no custom domain and its `r2.dev` URL is disabled, so an unsigned or expired
+  URL is refused.
 
 Record the RC and results in the usual run record. Earlier evidence for these cases doesn't carry
 over.

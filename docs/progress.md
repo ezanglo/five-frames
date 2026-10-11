@@ -2762,7 +2762,8 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
    before anything deploys, because the site already advertises them.
    - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user
      to create the Cloudflare account, enable R2 and put its keys in `.env.local` / Vercel
-     first.
+     first. The founder chose one bucket with `captures/` and `theme/` prefixes, presigned
+     reads from the S3 endpoint, and no custom domain or CDN (D26, architecture §7h).
    - It changes the upload path, so every media case in release-validation.md reruns after it.
 2. **Release candidate timing is the user's call.** Slices 20–24 change the Share step, the
    pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.

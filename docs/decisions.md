@@ -1072,10 +1072,15 @@ event is about 6 GB of originals, and a busy gallery can serve over 100 GB.
 There are no real customer photos yet, so moving now is a code change, not a data migration. That
 was the founder's deciding reason.
 
-**Decision:** Captures (originals and derivatives) and theme images live in private R2 buckets,
-reached only through the S3 API with server-held credentials:
+**Decision:** Captures (originals and derivatives) and theme images live in one private R2
+bucket per environment, under `captures/` and `theme/` prefixes (founder's choice, 2026-10-11).
+They are reached only through the S3 API with server-held credentials:
 - **Reads:** short-lived presigned GET URLs, minted by the DAL after the same access checks as
-  today. A signed URL is still the result of authorization, never a substitute for it.
+  today. A signed URL is still the result of authorization, never a substitute for it. No
+  custom domain and no CDN in front of media (2026-10-11): a custom domain makes an R2 bucket
+  public, presigned URLs don't work on one, and guarding it needs either a Pro-plan WAF rule or
+  a Worker. Media is private and per-viewer, and R2 egress is free, so a CDN adds risk without
+  saving cost. Browser caching (stable signed URLs within a time window) covers repeat views.
 - **Uploads:** browsers upload directly to R2 under server-issued presigned authorization for
   one object key. That is the same trust shape as D7, with a different mechanism (below).
 - **Server work:** derivatives, keepsake rendering, theme processing and permanent deletion
@@ -1096,14 +1101,15 @@ invariant are unchanged.
   venue-network checks rerun.
 - **Placement.** An R2 location near the Philippines, since Vercel functions are in `iad1`.
   Confirm against R2's documented location options before creating the bucket.
-- **CORS** on the buckets for browser PUT and GET: uploads and D25's ZIP fetches.
+- **CORS** on the bucket for browser PUT and GET: uploads and D25's ZIP fetches.
 - **Credentials.** An R2 access key and secret, server-only and never `NEXT_PUBLIC_`. They are
   now as sensitive as the Supabase service-role key for media.
 - **Existing dev objects.** Copy them across or let dev events lose their photos. This is a
   one-off decision for dev only; there is no production data.
 
 **Needs the founder:** a Cloudflare account with R2 enabled (Cloudflare asks for a payment
-method even within the free allowance), and its keys placed in `.env.local` and Vercel by the
+method even within the free allowance), one bucket with the Asia-Pacific location hint and no
+custom domain, and its keys placed in `.env.local` and Vercel by the
 founder. Under CLAUDE.md, the agent doesn't create provider accounts or enable paid features.
 
 **Alternatives rejected:**

@@ -77,7 +77,7 @@ solving any requirement in the spec.
 | Database | Supabase Postgres, region `ap-southeast-1` | Provisioned (Slice 1): `five-frames-dev` |
 | Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
 | Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
-| Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`). **Moving to Cloudflare R2 before launch** (D26, §7h, Slice 25) |
+| Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`). **Moving to Cloudflare R2 before launch**: one private bucket, presigned reads (D26, §7h, Slice 25) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit); also normalizes the theme image (D19, planned) |
 | Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built — Slice 16: both keepsake families (D19, D20); the Slice 10 share card is retired |
@@ -1424,9 +1424,23 @@ Not built in this update. product.md §11.2.2 defines it, with the same "coming 
 Planned, not built. Until Slice 25 lands, §7, §7a and the CLAUDE.md storage gotchas describe
 Supabase Storage as built. Target shape:
 
-- **Buckets:** private R2 buckets for captures (originals and derivatives, same key layout as
-  today) and for theme images. No public bucket, no `r2.dev` public access, and no custom
-  domain that serves objects without a signature.
+- **One private bucket per environment, split by prefix:** `captures/` (originals and
+  derivatives, same key layout as today under that prefix) and `theme/` (theme images).
+  Deletion by prefix and the access checks work per prefix. The bucket is created with the
+  Asia-Pacific location hint. No `r2.dev` public access and **no custom domain**: R2 makes a
+  bucket publicly readable through a custom domain, and presigned URLs don't work there
+  ([public buckets](https://developers.cloudflare.com/r2/buckets/public-buckets/),
+  [presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)). Every read and
+  write goes through the S3 API endpoint (`<account>.r2.cloudflarestorage.com`).
+- **No CDN for media.** Media is private and per-viewer, R2 egress is free, and a cached edge
+  copy could outlive a host hiding a capture. Public static assets already go through Vercel's
+  CDN. Revisit (for example, a Worker that checks our own signed token) only if venue checks
+  show slow galleries. That change would stay inside `lib/storage/`.
+- **Browser caching instead.** Originals and derivatives are never modified (invariant 10), so
+  objects are written with a long, `private` `Cache-Control`. Presigned GETs are signed on
+  fixed time windows, so the same viewer gets the same URL for an object within a window and
+  the browser reuses it instead of refetching on every page load. The window stays short
+  enough that a URL still expires soon after access is withdrawn.
 - **One storage module**, `lib/storage/` (server-only, behind the DAL's checks), wrapping the
   S3 API:
   - presign GET (short expiry);
@@ -1443,8 +1457,8 @@ Supabase Storage as built. Target shape:
   real-R2 integration test.
 - **Theme image upload** (D19) and **D25 ZIP fetches** use the same presigned paths. The bucket
   CORS allows the app's origins for PUT and GET only.
-- **Credentials:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and bucket names,
-  server-only, read only in `lib/storage/`. They are listed in `.env.example` by name.
+- **Credentials:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET`,
+  server-only, never `NEXT_PUBLIC_`, read only in `lib/storage/`. They are listed in `.env.example` by name.
 - **Tests:** integration tests that touch Storage today (captures, resumable upload, theme,
   keepsakes, signage, lifecycle deletion) run against a dev R2 bucket. Unit tests mock nothing
   new.
