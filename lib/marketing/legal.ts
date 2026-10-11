@@ -108,6 +108,7 @@ export const TERMS: LegalDocument = {
       title: "Plans, payment and refunds",
       body: [
         `Each plan buys one event, paid once. A host’s first event can be ${FREE_PLAN.label}, once per account. After that: ${PAID_PRICES}. Prices are in Philippine pesos. Guests never pay.`,
+        "Signage comes as print-ready files for you to print. No plan includes printing. If you ask us to arrange printing, it’s a separate add-on: we quote it first, and nothing is printed or charged until you agree.",
         `${PAYMENT_COPY.line}. Your event activates once payment is confirmed.`,
         `Refunds: ${REFUND_POLICY_COPY} A ${FREE_PLAN.label} event involves no payment, so there is nothing to refund. A refunded event goes back to unpaid and its links stop working.`,
       ],

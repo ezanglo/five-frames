@@ -250,7 +250,7 @@ export default async function EventSetupPage({
                   your photos any time in that period.
                 </Benefit>
                 <Benefit icon={<ImageIcon />}>
-                  Guests’ keepsakes come in one style. Printable signs and every keepsake style
+                  Guests’ keepsakes come in one style. Print-ready signs and every keepsake style
                   come with Standard and Premium.
                 </Benefit>
                 <Benefit icon={<Clock />} muted>
@@ -275,8 +275,8 @@ export default async function EventSetupPage({
             <>
               <ul className="flex flex-col gap-2.5">
                 <Benefit icon={<QrCode />}>
-                  Your event link, printable QR and signage — issued the moment payment is
-                  confirmed.
+                  Your event link, QR and print-ready signage files — issued the moment payment is
+                  confirmed. You print them yourself.
                 </Benefit>
                 <Benefit icon={<Camera />}>
                   Five shots per guest, for up to {plan.guestSessionCap} guests.
@@ -437,7 +437,7 @@ export default async function EventSetupPage({
                     </ButtonAnchor>
                   </div>
                   <p className="text-caption font-medium text-ink-muted">
-                    Tip: print the QR on table cards or show it on a screen near the entrance. Every
+                    Tip: print the QR on table cards or show it on a screen near the entrance. These are print-ready files to print yourself. Every
                     signage format (QR, table card, poster, digital
                     {tableNumberCards ? " and numbered table cards" : ""}) is in{" "}
                     <Link

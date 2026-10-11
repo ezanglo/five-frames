@@ -230,8 +230,9 @@ export function SignagePanel({
   if (!activated) note = "The code here is a placeholder. Your real QR and downloads arrive when you activate.";
   else if (!liveCode) note = "Your capture link is revoked, so there’s no code to print. Create a new one in Settings → Links.";
   else if (dirty) note = "Downloads use your saved look. Save your changes to download this one.";
-  else if (format === "table-number") note = "Every card has your event’s real QR, the same on every table.";
-  else note = "Uses your event’s real QR. Changing the look never changes where it points.";
+  else if (format === "table-number") note = "Print-ready files to print yourself. Every card has your event’s real QR, the same on every table.";
+  else if (format === "digital") note = "Uses your event’s real QR. Changing the look never changes where it points.";
+  else note = "A print-ready file to print yourself. Uses your event’s real QR, and changing the look never changes where it points.";
 
   return (
     <div className="flex flex-1 flex-col gap-4">
@@ -251,7 +252,7 @@ export function SignagePanel({
           <p className="text-label font-semibold text-ink">
             Phone-screen sign
             <span className="block text-caption font-medium text-ink-muted">
-              Printable signs come with Standard and Premium.
+              Print-ready signs come with Standard and Premium.
             </span>
           </p>
         )}

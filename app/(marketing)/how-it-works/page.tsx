@@ -73,7 +73,7 @@ const HOST_STEPS: { title: string; body: ReactNode }[] = [
   },
   {
     title: "Get your link, QR and signage",
-    body: "The moment payment is confirmed, your event link and QR code exist, along with a table card, a poster and a phone-screen version to print or send.",
+    body: "The moment payment is confirmed, your event link and QR code exist, along with print-ready files for a table card and a poster, and a phone-screen version to send.",
   },
   {
     title: "Open capture when you’re ready",

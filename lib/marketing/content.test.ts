@@ -61,19 +61,19 @@ describe("marketing facts come from the product", () => {
     expect(standard.heading).toBe("Everything in Free, plus");
     expect(texts(standard)).toEqual({
       "Room for your event": ["Up to 100 guests", "Up to 500 photos", "Hosted for 6 months"],
-      "Signage and keepsakes": ["Printable QR cards and posters", "Numbered table cards", "All keepsake styles"],
+      "Signage and keepsakes": ["Print-ready QR card and poster files", "Print-ready numbered table cards", "All keepsake styles"],
       "Running your event": ["Download all as ZIP files"],
     });
     expect(premium.heading).toBe("Everything in Free, plus");
     expect(texts(premium)).toEqual({
       "Room for your event": ["Up to 300 guests", "Up to 1,500 photos", "Hosted for 12 months"],
-      "Signage and keepsakes": ["Printable QR cards and posters", "Numbered table cards", "All keepsake styles"],
+      "Signage and keepsakes": ["Print-ready QR card and poster files", "Print-ready numbered table cards", "All keepsake styles"],
       "Running your event": [
         "Download all as ZIP files",
         "Save to Google Drive",
         "Add a co-host",
       ],
-      "Help from us": ["We set it up with you", "Signage prepared with you", "Direct help on the day"],
+      "Help from us": ["We set it up with you", "Print-ready signage prepared with you", "Direct help on the day"],
     });
     // Groups keep one order on every paid card.
     expect(premium.groups.map((g) => g.title).slice(0, standard.groups.length)).toEqual(
@@ -85,6 +85,16 @@ describe("marketing facts come from the product", () => {
     expect(standard.groups.flatMap((g) => g.lines).some((l) => l.soon)).toBe(false);
   });
 
+  it("says on the pricing page that signage is files and printing is a separate, agreed add-on", () => {
+    expect(PRICING_FAQ_IDS).toContain("printing");
+    const [printing] = faqItemsById(["printing"]);
+    const answer = printing.answer.join(" ");
+    expect(answer).toMatch(/print-ready files/);
+    expect(answer).toMatch(/isn’t part of any plan/);
+    expect(answer).toMatch(/separate add-on/);
+    expect(answer).toMatch(/until you agree/);
+  });
+
   it("features exactly one paid plan", () => {
     expect(isPaidPlanId(FEATURED_PLAN_ID)).toBe(true);
     expect(MARKETING_PLANS.filter((p) => p.id === FEATURED_PLAN_ID)).toHaveLength(1);
@@ -92,7 +102,7 @@ describe("marketing facts come from the product", () => {
 
   it("never claims Free can do what product.md §15.3.1 leaves out", () => {
     const free = planFeatures(PLANS.free).groups.flatMap((g) => g.lines).map((l) => l.text).join(" ");
-    expect(free).not.toMatch(/printable|table card|poster|keepsake styles|download/i);
+    expect(free).not.toMatch(/print|table card|poster|keepsake styles|download/i);
   });
 
   it("compares plans only on what really differs (product.md §15.3)", () => {
@@ -104,11 +114,11 @@ describe("marketing facts come from the product", () => {
       "Guests",
       "Hosted for",
       // Free's lighter event (product.md §15.3.1), from the registry's `features`:
-      "Printable QR cards and posters",
+      "Print-ready QR card and poster files",
       "Keepsakes of one photo",
       "Keepsakes of all five photos",
       // Premium's extras, built and coming soon:
-      "Numbered table cards",
+      "Print-ready numbered table cards",
       "Save to Google Drive",
       "We set it up with you",
       "Direct help on the day",
@@ -214,6 +224,8 @@ describe("marketing copy stays honest and on-brand", () => {
     [/\bvideo\b/i, "there is no video feature"],
     [/slide ?show|live (photo )?wall/i, "the gallery is scrolled, never played (D22)"],
     [/customi[sz]able|custom galler|custom layout/i, "a choice of three gallery layouts is not customization (D22)"],
+    // Signage is files the host prints; printing is a quoted add-on, never part of a plan.
+    [/printable|printed (sign|qr|card|poster|table)|we print|printing (is )?included|free printing/i, "signage is print-ready files, never printed items (meeting #1)"],
   ];
 
   it.each(FORBIDDEN)("contains no %s", (pattern, reason) => {

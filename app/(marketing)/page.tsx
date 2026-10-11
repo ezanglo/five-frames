@@ -406,8 +406,8 @@ function HostSection() {
       </Reveal>
       <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:mt-16 lg:grid-cols-3 lg:gap-6">
         <FeatureCard icon={<QrCode />} title="Ready-made signage">
-          A printable QR, a table card, a poster and a phone-screen version in your event’s
-          colors, ready the moment your event is paid.
+          Print-ready files for a QR, a table card and a poster, plus a phone-screen version, in
+          your event’s colors. Ready the moment your event is paid, to print yourself.
         </FeatureCard>
         <FeatureCard icon={<Power />} title="You open capture">
           Guests can’t shoot until you switch capture on. Close it whenever you like — it also

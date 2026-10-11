@@ -89,8 +89,8 @@ type PaidGroup = keyof typeof PAID_GROUP_TITLES;
 
 /** Copy and group for each feature a plan adds over Free (registry `features`). */
 const FEATURE_LINES: Record<keyof Plan["features"], { group: PaidGroup; text: string }> = {
-  printSignage: { group: "look", text: "Printable QR cards and posters" },
-  tableNumberCards: { group: "look", text: "Numbered table cards" },
+  printSignage: { group: "look", text: "Print-ready QR card and poster files" },
+  tableNumberCards: { group: "look", text: "Print-ready numbered table cards" },
   allKeepsakeStyles: { group: "look", text: "All keepsake styles" },
 };
 
@@ -108,7 +108,7 @@ const COMING_SOON: Partial<Record<Plan["id"], { group: PaidGroup; line: FeatureL
 /** What a paid plan adds that isn't a number or a registry feature: help from us. */
 function planHelp(plan: Plan): string[] {
   if (plan.id !== "celebration") return [];
-  return ["We set it up with you", "Signage prepared with you", "Direct help on the day"];
+  return ["We set it up with you", "Print-ready signage prepared with you", "Direct help on the day"];
 }
 
 /**
@@ -198,8 +198,8 @@ export const PLAN_COMPARISON: ComparisonGroup[] = [
       { label: "Share by link or QR", value: everyPlan },
       { label: "Your event color", value: everyPlan },
       { label: "Your own photo and hashtag", value: everyPlan },
-      { label: "Printable QR cards and posters", value: (p) => p.features.printSignage },
-      { label: "Numbered table cards", value: (p) => p.features.tableNumberCards },
+      { label: "Print-ready QR card and poster files", value: (p) => p.features.printSignage },
+      { label: "Print-ready numbered table cards", value: (p) => p.features.tableNumberCards },
     ],
   },
   {
@@ -539,7 +539,7 @@ export const FAQ_GROUPS: FaqGroup[] = [
         question: "Which plan should I choose?",
         answer: [
           `Go by how many guests you expect. ${PAID_PLANS.map((p) => `${p.label} suits ${p.forWhom.toLowerCase()}, up to ${p.guestSessionCap} guests`).join("; ")}.`,
-          `${PLANS.celebration.label} also comes with us: we set up your look and get your signage print-ready with you, and you have a direct line to us on the day. Sending your photos to Google Drive and adding a co-host are coming soon too.`,
+          `${PLANS.celebration.label} also comes with us: we set up your look and get your signage files print-ready with you, and you have a direct line to us on the day. Sending your photos to Google Drive and adding a co-host are coming soon too.`,
           `Free is there to try FiveFrames for real once, with up to ${FREE_PLAN.guestSessionCap} guests. It’s one per account, so save it for a small gathering rather than the event that matters most.`,
         ],
       },
@@ -559,7 +559,15 @@ export const FAQ_GROUPS: FaqGroup[] = [
         id: "when-qr",
         question: "When do I get the QR code?",
         answer: [
-          "As soon as your payment is confirmed. Your event link, QR code and signage (a printable QR, a table card, a poster and a phone-screen version) are issued then, and never before.",
+          "As soon as your payment is confirmed. Your event link, QR code and signage files (a print-ready QR, a table card, a poster and a phone-screen version) are issued then, and never before.",
+        ],
+      },
+      {
+        id: "printing",
+        question: "Do you print the signs for me?",
+        answer: [
+          "No. Every plan gives you print-ready files that you download and print yourself, at home or at any print shop. Printing isn’t part of any plan, so there’s no printing cost hidden in your price.",
+          "If you’d like us to arrange printing, ask us. It’s a separate add-on: we tell you the cost first, and nothing is printed or charged until you agree.",
         ],
       },
       {
@@ -620,7 +628,7 @@ export const HOME_FAQ_IDS = [
   "how-pay",
 ] as const;
 
-export const PRICING_FAQ_IDS = ["which-plan", "guests-pay", "how-pay", "when-qr", "pay-opens", "refund", "how-long"] as const;
+export const PRICING_FAQ_IDS = ["which-plan", "guests-pay", "how-pay", "when-qr", "printing", "pay-opens", "refund", "how-long"] as const;
 
 /**
  * Testimonials — intentionally empty. Only add a quote that a real host or guest actually gave,

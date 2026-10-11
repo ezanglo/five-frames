@@ -30,7 +30,7 @@ const PAYMENT_STEPS = [
   PAYMENT_COPY.payStep,
   {
     title: "Share right away",
-    body: "Your link, QR code and signage are issued as soon as payment is confirmed. Capture opens when you say so.",
+    body: "Your link, QR code and print-ready signage files are issued as soon as payment is confirmed. Capture opens when you say so.",
   },
 ];
 
@@ -40,7 +40,7 @@ export default function PricingPage() {
       <PageHero
         eyebrow="Pricing"
         title="Start free. Then pay once per event."
-        lead={`Your first event is free. After that, choose by the size of your event: ${PRICES_LABEL}. Guests never pay, and there’s nothing to add on.`}
+        lead={`Your first event is free. After that, choose by the size of your event: ${PRICES_LABEL}. Guests never pay, and the plan price is the whole price.`}
       />
 
       <Section labelledBy="plans-title" className="relative -mt-6 rounded-t-sheet">
