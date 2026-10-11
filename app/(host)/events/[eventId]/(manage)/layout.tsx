@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ChevronRight, ExternalLink } from "lucide-react";
-import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
+import { requireEventAccess } from "@/lib/auth/event-session";
 import { getEventCaptureStats } from "@/lib/dal/captures";
 import { getEventThemeForHost } from "@/lib/dal/event-theme";
+import { getSupportedHostEmail } from "@/lib/dal/support-actions";
 import { formatEventDate } from "@/lib/events/format";
 import { buttonClass } from "@/components/ff/button";
 import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { EventTabs } from "@/components/ff/host/event-tabs";
+import { SupportBanner } from "@/components/ff/host/support-banner";
 import {
   EventCoverImage,
   HostFrame,
@@ -21,7 +21,8 @@ import {
  * Event pages (D6 Dashboard · D7 Photos · D8 Settings; mobile 06 / 06b / 07). Desktop: top nav
  * 72 · cover header 260 (left-to-right gradient, Fraunces 48) · 64h underline tab bar · page
  * body. Mobile: the dark header with the status pill and event name, then segmented tabs at the
- * top of the white sheet. Ownership is checked here and again by every page and action.
+ * top of the white sheet. Access (owner or support, D27) is checked here and again by every page
+ * and action. In support access every page carries the support banner naming the host.
  */
 export default async function EventLayout({
   children,
@@ -31,13 +32,12 @@ export default async function EventLayout({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const host = await requireHost();
-  const event = await getEventForHost(host.id, eventId);
-  if (!event) notFound();
+  const { user: host, event, role } = await requireEventAccess(eventId);
 
-  const [stats, theme] = await Promise.all([
+  const [stats, theme, supportedHostEmail] = await Promise.all([
     getEventCaptureStats(host.id, eventId),
     getEventThemeForHost(host.id, eventId),
+    role === "support" ? getSupportedHostEmail(host.id, eventId) : Promise.resolve(null),
   ]);
   const coverUrl = theme?.imageUrl ?? null;
   const status = eventStatusKey(event);
@@ -48,6 +48,7 @@ export default async function EventLayout({
 
   return (
     <HostFrame>
+      {role === "support" && <SupportBanner hostEmail={supportedHostEmail} />}
       <HostTopNav host={host} active="events" />
 
       <HostMobileHeader host={host} coverUrl={coverUrl}>
@@ -61,8 +62,13 @@ export default async function EventLayout({
         <div className="relative mx-auto flex min-h-[260px] max-w-[1280px] items-end justify-between gap-8 px-10 pt-12 pb-10">
           <div className="flex min-w-0 flex-col gap-3">
             <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-caption font-medium">
-              <Link href="/dashboard" className="ff-focus rounded-md text-ink-inverse/75 hover:text-ink-inverse">
-                Events
+              {/* In support access the way back is the Console's event page, not the
+                  operator's own event list. */}
+              <Link
+                href={role === "support" ? `/operator/events/${eventId}` : "/dashboard"}
+                className="ff-focus rounded-md text-ink-inverse/75 hover:text-ink-inverse"
+              >
+                {role === "support" ? "Operator Console" : "Events"}
               </Link>
               <ChevronRight className="size-3.5 text-ink-inverse/50" aria-hidden />
               <span className="truncate font-semibold" aria-current="page">

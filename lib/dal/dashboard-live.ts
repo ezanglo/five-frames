@@ -2,7 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { getEventForHost } from "@/lib/dal/events";
+import { getEventAccessFor } from "@/lib/dal/event-access";
 import {
   canOpenCapture,
   deriveEventLifecycleState,
@@ -16,16 +16,16 @@ import {
  * state flips with no write at all (safety-net close, custom reveal time).
  *
  * The live stream sends only this hash, never the values behind it: it is an invalidation
- * signal, and the page re-reads everything authoritatively. Ownership is re-checked on every
- * call, so it returns null for an event the host doesn't own, and a stream stops if that
- * changes.
+ * signal, and the page re-reads everything authoritatively. Access is re-checked on every
+ * call, so it returns null for an event the caller can't reach, and a stream stops if that
+ * changes (an operator grant revoked mid-stream included). Admits: owner, support.
  */
 export async function getDashboardVersion(
-  hostId: string,
+  userId: string,
   eventId: string,
   now: Date = new Date(),
 ): Promise<string | null> {
-  const event = await getEventForHost(hostId, eventId);
+  const event = (await getEventAccessFor(userId, eventId, ["owner", "support"]))?.event;
   if (!event) return null;
 
   const supabase = createServiceClient();

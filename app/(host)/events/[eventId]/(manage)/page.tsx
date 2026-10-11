@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import {
   ArrowRight,
@@ -10,9 +9,10 @@ import {
   Link2,
   Printer,
 } from "lucide-react";
-import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
+import { requireEventAccess } from "@/lib/auth/event-session";
 import { getEventCaptureStats, listCapturesForEventHost } from "@/lib/dal/captures";
+import { listSupportActionsForEvent, type HostSupportActionView } from "@/lib/dal/support-actions";
+import { supportActionLabel } from "@/lib/support/labels";
 import { getLatestPaymentForEvent } from "@/lib/dal/payments";
 import { getDashboardVersion } from "@/lib/dal/dashboard-live";
 import {
@@ -57,16 +57,17 @@ export default async function EventDashboardPage({
 }) {
   const { eventId } = await params;
   const { checkout } = await searchParams;
-  const host = await requireHost();
-  const event = await getEventForHost(host.id, eventId);
-  if (!event) notFound();
+  const { user: host, event, role } = await requireEventAccess(eventId);
+  const support = role === "support";
 
   const state = deriveEventLifecycleState(event);
-  const [version, stats, captures, latestPayment] = await Promise.all([
+  const [version, stats, captures, latestPayment, supportActions] = await Promise.all([
     getDashboardVersion(host.id, eventId),
     getEventCaptureStats(host.id, eventId),
     listCapturesForEventHost(host.id, eventId),
-    state === "draft" ? getLatestPaymentForEvent(host.id, eventId) : Promise.resolve(null),
+    // Payment is the host's (owner-only), so support access shows no payment state.
+    state === "draft" && !support ? getLatestPaymentForEvent(host.id, eventId) : Promise.resolve(null),
+    listSupportActionsForEvent(host.id, eventId),
   ]);
 
   const guests = stats?.guestSessionCount ?? 0;
@@ -94,7 +95,7 @@ export default async function EventDashboardPage({
   const notices: ReactNode[] = [];
   // Nothing before activation claims a payment arrived: only the verified webhook (or an
   // operator's manual confirmation) establishes that, and it activates the event (HOST-05).
-  if (draftPayment.notice && !event.activated_at) {
+  if (draftPayment.notice && !event.activated_at && !support) {
     notices.push(
       <Notice key="pay" icon={<Clock className="animate-pulse" />} tone="tint">
         {draftPayment.notice}
@@ -396,8 +397,9 @@ export default async function EventDashboardPage({
     </section>
   );
 
+  // Choosing a plan and paying are the host's; support access never reaches the Share step.
   const setupCard =
-    state === "draft" ? (
+    state === "draft" && !support ? (
       <section className="flex flex-col gap-4 rounded-xl border border-brand bg-surface p-5 shadow-glow lg:flex-row lg:items-center lg:justify-between lg:rounded-3xl lg:p-6">
         <div className="flex flex-col gap-1">
           <h2 className="text-[16px] font-bold text-ink">{draftPayment.cardTitle}</h2>
@@ -408,6 +410,11 @@ export default async function EventDashboardPage({
           <ArrowRight aria-hidden />
         </ButtonLink>
       </section>
+    ) : null;
+
+  const supportCard =
+    supportActions && supportActions.length > 0 ? (
+      <SupportActivity actions={supportActions} timezone={tz} />
     ) : null;
 
   return (
@@ -433,6 +440,7 @@ export default async function EventDashboardPage({
           </>
         )}
         {latestCard}
+        {supportCard}
       </div>
 
       {/* Desktop: main column + 380 side column */}
@@ -446,6 +454,7 @@ export default async function EventDashboardPage({
             {captureStatusTile}
           </div>
           {latestCard}
+          {supportCard}
         </div>
         <div className="flex flex-col gap-6">
           {captureCard}
@@ -489,5 +498,40 @@ function SignageLink({ eventId, format, label }: { eventId: string; format: stri
       <Printer className="size-3.5" aria-hidden />
       {label}
     </a>
+  );
+}
+
+/**
+ * What FiveFrames support did on this event (product.md §5.1.3, criterion 93): each entry by its
+ * label and time, never the raw key and never the operator. Shown only once there is an entry.
+ */
+function SupportActivity({
+  actions,
+  timezone,
+}: {
+  actions: HostSupportActionView[];
+  timezone: string;
+}) {
+  return (
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-5 lg:rounded-3xl lg:p-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="font-heading text-heading font-semibold text-ink lg:text-[22px]">
+          FiveFrames support activity
+        </h2>
+        <p className="text-caption font-medium text-ink-muted">
+          Changes FiveFrames support made to this event, and when they viewed its photos.
+        </p>
+      </div>
+      <ul className="flex flex-col divide-y divide-line">
+        {actions.map((entry) => (
+          <li key={entry.id} className="flex items-baseline justify-between gap-3 py-2.5 text-caption">
+            <span className="font-semibold text-ink">{supportActionLabel(entry.action)}</span>
+            <span className="tabular shrink-0 font-medium text-ink-muted">
+              {formatEventDateTime(entry.createdAt, timezone)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

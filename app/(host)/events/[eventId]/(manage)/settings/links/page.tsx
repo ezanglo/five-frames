@@ -1,8 +1,6 @@
-import { notFound } from "next/navigation";
 import { Camera, Images, Link2 } from "lucide-react";
 import type { ReactNode } from "react";
-import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
+import { requireEventAccess } from "@/lib/auth/event-session";
 import { isGalleryRevealed } from "@/lib/events/lifecycle";
 import {
   revokeEventTokenAction,
@@ -27,9 +25,7 @@ export default async function LinksSettingsPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const host = await requireHost();
-  const event = await getEventForHost(host.id, eventId);
-  if (!event) notFound();
+  const { event, role } = await requireEventAccess(eventId);
 
   if (!event.activated_at) {
     return (
@@ -39,9 +35,12 @@ export default async function LinksSettingsPage({
           title="Your links arrive when you activate"
           body="The capture link, its QR code and the gallery link are issued the moment payment is confirmed."
         />
-        <ButtonLink href={`/events/${eventId}/setup?step=share`} variant="secondary" size="md" className="self-start">
-          Go to activation
-        </ButtonLink>
+        {/* Activation is the host's (the Share step is owner-only, product.md §5.1.3). */}
+        {role === "owner" && (
+          <ButtonLink href={`/events/${eventId}/setup?step=share`} variant="secondary" size="md" className="self-start">
+            Go to activation
+          </ButtonLink>
+        )}
       </div>
     );
   }

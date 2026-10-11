@@ -135,3 +135,33 @@ export type CapacityOverrideRow = {
   operator_id: string;
   created_at: string;
 };
+
+/** The support log's closed set of action keys (product.md §5.1.3, architecture §5b). The
+ *  database refuses any other key. */
+export type SupportActionKey =
+  | "settings_changed"
+  | "gallery_revealed"
+  | "capture_opened"
+  | "capture_closed"
+  | "capture_link_rotated"
+  | "capture_link_turned_off"
+  | "gallery_link_rotated"
+  | "gallery_link_turned_off"
+  | "theme_image_changed"
+  | "theme_image_removed"
+  | "photo_hidden"
+  | "photo_unhidden"
+  | "photos_viewed"
+  | "signage_downloaded";
+
+/** One support-access log entry (D27). Append-only: the database refuses an update or delete,
+ *  even from the service role. Link tokens appear only as whether a link existed. */
+export type SupportActionRow = {
+  id: string;
+  event_id: string;
+  operator_id: string;
+  action: SupportActionKey;
+  old_value: Record<string, unknown> | null;
+  new_value: Record<string, unknown> | null;
+  created_at: string;
+};

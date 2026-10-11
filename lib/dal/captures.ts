@@ -2,6 +2,8 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventById, getEventForHost, listEventsForHost } from "@/lib/dal/events";
+import { getEventAccessFor } from "@/lib/dal/event-access";
+import { logSupportAccess, supportSetCaptureHidden } from "@/lib/dal/support-actions";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
 import {
   createCaptureUpload,
@@ -308,9 +310,9 @@ export async function listCapturesForGuestSessionWithUrls(
 
 /**
  * Host dashboard and moderation (roadmap Slice 4, product.md §11.2). Every function below
- * takes hostId and verifies ownership via getEventForHost before touching captures — the
- * same ownership-predicate discipline as lib/dal/events.ts (product invariant 9). A null
- * return means "not found or not owned," never distinguished further.
+ * checks ownership (`hostId`, owner-only) or the caller's role (`userId`, D27) before touching
+ * captures (product invariant 9). A null return means "not found or not admitted," never
+ * distinguished further.
  */
 
 export type EventCaptureStats = {
@@ -318,12 +320,13 @@ export type EventCaptureStats = {
   photoCount: number;
 };
 
+/** Admits: owner, support (counts only). */
 export async function getEventCaptureStats(
-  hostId: string,
+  userId: string,
   eventId: string,
 ): Promise<EventCaptureStats | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
 
   const supabase = createServiceClient();
   const [sessions, photos] = await Promise.all([
@@ -385,20 +388,26 @@ export type HostCaptureView = {
   hidden: boolean;
   favorited: boolean;
   thumbnailUrl: string;
-  downloadUrl: string;
+  /** The original, for the owner only. Support never gets an original URL (D27). */
+  downloadUrl: string | null;
 };
 
 /**
  * The gallery grid (product.md §11.2): every committed, non-deleted capture across the
- * event's guest sessions, with signed urls minted after the ownership check above — same
+ * event's guest sessions, with signed urls minted after the access check above — same
  * "query is the access check, signed url is its result" rule as the guest-facing view.
+ *
+ * Admits: owner, support. Support's visit is logged (`photos_viewed`) before anything is
+ * signed, and support gets display derivatives only: no original URL, and a capture without
+ * a thumbnail is left out rather than shown from its original.
  */
 export async function listCapturesForEventHost(
-  hostId: string,
+  userId: string,
   eventId: string,
 ): Promise<HostCaptureView[] | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  const support = access.role === "support";
 
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -428,19 +437,26 @@ export async function listCapturesForEventHost(
     guest_sessions: { display_name: string } | { display_name: string }[] | null;
   };
 
+  const rows = (data as Row[]).filter((row) => !support || row.thumbnail_path !== null);
+  if (support && rows.length > 0) await logSupportAccess(userId, eventId, "photos_viewed");
+
   return Promise.all(
-    (data as Row[]).map(async (row, index) => {
+    rows.map(async (row, index) => {
       const guestSession = Array.isArray(row.guest_sessions)
         ? row.guest_sessions[0]
         : row.guest_sessions;
       const guestDisplayName = guestSession?.display_name ?? "Guest";
       const [thumbnailUrl, downloadUrl] = await Promise.all([
-        createSignedReadUrl(row.thumbnail_path ?? row.storage_path),
-        createSignedReadUrl(
-          row.storage_path,
-          60 * 10,
-          filenameForOriginal(index, guestDisplayName, row.mime_type),
-        ),
+        support
+          ? createSignedReadUrl(row.thumbnail_path!)
+          : createSignedReadUrl(row.thumbnail_path ?? row.storage_path),
+        support
+          ? null
+          : createSignedReadUrl(
+              row.storage_path,
+              60 * 10,
+              filenameForOriginal(index, guestDisplayName, row.mime_type),
+            ),
       ]);
 
       return {
@@ -635,15 +651,22 @@ export type ModerationAction =
  * Hide, unhide, delete, favorite, unfavorite (product.md §11.2). Moderation only ever
  * touches these flag columns, never slot_index or status — so it can never free a slot or
  * restore a frame (product invariant 4). Delete is terminal: there is no undelete.
+ *
+ * Admits: owner (every action), support (hide and unhide only, logged in the same transaction,
+ * D27). Delete and favorite stay the host's.
  */
 export async function moderateCapture(
-  hostId: string,
+  userId: string,
   eventId: string,
   captureId: string,
   action: ModerationAction,
 ): Promise<boolean> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return false;
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return false;
+  if (access.role === "support") {
+    if (action !== "hide" && action !== "unhide") return false;
+    return supportSetCaptureHidden(userId, eventId, captureId, action === "hide");
+  }
 
   const now = new Date().toISOString();
   const patch: Record<string, string | null> =

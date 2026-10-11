@@ -1,6 +1,4 @@
-import { notFound } from "next/navigation";
-import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
+import { requireEventAccess } from "@/lib/auth/event-session";
 import { saveEventAndGalleryAction } from "@/app/(host)/events/actions";
 import { EventGalleryForm } from "./settings-form";
 
@@ -16,9 +14,7 @@ export default async function EventSettingsPage({
 }) {
   const { eventId } = await params;
   const { saved } = await searchParams;
-  const host = await requireHost();
-  const event = await getEventForHost(host.id, eventId);
-  if (!event) notFound();
+  const { event } = await requireEventAccess(eventId);
 
   return (
     <EventGalleryForm

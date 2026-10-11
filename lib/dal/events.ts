@@ -12,10 +12,14 @@ import { isGalleryLayout } from "@/lib/gallery/layouts";
 import type { PlanId } from "@/lib/plans/registry";
 import { isAccentKey } from "@/lib/theme/accents";
 import { InvalidHashtagError, normalizeHashtag } from "@/lib/theme/hashtag";
+import { getEventAccessFor } from "@/lib/dal/event-access";
+import { supportUpdateEvent, type SupportEventAction } from "@/lib/dal/support-actions";
 
 /**
- * Every function here takes hostId and scopes its query by it. There is no function
- * that loads an event without an ownership predicate (product invariant 9, architecture §5).
+ * Every function here scopes its query by ownership or by `getEventAccess` (D27). There is no
+ * function that loads an event without an ownership, role or token predicate (product
+ * invariant 9, architecture §5, §5b). A function taking `hostId` is owner-only; one taking
+ * `userId` names the roles it admits.
  */
 
 export type EventConfigInput = {
@@ -207,6 +211,26 @@ export async function updateEventConfig(
 }
 
 /**
+ * Settings · Event & gallery, Settings · Look and "Reveal gallery" on the dashboard. Admits:
+ * owner, support. The owner's change is `updateEventConfig`; support's goes through
+ * `support_update_event`, which applies it and logs it in one transaction (D27). The input is
+ * validated by the same `toRow` either way, so a support change behaves exactly like the
+ * host's. The create wizard stays on owner-only `updateEventConfig`.
+ */
+export async function changeEventSettings(
+  userId: string,
+  eventId: string,
+  input: Partial<EventConfigInput>,
+  action: Extract<SupportEventAction, "settings_changed" | "gallery_revealed"> = "settings_changed",
+): Promise<EventRow | null> {
+  const row = toRow(input);
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  if (access.role === "owner") return updateEventConfig(userId, eventId, input);
+  return supportUpdateEvent(userId, eventId, action, row);
+}
+
+/**
  * The host's plan choice while Draft (product.md §7.2, §15.3, D24). Ownership-scoped, and
  * refused once the event is activated (`activated_at IS NULL` in the same statement), so a
  * plan is fixed from activation on, exactly as product.md says. Free is a choice only while the
@@ -265,28 +289,32 @@ export async function isFreeEventAvailable(hostId: string): Promise<boolean> {
  * to distinguish them beyond "nothing changed."
  */
 export async function openCapture(
-  hostId: string,
+  userId: string,
   eventId: string,
 ): Promise<EventRow | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
+  // Admits: owner, support.
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  const { event } = access;
 
   if (!canOpenCapture(event)) return null;
 
   const now = new Date();
+  const patch = {
+    capture_opened_at: event.capture_opened_at ?? now.toISOString(),
+    capture_closed_at: null,
+    // Computed once, on first open, and held fixed thereafter (product.md §7.3):
+    // reopening capture must never push the safety-net deadline back out.
+    safety_net_closes_at: event.safety_net_closes_at ?? computeSafetyNetClosesAt(event, now),
+  };
+  if (access.role === "support") return supportUpdateEvent(userId, eventId, "capture_opened", patch);
+
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("events")
-    .update({
-      capture_opened_at: event.capture_opened_at ?? now.toISOString(),
-      capture_closed_at: null,
-      // Computed once, on first open, and held fixed thereafter (product.md §7.3):
-      // reopening capture must never push the safety-net deadline back out.
-      safety_net_closes_at:
-        event.safety_net_closes_at ?? computeSafetyNetClosesAt(event, now),
-    })
+    .update(patch)
     .eq("id", eventId)
-    .eq("host_id", hostId)
+    .eq("host_id", userId)
     .select()
     .maybeSingle();
 
@@ -305,20 +333,29 @@ type LinkKind = "event_token" | "gallery_token";
  * nothing else to invalidate.
  */
 async function setLinkToken(
-  hostId: string,
+  userId: string,
   eventId: string,
   column: LinkKind,
   value: string | null,
 ): Promise<EventRow | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event || !event.activated_at) return null;
+  // Admits: owner, support.
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access || !access.event.activated_at) return null;
+
+  if (access.role === "support") {
+    const action: SupportEventAction =
+      column === "event_token"
+        ? value ? "capture_link_rotated" : "capture_link_turned_off"
+        : value ? "gallery_link_rotated" : "gallery_link_turned_off";
+    return supportUpdateEvent(userId, eventId, action, { [column]: value });
+  }
 
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("events")
     .update({ [column]: value })
     .eq("id", eventId)
-    .eq("host_id", hostId)
+    .eq("host_id", userId)
     .select()
     .maybeSingle();
 
@@ -326,37 +363,41 @@ async function setLinkToken(
   return data as EventRow | null;
 }
 
-export function rotateEventToken(hostId: string, eventId: string) {
-  return setLinkToken(hostId, eventId, "event_token", generateLinkToken());
+export function rotateEventToken(userId: string, eventId: string) {
+  return setLinkToken(userId, eventId, "event_token", generateLinkToken());
 }
 
-export function revokeEventToken(hostId: string, eventId: string) {
-  return setLinkToken(hostId, eventId, "event_token", null);
+export function revokeEventToken(userId: string, eventId: string) {
+  return setLinkToken(userId, eventId, "event_token", null);
 }
 
-export function rotateGalleryToken(hostId: string, eventId: string) {
-  return setLinkToken(hostId, eventId, "gallery_token", generateLinkToken());
+export function rotateGalleryToken(userId: string, eventId: string) {
+  return setLinkToken(userId, eventId, "gallery_token", generateLinkToken());
 }
 
-export function revokeGalleryToken(hostId: string, eventId: string) {
-  return setLinkToken(hostId, eventId, "gallery_token", null);
+export function revokeGalleryToken(userId: string, eventId: string) {
+  return setLinkToken(userId, eventId, "gallery_token", null);
 }
 
 export async function closeCapture(
-  hostId: string,
+  userId: string,
   eventId: string,
 ): Promise<EventRow | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
+  // Admits: owner, support.
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
 
-  if (deriveEventLifecycleState(event) !== "capture_open") return null;
+  if (deriveEventLifecycleState(access.event) !== "capture_open") return null;
+
+  const patch = { capture_closed_at: new Date().toISOString() };
+  if (access.role === "support") return supportUpdateEvent(userId, eventId, "capture_closed", patch);
 
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("events")
-    .update({ capture_closed_at: new Date().toISOString() })
+    .update(patch)
     .eq("id", eventId)
-    .eq("host_id", hostId)
+    .eq("host_id", userId)
     .select()
     .maybeSingle();
 

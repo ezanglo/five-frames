@@ -327,6 +327,14 @@ evidence covers only the one-by-one path, which is now the fallback. It needs th
 CORS to allow GET from the validation origin (already set for Slice 25). A multi-part run needs
 an event with more than 500 committed photos. Nothing seeds one yet (progress.md, Slice 26).
 
+### Operator support access (D27, Slice 27) — OPS-07, OPS-08 new
+
+Built in Slice 27 (2026-10-11), not yet deployed. Its local human checklist passed (progress.md),
+which is not deployment evidence. Needs migration
+`20261011040000_support_access.sql` on the target database. Uses the existing test events and
+operator O. OPS-01 also gains a check: an ordinary host who requests another host's event page
+directly gets "We can't find that page" (that is support access's address).
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.
@@ -430,7 +438,7 @@ earlier ones create:
 9. **E** GAL-03 (custom reveal)
 10. **B** HOST-08 … HOST-12 (moderation, downloads, state, table-number cards)
 11. **E** GAL-04, GAL-07, GAL-08, then GAL-05, GAL-06
-12. **F** OPS-01 … OPS-06
+12. **F** OPS-01 … OPS-08
 13. **G** CAP-01, CAP-02, CAP-03
 14. **H** CRON-01 … CRON-03
 15. **J** VIS-01 … VIS-05. Note visual issues all along; record them here at the end.
@@ -1220,6 +1228,45 @@ app and recorded through the Operator Console (D17).
   - host A gets "We can't find that page" for both URLs.
 - **Result:** NOT RUN (new, D23)
 - **Evidence / notes:** Local integration test `payments.manual.integration.test.ts` ("the ledger lists money that moved…") covers the read against dev Postgres. Not deployment evidence.
+
+#### OPS-07 · Support access: change, hide, and what stays the host's
+- **Where:** desktop browser and a phone, operator O; then host A
+- **Needs:** OPS-03 (E1 activated, owned by host A, with a few committed photos)
+- **Steps:**
+  1. As O, open E1's Console page and choose **Open in support access**.
+  2. On every tab (Dashboard, Photos, Settings · Event & gallery, Look, Links), check the banner.
+  3. In Settings, change the name and set a custom reveal time just after midnight (event
+     timezone). Save, reload, and reopen Settings.
+  4. Open and close capture. Rotate the capture link. Hide one photo, then unhide it.
+  5. Upload a new event image in Look, and download the phone-screen sign.
+  6. Look for: favorite, delete, a photo's download, Download all, plan choice, activation.
+  7. Request `/events/<E1>/setup?step=share` directly.
+  8. On E3 (O's own event), open it from the Console.
+- **PASS when:**
+  - every page shows the support banner naming host A, and the breadcrumb leads back to the Console;
+  - each change takes effect exactly as the host's would; the reveal time shows the same local
+    time after reload, with no day shift;
+  - Photos shows thumbnails with Hide/Unhide only; favorites show but can't be changed; there is no
+    delete, original download, Download all, plan or activation control;
+  - the Share step URL gives "We can't find that page";
+  - on E3 there is no banner (O is its host).
+- **Result:** NOT RUN (new, D27)
+- **Evidence / notes:** `support-access.integration.test.ts` (18 passed) covers the DAL and SQL refusals against dev Postgres, and the local human checklist passed. Not deployment evidence.
+
+#### OPS-08 · Support log: Console and host
+- **Where:** desktop browser, operator O; then host A
+- **Needs:** OPS-07
+- **Steps:**
+  1. As O, reload E1's Console page and read **Support log**.
+  2. As host A, open E1's Dashboard.
+- **PASS when:**
+  - the Console lists each OPS-07 action newest first, with O's email and time, including one
+    "Viewed photos" (not one per photo or per refresh) and "Downloaded signage";
+  - host A sees "FiveFrames support activity" with the same actions and times, in words, and no
+    operator name or email;
+  - nothing on either page edits or removes an entry.
+- **Result:** NOT RUN (new, D27)
+- **Evidence / notes:** —
 
 ### G. Capacity
 

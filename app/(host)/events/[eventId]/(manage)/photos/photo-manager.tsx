@@ -20,17 +20,22 @@ const PAGE_SIZE = 24;
  * time and message, Hide/Unhide, favorite, download original and delete. Hidden photos stay
  * visible to the host with a 55% ink overlay and a dashed border. Delete always asks first and
  * is terminal — and never returns the guest's frame (product.md §9.3, invariant 4).
+ *
+ * In support access (D27) only Hide/Unhide remain: no favorite, original download, Download all
+ * or delete, and the server refuses each of them for support anyway.
  */
 export function PhotoManager({
   eventId,
   eventName,
   timezone,
   captures,
+  support = false,
 }: {
   eventId: string;
   eventName: string;
   timezone: string;
   captures: HostCaptureView[];
+  support?: boolean;
 }) {
   const [guest, setGuest] = useState("all");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
@@ -70,9 +75,11 @@ export function PhotoManager({
               {guests.length === 1 ? "" : "s"} · {hiddenCount} hidden from the gallery
             </p>
           </div>
-          <div className="lg:hidden">
-            <BulkDownloadButton eventId={eventId} eventName={eventName} photoCount={captures.length} />
-          </div>
+          {!support && (
+            <div className="lg:hidden">
+              <BulkDownloadButton eventId={eventId} eventName={eventName} photoCount={captures.length} />
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:flex lg:items-start">
@@ -112,14 +119,16 @@ export function PhotoManager({
             <EyeOff className="size-4" aria-hidden />
             Hidden only
           </Chip>
-          <div className="hidden lg:block">
-            <BulkDownloadButton
-              eventId={eventId}
-              eventName={eventName}
-              photoCount={captures.length}
-              className="h-11"
-            />
-          </div>
+          {!support && (
+            <div className="hidden lg:block">
+              <BulkDownloadButton
+                eventId={eventId}
+                eventName={eventName}
+                photoCount={captures.length}
+                className="h-11"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -134,7 +143,13 @@ export function PhotoManager({
       ) : (
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
           {visible.map((capture) => (
-            <HostPhotoCard key={capture.id} eventId={eventId} timezone={timezone} capture={capture} />
+            <HostPhotoCard
+              key={capture.id}
+              eventId={eventId}
+              timezone={timezone}
+              capture={capture}
+              support={support}
+            />
           ))}
         </ul>
       )}
@@ -165,10 +180,12 @@ function HostPhotoCard({
   eventId,
   timezone,
   capture,
+  support,
 }: {
   eventId: string;
   timezone: string;
   capture: HostCaptureView;
+  support: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [deleted, setDeleted] = useState(false);
@@ -202,19 +219,32 @@ function HostPhotoCard({
             <HiddenBadge />
           </span>
         )}
-        <button
-          type="button"
-          disabled={pending}
-          onClick={() => act(capture.favorited ? "unfavorite" : "favorite")}
-          aria-label={capture.favorited ? "Remove favorite" : "Mark as favorite"}
-          aria-pressed={capture.favorited}
-          className={cn(
-            "ff-focus ff-hit absolute top-2 right-2 flex size-8 items-center justify-center rounded-full transition-colors disabled:opacity-60",
-            capture.favorited ? "bg-brand text-ink-inverse" : "ff-frosted text-ink-inverse",
-          )}
-        >
-          <Star className="size-4" fill={capture.favorited ? "currentColor" : "none"} />
-        </button>
+        {support ? (
+          // Favorites are the host's own picks (product.md §5.1.3): shown, not changeable.
+          capture.favorited && (
+            <span
+              role="img"
+              aria-label="Host favorite"
+              className="absolute top-2 right-2 flex size-8 items-center justify-center rounded-full bg-brand text-ink-inverse"
+            >
+              <Star className="size-4" fill="currentColor" aria-hidden />
+            </span>
+          )
+        ) : (
+          <button
+            type="button"
+            disabled={pending}
+            onClick={() => act(capture.favorited ? "unfavorite" : "favorite")}
+            aria-label={capture.favorited ? "Remove favorite" : "Mark as favorite"}
+            aria-pressed={capture.favorited}
+            className={cn(
+              "ff-focus ff-hit absolute top-2 right-2 flex size-8 items-center justify-center rounded-full transition-colors disabled:opacity-60",
+              capture.favorited ? "bg-brand text-ink-inverse" : "ff-frosted text-ink-inverse",
+            )}
+          >
+            <Star className="size-4" fill={capture.favorited ? "currentColor" : "none"} />
+          </button>
+        )}
       </div>
       <div className="flex flex-1 flex-col gap-1.5 p-3 lg:p-3.5">
         <p className="flex items-baseline justify-between gap-2">
@@ -240,31 +270,35 @@ function HostPhotoCard({
             <Eye aria-hidden />
             {capture.hidden ? "Unhide" : "Hide"}
           </Button>
-          <ButtonAnchor
-            href={capture.downloadUrl}
-            variant="secondary"
-            size="iconCompact"
-            aria-label={`Download ${who}’s original photo`}
-          >
-            <Download aria-hidden />
-          </ButtonAnchor>
-          <ConfirmButton
-            action={async () => {
-              await moderateCaptureAction(eventId, capture.id, "delete");
-              setDeleted(true);
-            }}
-            title={`Delete ${who}’s photo?`}
-            body="This can’t be undone. It won’t give the guest their shot back."
-            confirmLabel="Delete photo"
-            cancelLabel="Keep it"
-            destructive
-            variant="danger"
-            size="iconCompact"
-            ariaLabel={`Delete ${who}’s photo`}
-            disabled={pending}
-          >
-            <Trash2 aria-hidden />
-          </ConfirmButton>
+          {capture.downloadUrl && (
+            <ButtonAnchor
+              href={capture.downloadUrl}
+              variant="secondary"
+              size="iconCompact"
+              aria-label={`Download ${who}’s original photo`}
+            >
+              <Download aria-hidden />
+            </ButtonAnchor>
+          )}
+          {!support && (
+            <ConfirmButton
+              action={async () => {
+                await moderateCaptureAction(eventId, capture.id, "delete");
+                setDeleted(true);
+              }}
+              title={`Delete ${who}’s photo?`}
+              body="This can’t be undone. It won’t give the guest their shot back."
+              confirmLabel="Delete photo"
+              cancelLabel="Keep it"
+              destructive
+              variant="danger"
+              size="iconCompact"
+              ariaLabel={`Delete ${who}’s photo`}
+              disabled={pending}
+            >
+              <Trash2 aria-hidden />
+            </ConfirmButton>
+          )}
         </div>
       </div>
     </li>

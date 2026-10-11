@@ -1,6 +1,4 @@
-import { notFound } from "next/navigation";
-import { requireHost } from "@/lib/auth/host-session";
-import { getEventForHost } from "@/lib/dal/events";
+import { requireEventAccess } from "@/lib/auth/event-session";
 import { getEventThemeForHost } from "@/lib/dal/event-theme";
 import { formatEventDate } from "@/lib/events/format";
 import { GuestJoinPreviewScreen } from "./guest-join-preview-screen";
@@ -20,9 +18,7 @@ export default async function GuestPreviewPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const host = await requireHost();
-  const event = await getEventForHost(host.id, eventId);
-  if (!event) notFound();
+  const { user: host, event } = await requireEventAccess(eventId);
   const theme = await getEventThemeForHost(host.id, eventId);
 
   return (

@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 26, "Download all" as ZIP files, is `complete`: no migration, all tests and the human checklist passed.** Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `complete`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 27, operator support access, is `complete`: migration on dev, all tests and the human checklist passed.** Slice 26, "Download all" as ZIP files, is `complete`. Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `complete`. Slice 20 is complete and deploys with 21. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -16,17 +16,10 @@ Last updated: 2026-10-11 (**Slice 26, "Download all" as ZIP files, is `complete`
   [Slice 25](#slice-25--storage-on-cloudflare-r2-2026-10-11-complete).
 - **"Download all" as ZIP files (D25), Slice 26: `complete`.** See
   [Slice 26](#slice-26--download-all-as-zip-files-2026-10-11-complete).
-- **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
-  founder's request. Operators open any event's host pages from the Console, change its
-  settings, and view and hide its photos. Plan, payment, deletion, ownership and original
-  downloads stay with the host. Every action is logged and shown to the host (product.md §5.1.3,
-  architecture §5b, criteria 89–93).
-  - It isn't on the marketing site, so it doesn't block the site deploy.
-  - Before launch it needs the terms and privacy copy to say staff may view photos (a legal
-    follow-up).
-  - It builds the event-access check co-host access will reuse. Each slice built before it adds
-    host DAL functions that Slice 27 must classify one by one.
-  - Its release-validation cases go into release-validation.md when it lands.
+- **Operator support access (D27), Slice 27: `complete`.** See
+  [Slice 27](#slice-27--operator-support-access-2026-10-11-complete).
+  Not on the marketing site, so it doesn't block the site deploy. Before real customers it needs
+  the terms and privacy copy to say staff may view photos (product.md §19).
 - **Deferred to the first update after launch: Co-host access** (D24, product.md §11.2.2,
   architecture.md §7f). It's on the site as "coming soon". To test it when it ships, use
   criterion 87: the co-host can run the event but not own it, and other hosts and revoked
@@ -59,6 +52,64 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 27 — Operator support access (2026-10-11): `complete`
+
+Operators open any event's host pages from the Console in support access, change its settings,
+open and close capture, rotate links, change its Look, download signage, and view, hide and
+unhide its photos. Plan, payment, deletion, favorites, original downloads and ownership stay with
+the host. Every change, each photo visit and each signage download is a permanent log entry,
+shown in the Console with the operator and on the host's dashboard as "FiveFrames support"
+(product.md §5.1.3, criteria 89–93; architecture §5b "As built"). Not committed, not deployed.
+
+**Migration applied to the dev project** by the user (2026-10-11):
+`20261011040000_support_access.sql`. The event dashboard reads `support_actions`, so this code
+must never run against a database without it.
+
+**Built:**
+- Migration: the append-only `support_actions` log and three SQL functions that check the
+  operator, refuse the operator's own event, apply the change and write the entry in one
+  transaction.
+- `lib/dal/event-access.ts`, `lib/auth/event-session.ts`, `lib/dal/support-actions.ts`,
+  `lib/support/labels.ts`. Host DAL functions on the "can" list now take `userId` and admit
+  owner and support; owner-only ones are unchanged.
+- Pages: support banner, Console breadcrumb, Photos with Hide/Unhide only, no payment or
+  activation for support. Dashboard "FiveFrames support activity". Console "Open in support
+  access" and "Support log".
+
+**Verified:**
+- `pnpm typecheck`, `pnpm lint`: clean. Unit tests: 47 files, 514 passed (including
+  `lib/support/labels.test.ts`: labels match the migration's keys and the settings columns).
+- Integration tests for the changed modules against dev Postgres (events, reveal, event-theme,
+  signage, dashboard-live, gallery-layout, captures, operators): 77 passed, so owner paths are
+  unchanged.
+- The migration, run in a throwaway local Postgres 17 against a stub schema: allowed changes,
+  no-op saves (no entry), token redaction, refusal of disallowed columns, unknown actions,
+  non-operators and the operator's own event, rollback of a failing change with no entry,
+  hide/unhide, the 30-minute photo-view dedupe, and service-role update/delete/truncate refused.
+- `lib/dal/support-access.integration.test.ts` against dev Postgres: 18 passed. It covers
+  criteria 89–93, including concurrent photo views and a reveal time across a day boundary.
+- **Human checklist: all five checks passed** (user, 2026-10-11, locally against dev).
+
+**Human checklist (passed).** release-validation.md OPS-07 and OPS-08 hold the full cases, to be
+rerun on the release candidate. Grant an operator with `pnpm ops:grant-operator`, using an account that
+doesn't own the test event:
+1. From the Console event page, choose **Open in support access**. Every tab shows the banner
+   naming the host. Expect no favorite, delete, photo download, Download all, plan or activation
+   controls. `/events/<id>/setup?step=share` gives "We can't find that page".
+2. Change the name, and set a custom reveal time just after midnight. Save, reload. Expect the
+   same local time with no day shift.
+3. Open and close capture, rotate a link, hide and unhide a photo, upload an event image,
+   download a sign. Expect each to work as it does for the host.
+4. Console **Support log**: each action, newest first, with your email, and one "Viewed photos".
+   The host's dashboard: "FiveFrames support activity" with the same actions and no operator.
+5. As an ordinary host with no grant, open another host's event URL. Expect "We can't find that
+   page".
+
+**Follow-ups:**
+- Operator second factor (D27): not built. Recommend Supabase Auth MFA on operator accounts
+  before real customers. Needs the founder's go-ahead, because it adds a sign-in step.
+- Terms and privacy copy for staff viewing photos (product.md §19), before real customers.
 
 ## Slice 26 — Download all as ZIP files (2026-10-11): `complete`
 
@@ -229,8 +280,8 @@ deployed. No migration.
   `/events/[id]/signage/table-numbers?count=N`: owner, activated with a token, plan feature,
   strict count. `getSignageDownload` refuses `table-number`, so it downloads only as a set. The
   preview route draws table 12.
-- **Slice 27 must classify `getTableNumberCardsDownload`** with the other signage functions. It
-  is owner-only today, through `getEventForHost`.
+- `getTableNumberCardsDownload` admits owner and support, like the other signage reads, and logs
+  a support download (Slice 27).
 - Look → Signage: a "Numbers" chip, a Tables field (Enter never submits the Look form) and
   "Download N cards". Dashboard "More signage" → "Table numbers" opens Look on that format
   (`?preview=table-numbers`). The Share step's tip names the cards.

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, CircleAlert, ShieldCheck } from "lucide-react";
+import { ChevronLeft, CircleAlert, LifeBuoy, ShieldCheck } from "lucide-react";
 import { paymentAuditRows, type OperatorPaymentView } from "@/lib/payments/audit";
 import { getOperatorEventDetail } from "@/lib/dal/operator-events";
 import {
@@ -10,12 +10,18 @@ import {
   type CapacityOverrideView,
 } from "@/lib/dal/capacity-overrides";
 import { requireOperator } from "@/lib/auth/operator-session";
+import {
+  listSupportActionsForOperator,
+  type OperatorSupportActionView,
+} from "@/lib/dal/support-actions";
+import { settingsFieldLabel, supportActionLabel } from "@/lib/support/labels";
 import { isDuplicatePayment } from "@/lib/dal/payments";
 import { formatEventDate, formatEventDateTime } from "@/lib/events/format";
 import { REVEAL_MODE_LABEL, VISIBILITY_LABEL } from "@/lib/events/labels";
 import { deriveEventLifecycleState, isGalleryRevealed } from "@/lib/events/lifecycle";
 import { utcIsoToZonedDateTimeLocal } from "@/lib/events/timezone";
 import { isPaidPlanId, PAID_PLANS, PLANS } from "@/lib/plans/registry";
+import { ButtonLink } from "@/components/ff/button";
 import { SectionCard, StatTile } from "@/components/ff/cards";
 import { EventStatusBadge, eventStatusKey } from "@/components/ff/event-status";
 import { StatusPill } from "@/components/ff/pill";
@@ -44,10 +50,12 @@ export default async function OperatorEventDetailPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = await params;
-  const [operator, detail, overrides] = await Promise.all([
-    requireOperator(),
+  // requireOperator() first: the reads below have no ownership predicate.
+  const operator = await requireOperator();
+  const [detail, overrides, supportActions] = await Promise.all([
     getOperatorEventDetail(eventId),
     listCapacityOverridesForOperator(eventId),
+    listSupportActionsForOperator(eventId),
   ]);
   if (!detail) notFound();
 
@@ -76,6 +84,12 @@ export default async function OperatorEventDetailPage({
         <p className="text-caption font-medium break-all text-ink-muted">
           {[eventDate, `Host ${hostEmail}`, `Event id ${event.id}`].filter(Boolean).join(" · ")}
         </p>
+        {/* Support access (product.md §5.1.3): the host's own pages, logged and shown to the
+            host. On the operator's own event they are simply its host. */}
+        <ButtonLink href={`/events/${event.id}`} variant="secondary" size="sm" className="w-fit">
+          <LifeBuoy aria-hidden />
+          {event.host_id === operator.id ? "Open your event" : "Open in support access"}
+        </ButtonLink>
       </div>
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -256,6 +270,13 @@ export default async function OperatorEventDetailPage({
               />
             )}
           </SectionCard>
+
+          <SectionCard
+            title="Support log"
+            caption={`Every support-access action on this event, newest first. Times in ${tz.replaceAll("_", " ")}.`}
+          >
+            <SupportLog entries={supportActions} when={when} />
+          </SectionCard>
         </aside>
       </div>
     </div>
@@ -341,4 +362,41 @@ function CapacityHistory({
       </ol>
     </div>
   );
+}
+
+/** The support log with each entry's operator (product.md §5.1.1, criterion 92). Read-only:
+ *  the table refuses an update or delete, even from the service role. */
+function SupportLog({
+  entries,
+  when,
+}: {
+  entries: OperatorSupportActionView[];
+  when: (iso: string | null) => string;
+}) {
+  if (entries.length === 0) {
+    return <p className="text-caption font-medium text-ink-muted">No support access yet.</p>;
+  }
+  return (
+    <ul className="flex flex-col divide-y divide-line">
+      {entries.map((entry) => (
+        <li key={entry.id} className="flex flex-col gap-0.5 py-2.5 text-caption">
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="font-semibold text-ink">{supportActionLabel(entry.action)}</span>
+            <span className="tabular shrink-0 font-medium text-ink-muted">{when(entry.created_at)}</span>
+          </span>
+          <span className="font-medium break-all text-ink-muted">
+            {entry.operatorEmail ?? "Unknown operator"}
+            {changedFields(entry) && ` · ${changedFields(entry)}`}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Which settings an entry changed, by name. Old and new values stay in the row for audit. */
+function changedFields(entry: OperatorSupportActionView): string | null {
+  if (entry.action !== "settings_changed" || !entry.new_value) return null;
+  const keys = Object.keys(entry.new_value);
+  return keys.length > 0 ? `Changed ${keys.map(settingsFieldLabel).join(", ")}` : null;
 }

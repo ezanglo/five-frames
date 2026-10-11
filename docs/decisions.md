@@ -1153,7 +1153,7 @@ founder. Under CLAUDE.md, the agent doesn't create provider accounts or enable p
 
 ## D27 — Operator support access: operators run any event through the host's own pages, with every action logged
 
-**Status:** Accepted (2026-10-11), planned. It is Slice 27. It amends D15's scope (not its
+**Status:** Accepted (2026-10-11). Built in Slice 27 (architecture §5b "As built"). It amends D15's scope (not its
 mechanism) and architecture §8b's "the Console never mints a media URL" boundary.
 
 **Context:** FiveFrames is sales-led (D23). Staff sell every event, set it up with the host and
@@ -1202,8 +1202,10 @@ Mechanism (architecture §5b):
 - Guest photos are now visible to staff in support access. The terms and privacy policy must say
   so before launch (product.md §19 open item).
 - An operator account now reaches every event's photos and settings, so it is the most valuable
-  login in the system. The grant stays the checked-in script (D15). The slice decides whether
-  operator accounts need a second factor.
+  login in the system. The grant stays the checked-in script (D15). Slice 27 did not add a
+  second factor. It is a recommended follow-up before real customers, using Supabase Auth MFA on
+  operator accounts, and needs the founder's go-ahead because it adds a sign-in step
+  (progress.md).
 - CLAUDE.md's "no DAL function an operator route could use to obtain a capture's signed image
   URL" narrows to the Console's own pages. Support access may sign **display derivatives** only,
   never originals.

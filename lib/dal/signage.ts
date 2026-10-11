@@ -1,6 +1,7 @@
 import "server-only";
 
-import { getEventForHost } from "@/lib/dal/events";
+import { getEventAccessFor } from "@/lib/dal/event-access";
+import { logSupportAccess } from "@/lib/dal/support-actions";
 import { readThemeImageBytes } from "@/lib/dal/event-theme";
 import { canEditEventTheme } from "@/lib/events/lifecycle";
 import { TABLE_NUMBER_PREVIEW, isSignageFormatAllowed, parseTableCount } from "@/lib/media/signage-formats";
@@ -19,8 +20,9 @@ import { normalizeHashtag } from "@/lib/theme/hashtag";
 import type { EventRow } from "@/lib/db/types";
 
 /**
- * Host signage (product.md §10.1, §11.3; architecture §7c). Two reads, both behind the
- * ownership predicate (invariant 9), neither writing anything:
+ * Host signage (product.md §10.1, §11.3; architecture §7c). Two reads, both behind the event
+ * access check (invariant 9), admitting owner and support (D27). Neither changes the event; a
+ * support download is logged (`signage_downloaded`) before it renders:
  *
  * - **Download**: only for an activated event with a current `event_token` (invariant 7: no
  *   distributable QR before payment), drawn from the saved theme with the live QR.
@@ -43,17 +45,22 @@ const PREVIEW_IMAGE_EDGE = 1200;
 export type SignageDownload = { svg: string; filename: string };
 
 export async function getSignageDownload(
-  hostId: string,
+  userId: string,
   eventId: string,
   format: string,
   origin: string,
 ): Promise<SignageDownload | null> {
   // Table-number cards only come as a numbered set (below).
   if (!isSignageFormat(format) || format === "table-number") return null;
-  const event = await getEventForHost(hostId, eventId);
-  if (!event || !isSignageFormatAllowed(format, eventPlanFeatures(event))) return null;
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  const { event } = access;
+  if (!isSignageFormatAllowed(format, eventPlanFeatures(event))) return null;
   const qr = liveSignageQr(event, origin);
   if (!qr) return null;
+  if (access.role === "support") {
+    await logSupportAccess(userId, eventId, "signage_downloaded", { format });
+  }
 
   const svg = await renderEventSignageSvg(format, {
     ...presentation(event, {}),
@@ -71,14 +78,14 @@ export type SignagePreviewOverrides = {
 };
 
 export async function getSignagePreview(
-  hostId: string,
+  userId: string,
   eventId: string,
   format: string,
   origin: string,
   overrides: SignagePreviewOverrides = {},
 ): Promise<string | null> {
   if (!isSignageFormat(format)) return null;
-  const event = await getEventForHost(hostId, eventId);
+  const event = (await getEventAccessFor(userId, eventId, ["owner", "support"]))?.event;
   if (!event || !canEditEventTheme(event)) return null;
   if (!isSignageFormatAllowed(format, eventPlanFeatures(event))) return null;
 
@@ -102,17 +109,22 @@ export type TableNumberCardsDownload = { zip: Uint8Array; filename: string };
  * stored, and every card carries the same live QR.
  */
 export async function getTableNumberCardsDownload(
-  hostId: string,
+  userId: string,
   eventId: string,
   countParam: string | null,
   origin: string,
 ): Promise<TableNumberCardsDownload | null> {
   const count = parseTableCount(countParam);
   if (count === null) return null;
-  const event = await getEventForHost(hostId, eventId);
-  if (!event || !isSignageFormatAllowed("table-number", eventPlanFeatures(event))) return null;
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  const { event } = access;
+  if (!isSignageFormatAllowed("table-number", eventPlanFeatures(event))) return null;
   const qr = liveSignageQr(event, origin);
   if (qr?.kind !== "live") return null;
+  if (access.role === "support") {
+    await logSupportAccess(userId, eventId, "signage_downloaded", { format: "table-number", count });
+  }
 
   const zip = await renderTableNumberZip({ ...presentation(event, {}), qr }, count);
   return { zip, filename: `${safeName(event.name)}-table-numbers.zip` };

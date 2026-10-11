@@ -1,7 +1,8 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { getEventForHost } from "@/lib/dal/events";
+import { getEventAccessFor, type EventAccess } from "@/lib/dal/event-access";
+import { supportUpdateEvent } from "@/lib/dal/support-actions";
 import {
   canEditEventTheme,
   deriveEventLifecycleState,
@@ -30,14 +31,15 @@ import { themeViewFrom, type EventThemeView } from "@/lib/theme/view";
 
 /**
  * Event theme image (product.md §10.1, architecture §7a, decision D19): begin → commit → swap →
- * prune, and remove. Every mutation takes the authenticated host id and is scoped by ownership,
- * like lib/dal/events.ts; the upload path is always built here from the owned event's id and a
- * server-generated UUID. Theme writes touch only `theme_image_path` — never payment,
+ * prune, and remove. Every mutation takes the authenticated user id and admits owner and support
+ * (D27): the owner's swap is scoped by ownership, support's goes through `support_update_event`,
+ * which logs it in the same transaction. The upload path is always built here from the admitted
+ * event's id and a server-generated UUID. Theme writes touch only `theme_image_path` — never payment,
  * activation, tokens or lifecycle columns.
  *
  * Reads are per surface. Each exported reader performs that surface's own access check and only
  * then mints a signed URL (architecture §7a table). There is deliberately no reader for the
- * Operator Console.
+ * Operator Console's own pages.
  */
 
 const UPLOAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -54,15 +56,42 @@ export type CommitThemeUploadResult =
   | { kind: "refused"; reason: ThemeImageRefusal }
   | NotAllowed;
 
-async function loadEditableEvent(hostId: string, eventId: string): Promise<EventRow | NotAllowed> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return { kind: "not_found" };
-  if (!canEditEventTheme(event)) return { kind: "not_editable" };
-  return event;
+async function loadEditableEvent(userId: string, eventId: string): Promise<EventAccess | NotAllowed> {
+  // Admits: owner, support.
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return { kind: "not_found" };
+  if (!canEditEventTheme(access.event)) return { kind: "not_editable" };
+  return access;
 }
 
-function isNotAllowed(value: EventRow | NotAllowed): value is NotAllowed {
+function isNotAllowed(value: EventAccess | NotAllowed): value is NotAllowed {
   return "kind" in value;
+}
+
+/** Sets `theme_image_path`: the owner by ownership, support through the logged SQL function. */
+async function setThemeImagePath(
+  userId: string,
+  access: EventAccess,
+  path: string | null,
+): Promise<boolean> {
+  if (access.role === "support") {
+    const updated = await supportUpdateEvent(
+      userId,
+      access.event.id,
+      path ? "theme_image_changed" : "theme_image_removed",
+      { theme_image_path: path },
+    );
+    return updated !== null;
+  }
+  const { data, error } = await createServiceClient()
+    .from("events")
+    .update({ theme_image_path: path })
+    .eq("id", access.event.id)
+    .eq("host_id", userId)
+    .select("id")
+    .maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }
 
 /**
@@ -71,12 +100,13 @@ function isNotAllowed(value: EventRow | NotAllowed): value is NotAllowed {
  * file at upload, and commit re-validates the actual bytes.
  */
 export async function beginThemeImageUpload(
-  hostId: string,
+  userId: string,
   eventId: string,
   declared: { sizeBytes: number; contentType: string },
 ): Promise<BeginThemeUploadResult> {
-  const event = await loadEditableEvent(hostId, eventId);
-  if (isNotAllowed(event)) return event;
+  const access = await loadEditableEvent(userId, eventId);
+  if (isNotAllowed(access)) return access;
+  const { event } = access;
 
   if (!Number.isFinite(declared.sizeBytes) || declared.sizeBytes <= 0) {
     return { kind: "refused", reason: "unsupported" };
@@ -97,14 +127,15 @@ export async function beginThemeImageUpload(
  * image exactly as it was (product.md §13); only the attempt's own raw upload is discarded.
  */
 export async function commitThemeImageUpload(
-  hostId: string,
+  userId: string,
   eventId: string,
   uploadId: string,
 ): Promise<CommitThemeUploadResult> {
   if (!UPLOAD_ID.test(uploadId)) return { kind: "refused", reason: "missing" };
 
-  const event = await loadEditableEvent(hostId, eventId);
-  if (isNotAllowed(event)) return event;
+  const access = await loadEditableEvent(userId, eventId);
+  if (isNotAllowed(access)) return access;
+  const { event } = access;
 
   // The raw path is derived from the owned event, so an upload id from another event's folder
   // simply isn't found here.
@@ -123,15 +154,7 @@ export async function commitThemeImageUpload(
   const newPath = themeImagePath(event.id, uploadId, normalized.extension);
   await uploadThemeObject(newPath, normalized.buffer, normalized.contentType);
 
-  const supabase = createServiceClient();
-  const { data: swapped, error } = await supabase
-    .from("events")
-    .update({ theme_image_path: newPath })
-    .eq("id", event.id)
-    .eq("host_id", hostId)
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
+  const swapped = await setThemeImagePath(userId, access, newPath);
   if (!swapped) {
     await removeThemeObjects([rawPath, newPath]).catch(() => undefined);
     return { kind: "not_found" };
@@ -154,24 +177,15 @@ export async function commitThemeImageUpload(
 
 /** Remove: clear the pointer first, then prune the whole folder. Nothing else changes. */
 export async function removeThemeImage(
-  hostId: string,
+  userId: string,
   eventId: string,
 ): Promise<{ kind: "removed" } | NotAllowed> {
-  const event = await loadEditableEvent(hostId, eventId);
-  if (isNotAllowed(event)) return event;
+  const access = await loadEditableEvent(userId, eventId);
+  if (isNotAllowed(access)) return access;
 
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from("events")
-    .update({ theme_image_path: null })
-    .eq("id", event.id)
-    .eq("host_id", hostId)
-    .select("id")
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return { kind: "not_found" };
+  if (!(await setThemeImagePath(userId, access, null))) return { kind: "not_found" };
 
-  await pruneThemeFolder(event.id);
+  await pruneThemeFolder(access.event.id);
   return { kind: "removed" };
 }
 
@@ -198,14 +212,15 @@ async function pruneThemeFolder(eventId: string): Promise<void> {
 // Reads. Each one is a surface's access check followed by a signed URL, never a URL alone.
 // ---------------------------------------------------------------------------------------------
 
-/** Host event pages and Look previews: ownership, in any lifecycle state including Draft. */
+/** Host event pages and Look previews, in any lifecycle state including Draft. Admits: owner,
+ *  support (support access shows the host's pages, theme included, product.md §10.1). */
 export async function getEventThemeForHost(
-  hostId: string,
+  userId: string,
   eventId: string,
 ): Promise<EventThemeView | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
-  return themeViewForEvent(event, true);
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  return themeViewForEvent(access.event, true);
 }
 
 /**

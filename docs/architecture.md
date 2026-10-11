@@ -280,10 +280,10 @@ flag is needed — the check is structural, not a policy that must be remembered
 **RLS treatment matches hosts and guests:** deny-all, bypassed entirely by the service-role key the
 DAL uses (§10). The `operators` table carries no data an anon key should ever reach either way.
 
-### 5b. Operator support access (D27) — planned, Slice 27
+### 5b. Operator support access (D27) — built, Slice 27
 
-product.md §5.1.3. Planned, not built. Until Slice 27 lands, §5 "Hosts" and §8b describe the
-system as built.
+product.md §5.1.3. Built in Slice 27 (2026-10-11), migration
+`20261011040000_support_access.sql`. "As built" at the end of this section records the details.
 
 **One event-access check.** `lib/dal/event-access.ts` (server-only):
 
@@ -339,6 +339,38 @@ revoke update, delete on public.support_actions from anon, authenticated, servic
   identity. The Console's event page shows the same entries with the operator's email.
 - **Datetimes.** A support change to the event date or reveal time goes through
   `lib/events/timezone.ts` exactly as the host's does. The log stores the UTC values.
+
+**As built (Slice 27).**
+- `lib/dal/event-access.ts` (`getEventAccess`, `getEventAccessFor`) and
+  `lib/auth/event-session.ts` (`requireEventAccess(eventId, roles)`, the page gate). The host
+  group layout still only requires a signed-in user. Each event page calls `requireEventAccess`,
+  and a role it doesn't admit is not found, like another host's event.
+- **Admit owner and support:** `changeEventSettings` (Settings saves and Reveal gallery),
+  `openCapture`, `closeCapture`, the four link rotate/revoke functions, the theme image's begin,
+  commit and remove, `getEventThemeForHost`, `getEventCaptureStats`,
+  `listCapturesForEventHost`, `moderateCapture` (support: hide and unhide only), the three
+  signage reads, `getDashboardVersion`, `listSupportActionsForEvent`.
+- **Owner-only, unchanged:** `updateEventConfig` (the Create wizard), `setEventPlan`,
+  `activateFreeEvent`, `startProviderCheckout`, `getLatestPaymentForEvent`,
+  `listOriginalDownloadUrlsForEventHost`, the setup (Share) and checkout pages.
+- **SQL.** `support_update_event(operator, event, action, patch)` maps each action key to a
+  closed column list and refuses any other column. One `update` writes back only those columns,
+  and the entry records only the keys whose value changed (a no-op save writes no entry). Link
+  tokens are logged only as whether a link existed (`true`/`false`), never the token.
+  `support_set_capture_hidden` changes only `hidden_at`. `log_support_access` writes
+  `photos_viewed` (deduplicated under the event row lock, so concurrent loads write one) and
+  `signage_downloaded`. Signage downloads are logged because invariant 13 covers every action,
+  not only changes. All three refuse a non-operator (`not_operator`) and the operator's own event
+  (`owns_event`), with errcode `P0007`.
+- **Display derivatives only.** Support's photo list signs `thumbnail_path` and nothing else. A
+  capture without a thumbnail is left out rather than signed from its original, and
+  `downloadUrl` is null.
+- **Pages.** Every `(manage)` page shows `SupportBanner` with the host's email, and the
+  breadcrumb leads back to the Console. The guest-screen preview is an iframe inside the Look
+  page, so it carries no banner of its own. Support sees no payment state, plan choice,
+  activation link, favorite, delete, original download or Download all.
+- **Second factor.** Not built. Supabase Auth MFA for operator accounts is a recommended
+  pre-launch follow-up (D27, progress.md), not part of this slice.
 
 ---
 
@@ -1590,7 +1622,7 @@ route and every server action — never by page-level UI hiding alone.
   event's settings or hiding photos happens in support access on the host's own pages (§5b,
   planned), never in a Console-side editor. Ownership, plan, deletion and original downloads stay
   host-only (product.md §5.1.2).
-- **Support access entry (D27, planned):** the event page gains "Open in support access" and the
+- **Support access entry (D27, built):** the event page has "Open in support access" and the
   event's `support_actions` log with each operator's email, newest first.
 
 - **Capacity on the event page (D24):** plan, `guest_session_count` of `guest_session_cap`, a

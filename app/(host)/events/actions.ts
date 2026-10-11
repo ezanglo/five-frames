@@ -1,9 +1,15 @@
 "use server";
 
+// Roles (D27, architecture §5b): the Settings saves, Reveal gallery, theme image, capture
+// open/close, Hide/Unhide and link rotate/revoke admit owner and support through their DAL
+// functions. Everything else here (the Create wizard, plan, Free activation, checkout,
+// delete/favorite and original downloads) is owner-only by its DAL's `host_id` predicate.
+
 import { redirect, notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireHost } from "@/lib/auth/host-session";
 import {
+  changeEventSettings,
   closeCapture,
   createDraftEvent,
   getEventForHost,
@@ -208,7 +214,7 @@ export async function saveEventAndGalleryAction(
   const layout = parseGalleryLayout(formData);
   if (!layout.ok) return { error: layout.error };
 
-  const updated = await updateEventConfig(host.id, eventId, {
+  const updated = await changeEventSettings(host.id, eventId, {
     ...details,
     ...parseAfterParty(formData, details.timezone),
     ...layout.input,
@@ -228,7 +234,7 @@ export async function saveLookSettingsAction(
   const look = parseLook(formData);
   if (!look.ok) return { error: look.error };
 
-  const updated = await updateEventConfig(host.id, eventId, look.input);
+  const updated = await changeEventSettings(host.id, eventId, look.input);
   if (!updated) notFound();
   redirect(`/events/${eventId}/settings/look?saved=1`);
 }
@@ -274,10 +280,12 @@ export async function removeThemeImageAction(eventId: string) {
  */
 export async function revealGalleryNowAction(eventId: string) {
   const host = await requireHost();
-  const updated = await updateEventConfig(host.id, eventId, {
-    revealMode: "immediate",
-    revealAt: null,
-  });
+  const updated = await changeEventSettings(
+    host.id,
+    eventId,
+    { revealMode: "immediate", revealAt: null },
+    "gallery_revealed",
+  );
   if (!updated) notFound();
   redirect(`/events/${eventId}`);
 }

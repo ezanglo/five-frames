@@ -114,10 +114,13 @@ change, not a refactor.
   add a host-facing route, generic admin endpoint, or script that performs them in production.
 - **The Operator Console's own pages show aggregate counts, never individual guest media.** Do not
   add a DAL function a Console page could use to obtain a capture's signed image URL.
-- **Operator support access (D27, architecture §5b; planned, Slice 27).** Operators run an event
+- **Operator support access (D27, architecture §5b; built, Slice 27).** Operators run an event
   on the host's own pages through `getEventAccess(userId, eventId)`, which returns `owner` or
-  `support` (owner wins on an operator's own event). Each host DAL function names the roles it
-  admits. Never add a blanket "or operator" predicate, and never move an owner-only function (plan,
+  `support` (owner wins on an operator's own event). Pages gate with `requireEventAccess`. Each
+  host DAL function names the roles it admits. A support write goes through one SQL function
+  (`support_update_event`, `support_set_capture_hidden`, `log_support_access`), and a new
+  support-capable event column must be added to that function's per-action allowlist and to
+  `lib/support/labels.ts`. Never add a blanket "or operator" predicate, and never move an owner-only function (plan,
   checkout, refund request, event or photo deletion, favorite, original/ZIP/Drive downloads,
   co-hosts) onto it. A support change and its `support_actions` entry commit in one transaction.
   Support may sign display derivatives only, never originals. Every new host DAL function must
