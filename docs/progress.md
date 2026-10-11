@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 25, media storage on Cloudflare R2, is `complete`: no migration, every test and the human checklist passed (bucket CORS set by the founder).** Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 26, "Download all" as ZIP files, is `complete`: no migration, all tests and the human checklist passed.** Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -14,6 +14,8 @@ Last updated: 2026-10-11 (**Slice 25, media storage on Cloudflare R2, is `comple
   [Slice 24](#slice-24--table-number-cards-2026-10-11-complete).
 - **R2 storage (D26), Slice 25: `complete`.** See
   [Slice 25](#slice-25--storage-on-cloudflare-r2-2026-10-11-complete).
+- **"Download all" as ZIP files (D25), Slice 26: `complete`.** See
+  [Slice 26](#slice-26--download-all-as-zip-files-2026-10-11-complete).
 - **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
   founder's request. Operators open any event's host pages from the Console, change its
   settings, and view and hide its photos. Plan, payment, deletion, ownership and original
@@ -57,6 +59,64 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 26 — Download all as ZIP files (2026-10-11): `complete`
+
+"Download all" now builds ZIP files of up to 500 photos in the host's browser (product.md
+§11.2.3, criteria 33 and 88, D25). Architecture §7 "Bulk download" describes how it works as
+built. No migration, no new infrastructure. Not committed, not deployed.
+
+**Built:**
+- `lib/media/zip-parts.ts`: the 500-photo split, the ZIP and original filenames, and writer choice
+  (feature detection).
+- `listOriginalDownloadUrlsForEventHost(hostId, eventId, partIndex)` returns one part with its
+  freshly signed URLs, the event name and the total. Owner only.
+  `getBulkDownloadPartAction` replaces `getBulkDownloadUrlsAction`.
+- Original names are now `NNNN-<guest>.<ext>`, 4 digits, numbered across the event. They used
+  to be 3 digits, which mis-sorted past 999. The single-photo download uses the same helper, so
+  its names gain the fourth digit too.
+- `lib/media/zip-download.ts`:
+  - the ZIP is built with `client-zip` 2.5.1, a new dependency, because fflate can't write
+    ZIP64;
+  - it is written through the save picker or `public/zip-download/sw.js`;
+  - otherwise the photos go one by one;
+  - when a URL expires mid-part, it asks for fresh URLs.
+- The Photos page passes the event name and photo count to `BulkDownloadButton`. Up to 500
+  photos is one click. More than 500 opens a list of parts, each downloaded and retried on its
+  own.
+
+**Verified:**
+- `pnpm typecheck`, `pnpm lint` and `pnpm build` pass.
+- `pnpm test`: 64 files, 698 tests.
+- `zip-download.test.ts`:
+  - the system `unzip` reads a fixture ZIP back byte-identical;
+  - a failed original fails the whole part;
+  - URL refresh works, and a capture deleted mid-part is left out;
+  - a synthetic entry over 4 GiB gets ZIP64 records (about 10 s).
+- Integration test (dev Postgres + R2): one part of real originals, hidden included, deleted and
+  pending excluded, in gallery order. The ZIP built from the real signed URLs re-extracts
+  byte-for-byte. Another host gets nothing.
+- No browser automation was run (global rule).
+- **Human checklist: items 1–4 PASS** (reported by the founder, 2026-10-11): desktop Chrome
+  with the save picker, Firefox and Safari, the interrupted download and its retry, and a real
+  iPhone and Android phone. Item 5 (multi-part, more than 500 photos) wasn't run. See the
+  follow-up below.
+
+**Human checklist** (passed 1–4; HOST-10 in release-validation.md is the full case):
+1. Desktop Chrome, `pnpm dev`, an event with photos (one hidden, one deleted): Photos →
+   Download all. Choose a location. The ZIP opens in Finder and holds every photo but the deleted
+   one, named `0001-…`, at full size.
+2. Desktop Firefox and Safari: same click. A ZIP appears in the browser's download list with no
+   save prompt, or the note says photos download one by one. Record which.
+3. Chrome: turn Wi-Fi off mid-download. "The ZIP didn’t finish. Try again." Turn it back on and
+   retry: a complete ZIP.
+4. Real iPhone Safari and Android Chrome (needs a deployed or tunnelled HTTPS build): a ZIP or
+   the one-by-one note. Never a silent failure.
+5. The multi-part list (more than 500 photos) can't be checked by hand yet. No dev event has
+   that many, and there's no seeding script. The split itself is unit-tested.
+
+**Follow-up:** a dev-only script that seeds an event with more than 500 committed captures, so
+HOST-10 step 5 can run. Not built: it's tooling, not this slice.
 
 ## Slice 25 — Storage on Cloudflare R2 (2026-10-11): `complete`
 
@@ -417,7 +477,7 @@ committed, not deployed.
 yet (at the user's request, 2026-10-11):
 - the Free first event, until Slice 21;
 - ~~numbered table cards on the paid plans~~ (built in Slice 24, complete; it ships with the next deploy);
-- "Download all as ZIP files", until Slice 26 (which needs Slice 25, R2 storage, first).
+- ~~"Download all as ZIP files"~~ (built in Slice 26, complete; it ships with the next deploy).
 
 Don't deploy Slice 20 until all three have landed.
 
@@ -2850,9 +2910,9 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. **Human checklist outstanding:** Slice 21 (its section). Then Slice 26, Download all as ZIP files (roadmap.md), in a fresh
-   session. Slices 21, 24 and 26 must all land before anything deploys, because the site
-   already advertises them.
+1. **Human checklist outstanding:** Slice 21 (its section). It must pass before anything
+   deploys, because the site already advertises the Free event. Slice 26 passed. The next build slice
+   is 27, operator support access (roadmap.md), in a fresh session. It isn't a deploy blocker.
    - Slice 25 changed the upload path, so every media case in release-validation.md reruns on
      the next RC.
    - Every environment that deploys Slice 25 code needs the four `R2_*` variables and that

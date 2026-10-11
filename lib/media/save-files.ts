@@ -1,7 +1,7 @@
 /**
  * Saves several originals one after another from short-lived signed URLs (decision D11: client
- * driven, sequential, no ZIP). Used by the host's "Download all" and the guest's "Download my
- * photos".
+ * driven, sequential). Used by the guest's "Download my photos", and by the host's "Download
+ * all" where the browser can't save a generated ZIP (D25, lib/media/zip-download.ts).
  *
  * Each file is fetched in full, then saved from a same-origin blob URL, and only then does the
  * next one start. The earlier approach clicked a cross-origin link every few hundred ms. Browsers

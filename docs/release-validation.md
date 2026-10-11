@@ -320,6 +320,13 @@ restarts it whole. Read "TUS" in older evidence below as history.
 Record the RC and results in the usual run record. Earlier evidence for these cases doesn't carry
 over.
 
+### "Download all" as ZIP files (D25, Slice 26) — HOST-10 rewritten
+
+Built in Slice 26 (2026-10-11), not yet deployed. HOST-10 now checks ZIP files, and its earlier
+evidence covers only the one-by-one path, which is now the fallback. It needs the R2 bucket's
+CORS to allow GET from the validation origin (already set for Slice 25). A multi-part run needs
+an event with more than 500 committed photos. Nothing seeds one yet (progress.md, Slice 26).
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.
@@ -731,20 +738,39 @@ Run on a desktop browser unless stated. Host A, event E1.
 - **Result:** PASS
 - **Evidence / notes:** BROWSER-CHROMIUM, E1m. Tile download saved `006-rv-iphone.jpg`, 2400×3200, byte-identical (MD5) to the uploaded fixture; tab stayed on Photos.
 
-#### HOST-10 · Bulk original download and multi-download behavior
-- **Where:** desktop Chrome; then Safari or Firefox if available
-- **Needs:** HOST-08 (one capture hidden, one deleted)
+#### HOST-10 · "Download all" as ZIP files (criteria 33, 88)
+- **Where:** desktop Chrome or Edge (save picker), desktop Firefox and Safari (service-worker
+  download), a real iPhone (Safari) and a real Android phone (Chrome), and Messenger's in-app
+  browser on one phone
+- **Needs:** HOST-08 (one capture hidden, one deleted). For step 5, an event with more than 500
+  committed photos (see the Slice 26 note above).
 - **Steps:**
-  1. Click "Download all originals". Allow any "multiple downloads" prompt once.
-  2. Count the files.
-  3. Repeat in a second browser.
+  1. Photos → **Download all**. In Chrome or Edge, choose where to save it. Elsewhere, watch the
+     browser's own download list.
+  2. Unzip it with the computer's own tool (Finder, Explorer). Count the files and compare a few
+     with the single-photo download from the same photo card.
+  3. Repeat in each listed browser and on each phone. On the phones, find the ZIP in Files or
+     Downloads.
+  4. In Chrome, start a download and switch Wi-Fi off halfway. Then switch it back on and press
+     **Try again**.
+  5. On the large event: open **Download all**, download part 2 alone, then part 1.
 - **PASS when:**
-  - in each browser, the file count equals the committed, non-deleted captures, **including** the
-    hidden one and **excluding** the deleted one;
-  - filenames are distinct;
-  - at most one browser permission prompt appears. Record it exactly.
-  - Downloads dropped silently after allowing the prompt are a FAIL.
-- **Result:** NOT RUN (RC `8f37fba`). Automation verified the repair. The browser's own "download multiple files" prompt can only be recorded by a human in real desktop Chrome, then Safari or Firefox.
+  - one ZIP named after the event (`<event>-photos.zip`) holds every committed, non-deleted
+    original, the hidden one included and the deleted one left out. Names are `0001-<guest>.jpg`
+    … in gallery order (oldest first), all distinct, and the files open at full size;
+  - every browser either sends a ZIP or says "This browser can’t save a ZIP, so photos download
+    one by one" and then sends each photo. Record which one each browser and phone did, and the
+    Messenger result. A silent failure, an empty ZIP or one that won't open is a FAIL;
+  - the interrupted download ends in "The ZIP didn’t finish. Try again." with no ZIP left that
+    looks finished, and the retry produces a complete ZIP;
+  - the large event lists "Part 1 of N · Photos 1–500" …, each part downloads and retries on its
+    own, and the parts together hold every photo exactly once;
+  - no copy says the ZIP or a photo was "saved".
+- **Result:** PASS for steps 1–4 on the Slice 26 dev build (founder, 2026-10-11): desktop
+  Chrome, Firefox, Safari, a real iPhone and a real Android phone. The writer path each browser
+  took, the Messenger result and step 5 (multi-part) weren't reported. Rerun on the next RC with
+  the other media cases, and record those three then.
+- **Earlier evidence: the one-by-one path, before D25 (now the fallback)**
 - **Rerun evidence, RC `8f37fba` (R1, 10 eligible originals including 1 hidden, excluding 1 deleted):**
   - Playwright Chromium headless, Chromium **headed** and WebKit each saved **10 of 10** files, with distinct filenames `001-…`–`010-…`. Every file was byte-identical (MD5) to its upload at full size; the 10.5 MB TUS uploads came back 4000×3000.
   - The hidden capture was included and the deleted one excluded.

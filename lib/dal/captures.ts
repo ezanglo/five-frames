@@ -12,6 +12,7 @@ import {
 } from "@/lib/media/storage";
 import type { CaptureRow, CaptureStatus, EventRow } from "@/lib/db/types";
 import { assignTimeSections, type TimeSection } from "@/lib/gallery/time-sections";
+import { originalFilename, zipPartCount, zipPartRange } from "@/lib/media/zip-parts";
 
 /**
  * The frame-limit mechanism (architecture §6, decisions D5/D6). Every function here takes
@@ -545,26 +546,32 @@ function filenameForOriginal(
   mimeType: string | null,
 ): string {
   const extension = (mimeType && EXTENSION_FOR_MIME_TYPE[mimeType]) || "";
-  const slug =
-    guestDisplayName
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "guest";
-  return `${String(index + 1).padStart(3, "0")}-${slug}${extension}`;
+  return originalFilename(index + 1, guestDisplayName, extension);
 }
 
+export type OriginalDownloadPart = {
+  eventName: string;
+  /** Every downloadable original in the event, across all parts. */
+  total: number;
+  partCount: number;
+  items: OriginalDownload[];
+};
+
 /**
- * Bulk "download all originals" (product.md §11.2/§12, decision D11: client-driven sequential
- * signed URLs, no server-side zip for MVP). Every original — including a hidden one, matching
- * listCapturesForEventHost's own scope — since hiding removes a capture from the gallery view,
- * not from the host's ownership of their media (invariant 11). Signed URLs are minted fresh on
- * each call rather than reused from page load, so a host who waits before clicking doesn't hit
- * URLs that expired while the page just sat open.
+ * One part of "Download all" (product.md §11.2.3, decision D25, architecture §7 "Bulk
+ * download"): the event's committed, non-deleted originals — hidden included, since hiding
+ * removes a capture from the gallery, not from the host's media (invariant 11) — in gallery
+ * order, sliced to the requested part of up to 500. Only that part's URLs are signed, fresh on
+ * each call, so a part's URLs are minted right before it starts and a retry gets new ones.
+ * `id` breaks `created_at` ties so the split is the same on every call.
+ *
+ * Roles: owner only. Original and ZIP downloads never go to support access (D27).
  */
 export async function listOriginalDownloadUrlsForEventHost(
   hostId: string,
   eventId: string,
-): Promise<OriginalDownload[] | null> {
+  partIndex = 0,
+): Promise<OriginalDownloadPart | null> {
   const event = await getEventForHost(hostId, eventId);
   if (!event) return null;
 
@@ -575,7 +582,8 @@ export async function listOriginalDownloadUrlsForEventHost(
     .eq("event_id", eventId)
     .eq("status", "committed")
     .is("deleted_at", null)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) throw error;
 
@@ -583,24 +591,37 @@ export async function listOriginalDownloadUrlsForEventHost(
     id: string;
     storage_path: string;
     mime_type: string | null;
-    created_at: string;
-    committed_at: string | null;
     guest_sessions: { display_name: string } | { display_name: string }[] | null;
   };
 
-  return Promise.all(
-    (data as Row[]).map(async (row, index) => {
+  const rows = data as Row[];
+  const { start, end } = zipPartRange(partIndex, rows.length);
+  const items = await Promise.all(
+    rows.slice(start, end).map(async (row, offset) => {
       const guestSession = Array.isArray(row.guest_sessions)
         ? row.guest_sessions[0]
         : row.guest_sessions;
-      const filename = filenameForOriginal(index, guestSession?.display_name ?? "guest", row.mime_type);
+      const filename = filenameForOriginal(
+        start + offset,
+        guestSession?.display_name ?? "guest",
+        row.mime_type,
+      );
       return {
         id: row.id,
         filename,
+        // A big part on a slow connection can outlast these; the browser then asks for this
+        // part again and carries on with fresh URLs (lib/media/zip-download.ts).
         url: await createSignedReadUrl(row.storage_path, 60 * 10, filename),
       };
     }),
   );
+
+  return {
+    eventName: event.name,
+    total: rows.length,
+    partCount: zipPartCount(rows.length),
+    items,
+  };
 }
 
 export type ModerationAction =

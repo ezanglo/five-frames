@@ -23,10 +23,12 @@ const PAGE_SIZE = 24;
  */
 export function PhotoManager({
   eventId,
+  eventName,
   timezone,
   captures,
 }: {
   eventId: string;
+  eventName: string;
   timezone: string;
   captures: HostCaptureView[];
 }) {
@@ -69,7 +71,7 @@ export function PhotoManager({
             </p>
           </div>
           <div className="lg:hidden">
-            <BulkDownloadButton eventId={eventId} disabled={captures.length === 0} />
+            <BulkDownloadButton eventId={eventId} eventName={eventName} photoCount={captures.length} />
           </div>
         </div>
 
@@ -111,7 +113,12 @@ export function PhotoManager({
             Hidden only
           </Chip>
           <div className="hidden lg:block">
-            <BulkDownloadButton eventId={eventId} disabled={captures.length === 0} className="h-11" />
+            <BulkDownloadButton
+              eventId={eventId}
+              eventName={eventName}
+              photoCount={captures.length}
+              className="h-11"
+            />
           </div>
         </div>
       </div>

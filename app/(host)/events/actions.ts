@@ -353,16 +353,17 @@ export async function moderateCaptureAction(
   await moderateCapture(host.id, eventId, captureId, action);
 }
 
-/** Bound to the "Download all originals" button (product.md §11.2, decision D11). Mints a
- *  fresh batch of short-lived signed URLs on each click rather than reusing anything from page
- *  load, then hands them to the client for sequential triggered downloads — no server-side zip. */
-export async function getBulkDownloadUrlsAction(eventId: string) {
+/** Bound to "Download all" (product.md §11.2.3, decision D25). Returns one part of up to 500
+ *  originals with freshly signed URLs: the browser asks right before it builds that part's ZIP,
+ *  and again if a URL is refused mid-part. No server-side ZIP, no media bytes through here. */
+export async function getBulkDownloadPartAction(eventId: string, partIndex: number) {
   const host = await requireHost();
-  const downloads = await listOriginalDownloadUrlsForEventHost(host.id, eventId);
-  if (!downloads) {
+  if (!Number.isInteger(partIndex) || partIndex < 0) notFound();
+  const part = await listOriginalDownloadUrlsForEventHost(host.id, eventId, partIndex);
+  if (!part) {
     notFound();
   }
-  return downloads;
+  return part;
 }
 
 /** Bound to link rotate/revoke buttons (product.md §8.1, roadmap Slice 5); no redirect,

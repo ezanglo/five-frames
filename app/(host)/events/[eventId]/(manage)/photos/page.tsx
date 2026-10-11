@@ -27,7 +27,7 @@ export default async function EventPhotosPage({
   return (
     <>
       {version && <DashboardLive eventId={eventId} version={version} fallbackMs={15000} />}
-      <PhotoManager eventId={eventId} timezone={event.timezone} captures={captures} />
+      <PhotoManager eventId={eventId} eventName={event.name} timezone={event.timezone} captures={captures} />
     </>
   );
 }

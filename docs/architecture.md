@@ -658,25 +658,44 @@ minted server-side with `@aws-sdk/s3-request-presigner`; the browser never holds
 
 ### Bulk download (D25)
 
-"Download all" (product.md §11.2.3) builds ZIP parts in the host's browser:
-- **Parts:** `listOriginalDownloadUrlsForEventHost`'s set (committed, non-deleted, hidden
-  included) in gallery order, split into parts of up to 500.
-- **Fresh URLs per part:** each part asks the server for that part's signed URLs right before
-  it starts, so URLs never expire mid-part. This is the same owner check as today, scoped by
-  part index.
-- **Building the ZIP:** each response body streams into a stored-entry, ZIP64-capable streaming
-  ZIP (a small dependency chosen in the slice). CRC-32 is computed on the fly, and names are
-  `NNNN-<guest>.<ext>`, unique within the part.
-- **Writing it out:** feature-detected. File System Access (`showSaveFilePicker`) where present;
-  otherwise a scoped service worker that answers a one-time download URL with the ZIP stream as
-  an attachment. If neither works, `save-files.ts`'s one-by-one path, unchanged.
-- **Copy and state:** copy follows the HOST-10 rule (sent to the browser, never "saved"). A part
-  that fails can be retried alone. Nothing is stored server-side, and no new route returns
-  media bytes, so the 4.5 MB function limit doesn't apply.
-- **Tests:** the parts split; unique names; a ZIP built from fixtures re-extracts byte-identical
-  (real unzip); ZIP64 headers above the classic limits in a synthetic case; the fallback chosen
-  when the APIs are missing. Real-device checks (iPhone Safari, Android Chrome, desktop) go into
-  release-validation.md when the slice lands.
+"Download all" (product.md §11.2.3) builds ZIP parts in the host's browser. As built in Slice
+26 (2026-10-11):
+- **Parts:** `listOriginalDownloadUrlsForEventHost(hostId, eventId, partIndex)` returns one part:
+  the committed, non-deleted originals (hidden included) in gallery order (`created_at`, then
+  `id`, so the split is stable), sliced by `lib/media/zip-parts.ts` (500 per part), plus the
+  event name and total. Owner only (D27 keeps it off support access). An out-of-range part is
+  empty.
+- **Fresh URLs per part:** only that part's originals are signed (10 minutes, as before), right
+  before it starts. A long part can outlast them, so on a 403 the browser asks for the same part
+  again and carries on, matched by capture id. A capture deleted since the part began is then
+  left out.
+- **Building the ZIP:** `client-zip` 2.x (MIT, no dependencies, stored entries, ZIP64 when
+  needed, CRC-32 on the fly) in `lib/media/zip-download.ts`. Each original is fetched only as the
+  ZIP reaches it, one at a time. A dropped request is retried once. An original that still can't
+  be fetched errors the stream, so the part fails whole rather than producing a ZIP that's
+  silently missing a photo. fflate (the table-number ZIP) writes no ZIP64 and can't hold a
+  500 × 50 MB part. Names are `NNNN-<guest>.<ext>`, the 1-based gallery position across the
+  event (`originalFilename`). The ZIP is `<event>-photos.zip`, or `…-part-2-of-3.zip`.
+- **Writing it out:** feature-detected (`chooseZipWriter`):
+  - **File System Access:** `showSaveFilePicker` is called first in the click, while it is still
+    a user gesture, then the stream pipes into the file. A failure aborts the write.
+  - **Service worker:** `public/zip-download/sw.js`, scoped to `/zip-download/` only. The page
+    registers a one-time id with a `MessagePort`, then opens `/zip-download/<id>/<name>` in a
+    hidden iframe. The worker answers that request once with an attachment and pulls chunks from
+    the page one at a time, which gives backpressure. The page sends a keepalive message every
+    5 s, because browsers stop an idle worker mid-download. If the worker doesn't answer within
+    15 s, nothing has been fetched yet, and that part falls back.
+  - **One by one:** `save-files.ts`, unchanged. The copy says the browser can't save a ZIP.
+- **UI:** with up to 500 photos, "Download all" is one click and one ZIP. With more, it opens a
+  list of parts, each with its own Download / Try again, one running at a time.
+- **Copy and state:** copy follows the HOST-10 rule ("sent to your browser", never "saved").
+  Nothing is stored server-side, and no new route returns media bytes, so the 4.5 MB function
+  limit doesn't apply.
+- **Tests:** `zip-download.test.ts` covers the part split and names, a fixture ZIP re-extracted
+  byte-identical by the system `unzip`, a failed original failing the part, a dropped request,
+  URL refresh and a mid-part deletion, ZIP64 records for a synthetic 4 GiB+ entry, and writer
+  choice. The integration test zips real R2 originals. The service worker and the save picker
+  run only in a real browser: HOST-10 in release-validation.md.
 
 ### Private delivery
 

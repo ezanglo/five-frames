@@ -200,7 +200,10 @@ change, not a refactor.
   library. Use `components/ff/photo-picker-input.tsx`.
 - **Multi-file original downloads go through `lib/media/save-files.ts`.** One cross-origin link
   navigation per file lets later ones cancel earlier ones (HOST-10), and copy may only claim a
-  file was sent to the browser, never saved.
+  file was sent to the browser, never saved. The host's "Download all" builds ZIP parts in
+  `lib/media/zip-download.ts` (D25) and uses `save-files.ts` only as its fallback. A part fails
+  whole, never as a ZIP missing a photo. Call the save picker before any other await in the
+  click, and build the stream only once its destination is ready.
 - **Remaining frames count moderated captures.** The guest view hides hidden/deleted captures,
   but their slots stay used (`lib/capture/guest-slots.ts`). Never derive "shots left" from the
   visible list.

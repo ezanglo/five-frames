@@ -15,6 +15,8 @@ import {
   reserveCapture,
 } from "@/lib/dal/captures";
 import { filenameFromSignedUrl } from "@/lib/media/save-files";
+import { buildZipStream } from "@/lib/media/zip-download";
+import { unzipWithSystemTool } from "@/test/unzip";
 import { buildGuestSlots, takenFrameCount } from "@/lib/capture/guest-slots";
 import { keepPhoto, type KeepDeps } from "@/lib/capture/keep";
 import type { UploadedReservation } from "@/lib/capture/attempt";
@@ -489,7 +491,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     }
   });
 
-  it("listOriginalDownloadUrlsForEventHost: includes committed (even hidden) originals, excludes deleted and pending, refused for another host", async () => {
+  it("listOriginalDownloadUrlsForEventHost: one part of committed (even hidden) originals in gallery order, excludes deleted and pending, zips byte-for-byte, refused for another host", async () => {
     // 3 real commits (upload + derivative generation) plus a reserve makes this slower than
     // the default 5s timeout — same reason getEventCaptureStats's test below uses 15s.
     const event = await createOpenEvent();
@@ -502,24 +504,39 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const pendingReserve = await reserveCapture(event.id, session.id, crypto.randomUUID(), null);
     expect(pendingReserve.kind).toBe("reserved");
 
-    const downloads = await listOriginalDownloadUrlsForEventHost(hostId, event.id);
-    expect(downloads).not.toBeNull();
-    const ids = downloads!.map((d) => d.id);
-    expect(ids).toContain(visible.id);
-    expect(ids).toContain(hidden.id);
+    const part = await listOriginalDownloadUrlsForEventHost(hostId, event.id);
+    expect(part).not.toBeNull();
+    const downloads = part!.items;
+    expect(part!.total).toBe(2);
+    expect(part!.partCount).toBe(1);
+    expect(part!.eventName).toBe(event.name);
+    // Gallery order (oldest first), numbered across the event.
+    expect(downloads.map((d) => d.id)).toEqual([visible.id, hidden.id]);
+    expect(downloads.map((d) => d.filename.slice(0, 5))).toEqual(["0001-", "0002-"]);
+    const ids = downloads.map((d) => d.id);
     expect(ids).not.toContain(toDelete.id);
     if (pendingReserve.kind === "reserved") {
       expect(ids).not.toContain(pendingReserve.capture.id);
     }
-    expect(downloads!.every((d) => d.url.startsWith("http"))).toBe(true);
-    expect(new Set(downloads!.map((d) => d.filename)).size).toBe(downloads!.length);
+    expect(downloads.every((d) => d.url.startsWith("http"))).toBe(true);
+    expect(new Set(downloads.map((d) => d.filename)).size).toBe(downloads.length);
     // Each bulk-download url must be attachment-capable (see the dedicated
     // listCapturesForEventHost test above for why), and must encode that specific
     // capture's stable filename so a real browser saves it under a sensible name
     // rather than the raw storage path.
-    for (const download of downloads!) {
+    for (const download of downloads) {
       expect(filenameFromSignedUrl(download.url, "")).toBe(download.filename);
     }
+    // A part past the end is empty, not an error.
+    expect((await listOriginalDownloadUrlsForEventHost(hostId, event.id, 1))!.items).toEqual([]);
+
+    // The ZIP the host's browser builds from these real R2 URLs holds the originals
+    // byte-for-byte, in order (criterion 88), as read by the system's own unzip.
+    const entries = await unzipWithSystemTool(
+      await buildZipStream(downloads, { refresh: async () => downloads }),
+    );
+    expect(entries.map((e) => e.name)).toEqual(downloads.map((d) => d.filename));
+    for (const entry of entries) expect(entry.bytes.equals(TINY_PNG)).toBe(true);
 
     const { data: otherHost, error } = await supabase.auth.admin.createUser({
       email: `other-host-${crypto.randomUUID()}@example.test`,
