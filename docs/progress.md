@@ -31,7 +31,8 @@ Last updated: 2026-10-11 (**D29 keepsake changes, D30 support downloads, the Pho
   plus `migration repair`): local `.env.local` and the linked project point at the production
   database. It is additive and safe under the deployed code. The integration tests for D29/D30
   also ran against production; their cleanup ran, but test R2 objects are likely orphaned.
-  Point local at a separate dev project before running integration tests or migrations again. The Terms and Privacy pages disclose it. Deployed verification: release-validation.md OPS-07, OPS-08 and GAL-12.
+  That project is now production by the user's decision (see Next step). There is no dev
+  project, so run no integration tests, migrations or `ops:` scripts locally until one exists. The Terms and Privacy pages disclose it. Deployed verification: release-validation.md OPS-07, OPS-08 and GAL-12.
   The host Photos tab also got sharper cards (thumbnail/display `srcset`) and the gallery's
   photo viewer. The user's local check of D29, D30 and the viewer passed (2026-10-11). That is
   not deployment evidence.
@@ -64,8 +65,7 @@ Last updated: 2026-10-11 (**D29 keepsake changes, D30 support downloads, the Pho
   capture-error and photo-picker risks found alongside them, are repaired but not yet deployed.
   See [Release-validation repairs after RC `a2a32b1`](#release-validation-repairs-after-rc-a2a32b1).
 - Existing human evidence (Slices 15–18) is recorded there and is not repeated.
-- Non-testing release work (environment reconciliation, region alignment, the `share_path`
-  deployment order, raw-HEIC early rejection, legal copy, the expiry-warning channel) is listed
+- Non-testing release work (environment reconciliation, region alignment, raw-HEIC early rejection, legal copy, the expiry-warning channel) is listed
   under [Release follow-ups](#release-follow-ups-not-test-cases).
 
 This file is current project state for a fresh implementation session, not a session log.
@@ -1273,15 +1273,18 @@ one sharing toggle. It is rendered on demand and never persisted: no row, no obj
   - host Look for both families, including Draft.
 - Emulation is not device proof.
 
-**`share_path` — deployment-order dependency (migration intentionally unapplied):**
+**`share_path` — deployment-order dependency (done 2026-10-11, column dropped):**
 - The dev cleanup ran: `pnpm ops:retire-share-cards --apply` deleted the only 2 `…/share` objects
   (derived cards on the synthetic E2E event). A rerun finds 0.
 - The drop migration `supabase/migrations/20260930020000_retire_share_cards.sql` is written but
   **not applied**. Vercel Production still runs the old code against this same database, and that
   code reads `share_path`, including in the D18 cron. Order:
-  1. deploy code that no longer reads or writes `share_path` everywhere this database is served;
-  2. rerun `pnpm ops:retire-share-cards --apply`;
-  3. only then `supabase db push` the drop.
+  1. deploy code that no longer reads or writes `share_path` everywhere this database is served
+     (done 2026-10-11: RC `6d1fdf9`);
+  2. rerun `pnpm ops:retire-share-cards --apply` (done 2026-10-11: dry run found 0 objects in
+     165 captures, so nothing to apply);
+  3. only then `supabase db push` the drop (done 2026-10-11 by the user, `supabase db push
+     --include-all`, because the migration is dated before later applied ones).
 - Nothing in Production was mutated.
 
 **Human verification — passed (reported by the user 2026-10-01):** both keepsake families passed
@@ -1645,20 +1648,23 @@ card was retired in Slice 16.
 
 ## Current phase
 
-**Implementation complete. Consolidated release validation pending.**
+**Implementation complete and committed (`6d1fdf9`). Nothing deployed since RC `6d8aca8`.
+Release validation pending a new RC.**
 
-- Slices 1–13 and 15–18 are `complete`. The Event Theme & Keepsakes design, including the Full
-  Set amendment, is approved.
+- Every launch slice is built: Slices 1–13 and 15–27, plus D28 (share links), D29 (keepsakes
+  after expiry, Full Set preview, host Full Set), D30 (support downloads) and the Terms/Privacy
+  pages. Co-host access and Send to Google Drive are deferred to the first update after launch.
+- Built but not yet verified on a deployment: Slice 19 (gallery layouts), D23 (sales-led
+  payment), D28 (share links), and the D29/D30/support-access cases. The four design sign-offs
+  (brand, marketing consistency, motion, responsive/redesign) still await the user's visual
+  approval.
 - **Slice 14** (full-flow real-device and venue-condition validation, criteria 37/38) was a
   validation slice with no implementation work. On 2026-10-01 its remaining scope moved to
   [release-validation.md](./release-validation.md). It is **not** marked passed.
-- All pending pre-release checks are in that file: 52 cases, including the former H1–H9 and the
-  pending design sign-offs. The automated part ran against RC `a2a32b1`: 8 PASS, 5 FAIL,
-  13 BLOCKED, 23 NOT RUN, 3 DEFERRED (INAPP-01…03, accepted launch risk, not a pre-release gate).
-- Those five FAILs were repaired, and a targeted rerun against RC `8f37fba` cleared four of
-  them. It found one new defect, NET-02: a reserve or commit request cut at the network left the
-  capture sheet stuck. That defect and a related count-wording observation are repaired locally
-  and not yet deployed (release-validation.md → "Repairs after RC `8f37fba`").
+- release-validation.md holds every pending pre-release check. No FAIL is open. The automated
+  passes ran against RCs `a2a32b1`, `8f37fba` and `6d8aca8` (2026-10-01). Everything built since
+  `6d8aca8` needs the new RC, and Slice 25 (R2) changed the upload path, so every media case
+  reruns.
 
 ### Slice 14 history (2026-09-23 → 2026-10-01)
 
@@ -2984,28 +2990,40 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. **Every slice the site advertises (20, 21, 24, 26) is built, committed and passed.** Nothing
-   blocks a release candidate except the user's timing call and the production migrations
-   below, which need explicit approval. The next build slice is 27, operator support access
-   (roadmap.md), in a fresh session. It isn't a deploy blocker.
-   - Slice 25 changed the upload path, so every media case in release-validation.md reruns on
-     the next RC.
-   - Every environment that deploys Slice 25 code needs the four `R2_*` variables and that
-     environment's own bucket CORS.
-2. **Release candidate timing is the user's call.** Slices 20–24 change the Share step, the
-   pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.
-   Cutting the RC after the plan slices avoids rerunning those twice. If an RC is cut sooner,
-   recheck those screens after the plan slices land.
-   - The dev database already has `20261001000000`, `20261002000000`, `20261011000000`, `20261011010000`, `20261011020000` and `20261011030000`.
-   - Don't deploy code from Slice 19 or Slice 20 against a database that lacks them.
-3. For that RC: deploy to `https://www.fiveframes.app` (the site's origin since 2026-10-11; the apex redirects to `www`; replaces `five-frames.vercel.app`), then run `/e2e-validate`:
-   - the targeted reruns from "Gallery-layout change after RC `6d8aca8`" and "Sales-led payment
-     change after RC `6d8aca8`", plus plan cases once they're added to release-validation.md;
-   - then SMOKE-01;
-   - then the remaining iPhone, Android, real-network, visual and final-smoke validation.
-4. Set `SALES_CONTACT` in `lib/payments/mode.ts` once the contact channel is chosen.
+No build slice remains. The RC is deployed. What's left is cleanup, validation and release
+review.
 
-Do not begin `/release-review` or any production mutation until that pass is done. Done means every
+Done (2026-10-11):
+- **Environment settled.** One Supabase project, `lrheuifbgbplekxnljfv`, is production. It is
+  the project the docs called "dev" (`five-frames-dev`), and `.env.local` and the CLI link both
+  point at it. It holds a live pilot event. There is no separate dev project.
+- **Migrations.** Every migration is applied, including `20260930020000` (`share_path` drop,
+  after `ops:retire-share-cards` found 0 objects). Confirmed with `supabase migration list
+  --linked`.
+- **R2** (bucket, keys, CORS) and **`CRON_SECRET`** are set for production (user).
+- **RC `6d1fdf9` deployed** to `https://www.fiveframes.app` (user). The apex redirects to
+  `www`, which replaces `five-frames.vercel.app`.
+
+Remaining:
+1. **Decide `SALES_CONTACT`** (`lib/payments/mode.ts`): the "contact us" link hosts see for
+   buying an event. Optional before the pass. Setting it later means a quick HOST-04 recheck.
+2. **Clean up production test data** without touching the pilot event (follow-ups below).
+   Start with a read-only inventory, then delete only with explicit approval.
+3. **Run `/e2e-validate`** against RC `6d1fdf9`. It runs against production, so use synthetic
+   events only, never open the pilot event, and clean up afterwards:
+   - the targeted reruns in "Gallery-layout change after RC `6d8aca8`" and "Sales-led payment
+     change after RC `6d8aca8`";
+   - the cases added since: GAL-09–12, OPS-07, OPS-08, HOST-10–12, and every media case (R2);
+   - SMOKE-01 last.
+4. **Human real-device pass:** the iPhone, Android, real-network and visual cases, and the four
+   design sign-offs. Browser automation can't stand in for these.
+5. **`/release-review`**, only once steps 3 and 4 are done.
+
+Can run any time, not a blocker: `/maintain-project` for raw-HEIC early refusal in guest capture
+and the `.env.local` key typo. The integration-test timeout fix needs a dev project to test
+against (follow-ups below).
+
+Do not begin `/release-review`, or any production mutation other than the approved test-data cleanup, until that pass is done. Done means every
 case is PASS, or BLOCKED with the user's explicit acceptance, and no launch-blocking FAIL remains.
 The release follow-ups below are handled separately. They are not test cases.
 
@@ -3016,14 +3034,10 @@ pass doesn't resolve them, and they must not be disguised as tests.
 
 | Item | Type | Notes |
 |---|---|---|
-| **Production environment reconciliation.** Vercel Production serves the **dev** Supabase project, an interim state since Slice 2. A real launch needs a production Supabase project, separated Vercel environment scopes, `CRON_SECRET`, and the Supabase Auth redirect allowlist for the production origin. Live PayMongo keys and a live-mode webhook are needed only once `PAYMENT_MODE` becomes `online` (D23). None of these is provisioned | Deployment configuration (needs explicit approval) | Before real payments or guest data |
-| **R2 for production (Slice 25, D26).** Production needs its own private R2 bucket (APAC, no custom domain, no public access), an object-scoped token, the four `R2_*` variables in Vercel Production, and CORS for the production origin. Run `pnpm ops:copy-media-to-r2` only if that environment has media worth keeping. Supabase Storage objects stay where they are, unused; delete them only with explicit approval | Deployment configuration (needs explicit approval) | Before real guest data |
+| **Separate dev environment.** Production is the one Supabase project, `lrheuifbgbplekxnljfv` (formerly treated as dev), and `.env.local` points at it, so local integration tests, migrations and `ops:` scripts would hit production. Create a separate dev Supabase project and R2 bucket, point `.env.local` at them, and separate the Vercel Preview scope from Production. Also confirm the Supabase Auth redirect allowlist covers `https://www.fiveframes.app`. Live PayMongo keys and a live-mode webhook are needed only once `PAYMENT_MODE` becomes `online` (D23) | Deployment configuration (needs explicit approval) | Before more local integration testing or migrations |
+| **Old Supabase Storage objects.** Production media is on R2 (bucket, keys, CORS set by the user, 2026-10-11). Objects in Supabase Storage stay where they are, unused. Delete them only with explicit approval, after confirming `pnpm ops:copy-media-to-r2` covered anything worth keeping (including the pilot event) | Housekeeping (needs explicit approval) | After launch |
 | **Vercel function region vs Supabase region.** Functions run in US East (`iad1`); Supabase is in `ap-southeast-1`. Reconcile placement, then re-check representative latency (architecture §12) | Deployment configuration | Before real traffic |
-| **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
-| **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |
-| **Plans migration on a production database (Slice 20).** Apply `20261011000000_event_plans.sql` **before** deploying Slice 20 code anywhere (the code reads `events.plan`, `payments.plan` and calls `begin_provider_checkout_for_plan`). It is additive and safe under older code. Already applied to dev | Migration (needs explicit approval for production) | Next deploy / release |
-| **Free event and capacity-override migrations on a production database (Slices 21, 22).** Apply `20261011010000_free_event.sql` and `20261011020000_capacity_overrides.sql`, in that order, **before** deploying code from those slices. Both are additive. The Slice 21 code activates every event through `activate_event()`, and the Slice 22 Console page reads `capacity_overrides` | Migration (needs explicit approval for production) | Next deploy / release |
-| **Time-sections migration on a production database (Slice 23).** Apply `20261011030000_gallery_time_sections.sql` **before** deploying Slice 23 code (the gallery page and Settings read the column). Additive and safe under older code | Migration (needs explicit approval for production) | Next deploy / release |
+| **Two captures without a readable display derivative.** The display-dimension backfill dry run on production (2026-10-11) found nothing left to write except captures `1ac8f3d9-484c-44cd-b973-20f2380b6c4a` and `731f48f1-6369-49bc-b34f-d3cb55e1a1e3`: committed, with no dimensions, and their display object is unreadable on R2. Find out which event each belongs to. If test data, remove them in the cleanup. If the pilot event, the photo is broken in its gallery and needs a repair (for example, a missing copy from Supabase Storage via `ops:copy-media-to-r2`) | Data check (read-only first) | With the test-data cleanup |
 | **`payments.plan` NOT NULL and drop `begin_provider_checkout()`** once no deployment runs pre-plans code (architecture §8c "As built"). Backfill any null `payments.plan` to `celebration` first | Deployment-order dependency | After Slice 20 is deployed everywhere this database is served |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
@@ -3035,7 +3049,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **First production operator grant(s)**, and who holds the production service-role credential. The mechanism exists (`pnpm ops:grant-operator`) (product.md §19) | Operational business decision | Pre-launch |
 | **Supabase Auth email templates** (confirmation, password reset) are still Supabase defaults | Design/configuration task | Host emails |
 | **Physical print ordering / keepsake fulfillment** | Post-MVP (product.md §10.5, §18) | Not a release item. Listed so it isn't mistaken for one |
-| **Dev-data hygiene.** The 2026-10-01 validation run saw, in the dev-backed Operator Console, at least one event that may belong to a real person. It was not opened, used or changed. Decide whether real-person data belongs in the dev project, and keep validation to synthetic events and direct detail URLs | Privacy / data hygiene (user decision) | Before more validation on the dev-backed deployment |
+| **Production test-data cleanup.** Production holds the live pilot event `3b00d2ef-1204-4d6a-af76-a23af39af293`, which must be kept, alongside synthetic data from earlier `/e2e-validate` runs and the D29/D30 integration tests (events, test host accounts, likely orphaned R2 objects). First take a read-only inventory, then delete only what the user approves, never the pilot event, its host or its media. Repeat after the validation pass | Privacy / data hygiene (needs explicit approval) | Before and after the validation pass |
 
 ## Other open items
 

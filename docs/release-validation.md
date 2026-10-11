@@ -30,10 +30,10 @@ gallery URL in this file.
 
 | Field | Value |
 |---|---|
-| Release-candidate commit (full SHA) | `6d8aca84a8a9aa5a8ea0909518b7b92b949683a1` (current; second targeted rerun). Earlier: `8f37fba7ed64b29c3c1a39260293f085c339e933` (first targeted rerun), `a2a32b13946f7902288739bfb6a943d6eb46fa0e` (first pass) |
+| Release-candidate commit (full SHA) | `6d1fdf9c73fe53bff4d2f9fb543ce0e9850ace04` (deployed 2026-10-11; pass not started). Earlier: `6d8aca84a8a9aa5a8ea0909518b7b92b949683a1` (second targeted rerun), `8f37fba7ed64b29c3c1a39260293f085c339e933` (first targeted rerun), `a2a32b13946f7902288739bfb6a943d6eb46fa0e` (first pass) |
 | Vercel environment used (Production or Preview) | Production (Option A) |
 | Deployment origin (no tokens) | `https://www.fiveframes.app` for the next RC (since 2026-10-11; the apex `fiveframes.app` redirects to `www`). Earlier runs used `https://five-frames.vercel.app` |
-| Supabase project | `five-frames-dev` (expected) |
+| Supabase project | `lrheuifbgbplekxnljfv`, production since 2026-10-11 (earlier runs called it `five-frames-dev`). It holds a live pilot event: use synthetic events only, never open the pilot, and clean up afterwards |
 | PayMongo mode | Not used: `PAYMENT_MODE = manual` (D23). Test, if the mode is switched to `online` |
 | Date(s) of the pass | 2026-10-01 (automated part on `a2a32b1`; targeted automated reruns on `8f37fba` and `6d8aca8`) |
 | Tester(s) | `/e2e-validate` (Playwright Chromium/WebKit, E2E host A + operator O); human part pending |
@@ -387,8 +387,8 @@ or into a document.
 - [ ] **S-01 Freeze the release candidate.** Choose the commit to validate (normally `main` at
   freeze time). The working tree is clean. Record the full SHA in the run record.
 - [ ] **S-02 Choose the Vercel environment.** This is the user's decision:
-  - **Option A — Production** (`www.fiveframes.app`, dev-backed; earlier runs used `five-frames.vercel.app`). This is also step 1 of the
-    `share_path` deployment order. The drop migration still stays unapplied during the pass.
+  - **Option A — Production** (`www.fiveframes.app`, dev-backed; earlier runs used `five-frames.vercel.app`). The `share_path` deployment order is done: the drop
+    migration was applied 2026-10-11.
   - **Option B — Preview.** Production keeps running older code against the same dev database,
     including its daily cron and any webhook pointed at it.
   - Either way, use a stable origin that won't change on redeploy, so the webhook and auth
@@ -551,14 +551,11 @@ It is never a PASS and does not hold up completion of this pass.
      `five-frames-dev` project.
   2. List migrations against the dev project.
 - **PASS when:**
-  - the deployment uses the dev project;
-  - every migration up to and including `20260930010000_event_theme_raw_formats.sql` is applied,
-    and so are `20261001000000_gallery_layout.sql` and
-    `20261002000000_manual_payment_e_wallet.sql`;
-  - `20260930020000_retire_share_cards.sql` is **not** applied (deliberately, until the
-    deployment-order follow-up).
+  - the deployment uses project `lrheuifbgbplekxnljfv` (production since 2026-10-11);
+  - every migration in `supabase/migrations/` is applied, including
+    `20260930020000_retire_share_cards.sql` (its deployment order completed 2026-10-11).
 - **Result:** NOT RUN (rerun for the next RC: the gallery-layout and e-wallet migrations were added after the PASS below)
-- **Evidence / notes:** 2026-10-01, outside a pass: `20261001000000` applied to the dev project, `20260930020000` still not applied (`supabase migration list --linked`). Earlier PASS (RC `6d8aca8`): `supabase migration list --linked` (ref `lrheuifbgbplekxnljfv`): all through `20260930010000` applied, `20260930020000` not applied. Deployment's browser Storage traffic (signed upload/read URLs) goes to the same project ref. Env var *values* were not read (permission boundary).
+- **Evidence / notes:** 2026-10-11, outside a pass: the user applied `20260930020000` (`supabase db push --include-all`) after `ops:retire-share-cards` found 0 objects. `supabase migration list --linked` then showed every migration applied. 2026-10-01, outside a pass: `20261001000000` applied to the dev project, `20260930020000` still not applied (`supabase migration list --linked`). Earlier PASS (RC `6d8aca8`): `supabase migration list --linked` (ref `lrheuifbgbplekxnljfv`): all through `20260930010000` applied, `20260930020000` not applied. Deployment's browser Storage traffic (signed upload/read URLs) goes to the same project ref. Env var *values* were not read (permission boundary).
 
 #### ENV-03 · PayMongo Test mode; no live credentials
 - **Where:** PayMongo dashboard; Vercel env settings

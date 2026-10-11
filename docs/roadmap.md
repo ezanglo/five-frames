@@ -436,8 +436,8 @@ visual check of themed guest screens with and without an image, each accent, lon
 ## Slice 16 — Keepsakes, both families (replacing share cards)
 
 **Status (2026-10-01):** `complete`. Both phases passed automated, browser, Preview-performance
-and real-device share/save verification. The `share_path` drop migration is written and
-deliberately unapplied until a deployment-order step is done (architecture §7b).
+and real-device share/save verification. The `share_path` drop migration was applied on
+2026-10-11, once its deployment order was met (architecture §7b).
 
 **Objective:** A guest turns their own photos into themed keepsakes and shares or saves them. There
 are two families: **Single-photo** (any one capture, five styles) and **Full Set** (once their

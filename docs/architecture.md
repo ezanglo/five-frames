@@ -1274,6 +1274,8 @@ capture's state, or touch an original.
   outlive any deployment still running the old code against that database. (1) Deploy code that no
   longer uses `share_path` everywhere that database is served. (2) Rerun the cleanup with
   `--apply`, which catches any cards old code made in between. (3) Only then apply the migration.
+  Done on the one (production) database on 2026-10-11: the cleanup found 0 objects and the
+  column is dropped.
 - `events.sharing_enabled` is unchanged. It now governs making, sharing and saving keepsakes of
   both families (product.md §10.3), and it never affects original downloads.
 
