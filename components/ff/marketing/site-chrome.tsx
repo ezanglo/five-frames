@@ -39,11 +39,11 @@ export function SiteHeader() {
   );
 }
 
-/** Footer: only destinations that exist. Legal pages don't exist yet (a recorded content gap). */
+/** Footer: only destinations that exist. */
 export function SiteFooter() {
   return (
     <footer className="border-t border-line bg-surface-subtle px-5 pt-14 pb-10 lg:px-10">
-      <div className="mx-auto grid w-full max-w-[1200px] gap-10 md:grid-cols-[1.4fr_1fr_1fr]">
+      <div className="mx-auto grid w-full max-w-[1200px] gap-10 md:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div className="flex max-w-sm flex-col gap-3">
           <Wordmark href="/" />
           <p className="text-label font-medium text-ink-muted">
@@ -61,6 +61,13 @@ export function SiteFooter() {
             { href: "/login", label: "Sign in" },
             { href: "/forgot-password", label: "Reset your password" },
             ...(SALES_CONTACT ? [SALES_CONTACT] : []),
+          ]}
+        />
+        <FooterColumn
+          title="Legal"
+          links={[
+            { href: "/terms", label: "Terms of Service" },
+            { href: "/privacy", label: "Privacy Policy" },
           ]}
         />
       </div>

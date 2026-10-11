@@ -190,6 +190,7 @@ describe("marketing copy stays honest and on-brand", () => {
     ...sourceFiles(path.join(ROOT, "app/(marketing)")),
     ...sourceFiles(path.join(ROOT, "components/ff/marketing")),
     path.join(ROOT, "lib/marketing/content.ts"),
+    path.join(ROOT, "lib/marketing/legal.ts"),
   ];
   const text = files.map((file) => readFileSync(file, "utf8")).join("\n");
 

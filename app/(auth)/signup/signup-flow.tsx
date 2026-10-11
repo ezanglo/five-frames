@@ -95,6 +95,17 @@ export function SignupFlow() {
           <Button type="submit" disabled={pending} className="w-full">
             {pending ? "Creating your account…" : "Sign up"}
           </Button>
+          <p className="text-center text-caption font-medium text-ink-muted">
+            By signing up you agree to the{" "}
+            <Link href="/terms" className="ff-focus rounded-md font-semibold text-brand hover:underline">
+              Terms of Service
+            </Link>{" "}
+            and{" "}
+            <Link href="/privacy" className="ff-focus rounded-md font-semibold text-brand hover:underline">
+              Privacy Policy
+            </Link>
+            , including that FiveFrames staff may support your events on your behalf.
+          </p>
           <p className="text-center text-label font-medium text-ink-muted">
             Already have an account?{" "}
             <Link href="/login" className="ff-focus rounded-md font-semibold text-brand hover:underline">

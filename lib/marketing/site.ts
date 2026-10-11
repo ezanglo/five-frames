@@ -19,7 +19,7 @@ export const SITE_DESCRIPTION =
   "Guests scan a QR code and capture five photos each from their own phones — no app, no guest account. The host receives one private collection from the event.";
 
 /** Public marketing routes, in navigation order. `/demo` lives in its own route group (D14). */
-export const MARKETING_ROUTES = ["/", "/how-it-works", "/pricing", "/faq", "/demo"] as const;
+export const MARKETING_ROUTES = ["/", "/how-it-works", "/pricing", "/faq", "/demo", "/terms", "/privacy"] as const;
 
 /** Public navigation, shared by the header, the mobile menu and the footer. */
 export const PUBLIC_NAV = [

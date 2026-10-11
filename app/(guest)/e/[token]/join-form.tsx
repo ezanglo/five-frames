@@ -51,6 +51,18 @@ export function JoinForm({ token }: { token: string }) {
         <ActionFootnote icon={<Clock />}>
           Open until your host closes capture · No app needed
         </ActionFootnote>
+        {/* New tab, so reading them never loses the guest's place in the event. */}
+        <p className="text-center text-caption font-medium text-ink-muted">
+          By joining you agree to the{" "}
+          <a href="/terms" target="_blank" rel="noopener" className="ff-focus rounded-sm font-semibold underline underline-offset-2">
+            Terms
+          </a>{" "}
+          and{" "}
+          <a href="/privacy" target="_blank" rel="noopener" className="ff-focus rounded-sm font-semibold underline underline-offset-2">
+            Privacy Policy
+          </a>
+          .
+        </p>
       </SheetActions>
     </form>
   );

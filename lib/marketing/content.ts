@@ -506,6 +506,14 @@ export const FAQ_GROUPS: FaqGroup[] = [
         ],
       },
       {
+        id: "staff",
+        question: "Can FiveFrames staff see my photos?",
+        answer: [
+          "Only to support your event, on your behalf. Our team can open your event as you would to set it up or fix it, see and hide its photos, download the originals for you, and make a guest’s Full Set keepsake.",
+          "Everything they do is recorded and listed on your event page, and they can’t delete your event or any photo. The Privacy Policy has the details.",
+        ],
+      },
+      {
         id: "ai",
         question: "Does FiveFrames edit photos or use AI?",
         answer: [
