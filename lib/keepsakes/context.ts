@@ -44,7 +44,10 @@ export type SingleKeepsakeInput = KeepsakeContext & {
   message: string | null;
 };
 
-/** Pixels only: no id, timestamp, message or capture reference. */
+/**
+ * Pixels only: no id, timestamp, message or capture reference. An empty `src` is an empty slot,
+ * which only `buildFullSetPreviewInput` produces; the export builder refuses it.
+ */
 export type SlotPhoto = { src: string };
 export type FiveSlotPhotos = readonly [SlotPhoto, SlotPhoto, SlotPhoto, SlotPhoto, SlotPhoto];
 
@@ -135,7 +138,25 @@ export function buildFullSetKeepsakeInput(
   style: FullSetStyleId,
   photos: readonly SlotPhoto[],
 ): FullSetKeepsakeInput {
-  if (photos.length !== 5) throw new RangeError("A Full Set is made from exactly five photos");
+  if (photos.length !== 5 || photos.some((p) => !p.src)) {
+    throw new RangeError("A Full Set is made from exactly five photos");
+  }
   const five = photos.map((p) => ({ src: p.src })) as unknown as FiveSlotPhotos;
   return { event: context.event, theme: context.theme, style, photos: five };
+}
+
+/**
+ * A browser-only Full Set preview with the guest's photos so far and the rest of the five slots
+ * left empty (decision D29). Never an export input: the server renders only through
+ * `buildFullSetKeepsakeInput`, which refuses an empty slot, so a partial set can be seen but
+ * never made.
+ */
+export function buildFullSetPreviewInput(
+  context: KeepsakeContext,
+  style: FullSetStyleId,
+  photos: readonly SlotPhoto[],
+): FullSetKeepsakeInput {
+  if (photos.length > 5) throw new RangeError("A Full Set has five slots");
+  const slots = Array.from({ length: 5 }, (_, i) => ({ src: photos[i]?.src ?? "" })) as unknown as FiveSlotPhotos;
+  return { event: context.event, theme: context.theme, style, photos: slots };
 }

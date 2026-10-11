@@ -20,6 +20,7 @@ import {
 import {
   getEventCaptureStats,
   listCapturesForEventHost,
+  getOriginalDownloadUrl,
   listOriginalDownloadUrlsForEventHost,
   moderateCapture,
 } from "@/lib/dal/captures";
@@ -255,7 +256,7 @@ describe("operator support access", { timeout: 120_000 }, () => {
       expect(await log(event.id)).toHaveLength(0);
     });
 
-    it("refuses plan, payment, checkout and original downloads", async () => {
+    it("refuses plan, payment and checkout", async () => {
       const hostId = (await createUser("draft-host")).id;
       const draft = await createDraftEvent(hostId, "Draft for support");
       expect(await setEventPlan(operatorId, draft.id, "free")).toBeNull();
@@ -266,10 +267,6 @@ describe("operator support access", { timeout: 120_000 }, () => {
       expect(await updateEventConfig(operatorId, draft.id, { name: "Wizard is owner-only" })).toBeNull();
       const stored = await readEvent(draft.id);
       expect(stored).toMatchObject({ plan: null, activated_at: null, name: "Draft for support" });
-
-      const { event } = await activeEvent();
-      await committedCapture(event.id);
-      expect(await listOriginalDownloadUrlsForEventHost(operatorId, event.id, 0)).toBeNull();
     });
 
     it("refuses columns no action admits, an unknown action, and a non-operator, in SQL", async () => {
@@ -321,25 +318,33 @@ describe("operator support access", { timeout: 120_000 }, () => {
       expect(await getEventCaptureStats(strangerId, event.id)).toBeNull();
       expect(await listSupportActionsForEvent(strangerId, event.id)).toBeNull();
       expect(await getSignageDownload(strangerId, event.id, "digital", "http://localhost:3000")).toBeNull();
+      const capture = await committedCapture(event.id);
+      expect(await getOriginalDownloadUrl(strangerId, event.id, capture.id)).toBeNull();
+      expect(await listOriginalDownloadUrlsForEventHost(strangerId, event.id, 0)).toBeNull();
     });
   });
 
-  describe("photo views (criterion 92, display derivatives only)", () => {
-    it("signs thumbnails only, never an original, and leaves out a capture with no thumbnail", async () => {
+  describe("photo views (criterion 92) and original downloads (D30)", () => {
+    it("shows thumbnails only, links originals through the logging route, and leaves out a capture with no thumbnail", async () => {
       const { event } = await activeEvent();
       const withThumb = await committedCapture(event.id);
       await committedCapture(event.id, { thumbnail: false });
       const list = await listCapturesForEventHost(operatorId, event.id);
       expect(list).toHaveLength(1);
       expect(list![0].id).toBe(withThumb.id);
-      expect(list![0].downloadUrl).toBeNull();
+      expect(list![0].downloadUrl).toBe(`/events/${event.id}/photos/${withThumb.id}/original`);
       expect(list![0].thumbnailUrl).toContain("-thumb.jpg");
       expect(list![0].thumbnailUrl).not.toContain(encodeURIComponent(withThumb.storage_path));
+      // The viewer's image is the display derivative, never the original.
+      expect(list![0].displayUrl).toContain("-display.jpg");
+      expect(list![0].displayUrl).not.toContain(encodeURIComponent(withThumb.storage_path));
 
       // The owner still gets both, including the original.
       const owner = await listCapturesForEventHost(event.host_id, event.id);
       expect(owner).toHaveLength(2);
       expect(owner!.every((capture) => capture.downloadUrl !== null)).toBe(true);
+      // With a derivative the owner's viewer uses it; without one it falls back to the original.
+      expect(owner!.find((c) => c.id === withThumb.id)!.displayUrl).toContain("-display.jpg");
     });
 
     it("logs one view per operator, event and 30 minutes, even under concurrent loads", async () => {
@@ -351,6 +356,35 @@ describe("operator support access", { timeout: 120_000 }, () => {
       expect(views).toHaveLength(1);
       // The owner viewing photos is not support, and is never logged.
       await listCapturesForEventHost(event.host_id, event.id);
+      expect(await log(event.id)).toHaveLength(1);
+    });
+
+    it("logs each original download before signing it; the owner's are never logged", async () => {
+      const { event } = await activeEvent();
+      const capture = await committedCapture(event.id);
+      const url = await getOriginalDownloadUrl(operatorId, event.id, capture.id);
+      expect(url).toContain("X-Amz-Signature=");
+      await getOriginalDownloadUrl(operatorId, event.id, capture.id);
+      const entries = await log(event.id);
+      expect(entries.map((entry) => entry.action)).toEqual(["original_downloaded", "original_downloaded"]);
+      expect(entries[0].new_value).toEqual({ capture_id: capture.id });
+
+      expect(await getOriginalDownloadUrl(event.host_id, event.id, capture.id)).toContain("X-Amz-Signature=");
+      expect(await log(event.id)).toHaveLength(2);
+      expect(await getOriginalDownloadUrl(operatorId, event.id, crypto.randomUUID())).toBeNull();
+      expect(await log(event.id)).toHaveLength(2);
+    });
+
+    it("logs each Download all part", async () => {
+      const { event } = await activeEvent();
+      await committedCapture(event.id);
+      const part = await listOriginalDownloadUrlsForEventHost(operatorId, event.id, 0);
+      expect(part?.items).toHaveLength(1);
+      const entries = await log(event.id);
+      expect(entries.map((entry) => entry.action)).toEqual(["originals_zip_downloaded"]);
+      expect(entries[0].new_value).toEqual({ part: 1, parts: 1 });
+      // A part past the end signs nothing and logs nothing.
+      await listOriginalDownloadUrlsForEventHost(operatorId, event.id, 5);
       expect(await log(event.id)).toHaveLength(1);
     });
 

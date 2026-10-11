@@ -19,6 +19,9 @@ export const SUPPORT_ACTION_LABELS: Record<SupportActionKey, string> = {
   photo_unhidden: "Unhid a photo",
   photos_viewed: "Viewed photos",
   signage_downloaded: "Downloaded signage",
+  original_downloaded: "Downloaded an original photo",
+  originals_zip_downloaded: "Downloaded all original photos",
+  keepsake_made: "Made a guest's Full Set keepsake",
 };
 
 export function supportActionLabel(action: SupportActionKey): string {

@@ -235,9 +235,10 @@ export async function getEventThemeForGuest(eventToken: string): Promise<EventTh
   return themeViewForEvent(event, guestMayShowThemeImage(event));
 }
 
+/** Until archive or media deletion, matching the guest's own view and keepsakes (D29). */
 function guestMayShowThemeImage(event: EventRow): boolean {
-  const state = deriveEventLifecycleState(event);
-  return Boolean(event.activated_at) && state !== "expired" && state !== "archived";
+  if (!event.activated_at || event.media_deleted_at) return false;
+  return deriveEventLifecycleState(event) !== "archived";
 }
 
 /**

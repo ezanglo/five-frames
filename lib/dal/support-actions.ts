@@ -66,13 +66,18 @@ export async function supportSetCaptureHidden(
 
 /**
  * The entries that change nothing: viewing photos (the SQL keeps one per operator, event and
- * 30 minutes, so live refreshes don't flood the log) and downloading signage. Called before
- * anything is signed or rendered, so a failed write shows nothing.
+ * 30 minutes, so live refreshes don't flood the log), downloading signage, downloading originals
+ * (one each, or one per ZIP part, D30) and making a guest's Full Set keepsake (one per operator,
+ * event and guest session per 30 minutes). Called before anything is signed or rendered, so a
+ * failed write serves nothing.
  */
 export async function logSupportAccess(
   operatorId: string,
   eventId: string,
-  action: "photos_viewed" | "signage_downloaded",
+  action: Extract<
+    SupportActionKey,
+    "photos_viewed" | "signage_downloaded" | "original_downloaded" | "originals_zip_downloaded" | "keepsake_made"
+  >,
   value: Record<string, unknown> | null = null,
 ): Promise<void> {
   const { data, error } = await createServiceClient().rpc("log_support_access", {

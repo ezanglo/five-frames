@@ -28,12 +28,21 @@ export type GuestKeepsakes = {
    * switch, nothing disabled or teased (product.md §10.2.2).
    */
   fullSet: readonly string[] | null;
+  /**
+   * From `isFullSetPreviewable` (D29): while capture is open and the session can still reach five,
+   * "Your five" shows a preview of the photos kept so far, with Share and Save off. There is no
+   * card or prompt for it outside the picker.
+   */
+  fullSetPreview: boolean;
   /** The event plan's keepsake entitlement: a Free event offers one style per family. */
   features: PlanFeatures;
 };
 
 export type KeepsakeSourcePhoto = {
   id: string;
+  slotIndex: number;
+  /** `committed_at`; with `slotIndex`, the canonical order a preview lays photos out in. */
+  capturedAt: string | null;
   message: string | null;
   thumbnailUrl: string | null;
   displayUrl: string | null;
@@ -64,11 +73,28 @@ export function fullSetPhotosOf(
   return five.every(Boolean) ? (five as PickerPhoto[]) : null;
 }
 
+/** The photos kept so far, in canonical order, for a preview-only Full Set (D29). */
+export function fullSetPreviewPhotosOf(
+  keepsakes: GuestKeepsakes | null,
+  photos: readonly KeepsakeSourcePhoto[],
+): PickerPhoto[] | null {
+  if (!keepsakes?.fullSetPreview) return null;
+  const ordered = [...photos].sort(
+    (a, b) => (a.capturedAt ?? "").localeCompare(b.capturedAt ?? "") || a.slotIndex - b.slotIndex,
+  );
+  const kept = ordered.flatMap((p) => {
+    const picker = toPickerPhoto(p);
+    return picker ? [picker] : [];
+  });
+  return kept.length > 0 && kept.length < 5 ? kept : null;
+}
+
 /** Opens the "Make a keepsake" picker for one of the guest's own photos, or for their five. */
 export function useKeepsakePicker(keepsakes: GuestKeepsakes | null, photos: readonly KeepsakeSourcePhoto[]) {
   const [open, setOpen] = useState<{ photo: PickerPhoto; family: KeepsakeFamily } | null>(null);
   const close = useCallback(() => setOpen(null), []);
   const five = fullSetPhotosOf(keepsakes, photos);
+  const soFar = five ? null : fullSetPreviewPhotosOf(keepsakes, photos);
 
   function openFor(photo: KeepsakeSourcePhoto, family: KeepsakeFamily = "single") {
     const pickerPhoto = toPickerPhoto(photo);
@@ -90,6 +116,7 @@ export function useKeepsakePicker(keepsakes: GuestKeepsakes | null, photos: read
         initialFamily={open.family}
         photo={open.photo}
         fullSetPhotos={five}
+        fullSetPreviewPhotos={soFar}
         features={keepsakes.features}
         onClose={close}
       />

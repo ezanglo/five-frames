@@ -152,7 +152,10 @@ export type SupportActionKey =
   | "photo_hidden"
   | "photo_unhidden"
   | "photos_viewed"
-  | "signage_downloaded";
+  | "signage_downloaded"
+  | "original_downloaded"
+  | "originals_zip_downloaded"
+  | "keepsake_made";
 
 /** One support-access log entry (D27). Append-only: the database refuses an update or delete,
  *  even from the service role. Link tokens appear only as whether a link existed. */

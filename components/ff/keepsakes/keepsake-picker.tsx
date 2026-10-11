@@ -17,6 +17,7 @@ import { SegmentedTabs, tabPanelProps } from "@/components/ff/look/segmented-tab
 import { accentCssVars, type AccentKey } from "@/lib/theme/accents";
 import {
   buildFullSetKeepsakeInput,
+  buildFullSetPreviewInput,
   buildSingleKeepsakeInput,
   type KeepsakeContext,
 } from "@/lib/keepsakes/context";
@@ -64,6 +65,16 @@ type Prep =
 
 type Note = "saved" | "fullSetGone" | null;
 
+/**
+ * The host's Full Set of one guest (decision D29): the picker opens on that guest's five, with no
+ * "One photo" family, no originals row (the Photos tab has its own downloads), and the host's
+ * owner-only route in place of the guest's.
+ */
+export type HostKeepsakeMode = {
+  fullSetRoute: (style: FullSetStyleId) => string;
+  guestName: string;
+};
+
 export function KeepsakePicker({
   token,
   eventName,
@@ -72,6 +83,8 @@ export function KeepsakePicker({
   initialFamily,
   photo,
   fullSetPhotos,
+  fullSetPreviewPhotos = null,
+  host,
   features,
   onClose,
 }: {
@@ -85,6 +98,13 @@ export function KeepsakePicker({
   photo: PickerPhoto;
   /** The session's five, in server (canonical) order, only while the Full Set is available. */
   fullSetPhotos: readonly PickerPhoto[] | null;
+  /**
+   * The guest's photos so far (1–4, canonical order) when "Your five" may be previewed but not
+   * made (D29). Drawn in the browser only: nothing is requested, and Share and Save stay off.
+   */
+  fullSetPreviewPhotos?: readonly PickerPhoto[] | null;
+  /** Set on the host's Photos tab; absent for a guest. */
+  host?: HostKeepsakeMode;
   /** The event plan's entitlement. One style per family (Free) means no style choice at all. */
   features: PlanFeatures;
   onClose: () => void;
@@ -92,7 +112,8 @@ export function KeepsakePicker({
   const router = useRouter();
   const idBase = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
-  const [fullSetOpen, setFullSetOpen] = useState(Boolean(fullSetPhotos && fullSetPhotos.length === 5));
+  const complete = Boolean(fullSetPhotos && fullSetPhotos.length === 5);
+  const [fullSetOpen, setFullSetOpen] = useState(complete || Boolean(fullSetPreviewPhotos?.length));
   const [family, setFamily] = useState<KeepsakeFamily>(
     initialFamily === "fullSet" && fullSetOpen ? "fullSet" : "single",
   );
@@ -104,14 +125,19 @@ export function KeepsakePicker({
   const [canShare, setCanShare] = useState<boolean>(() => canShareImageFiles(browserShareCapability()));
   const size = useImageSize(photo.displayUrl);
 
+  const hostRoute = host?.fullSetRoute;
   const routeFor = useCallback(
     (f: KeepsakeFamily, s: KeepsakeStyleId) =>
       f === "single"
         ? `/e/${encodeURIComponent(token)}/keepsake/photo/${encodeURIComponent(photo.id)}/${s}`
-        : `/e/${encodeURIComponent(token)}/keepsake/set/${s}`,
-    [token, photo.id],
+        : hostRoute
+          ? hostRoute(s as FullSetStyleId)
+          : `/e/${encodeURIComponent(token)}/keepsake/set/${s}`,
+    [token, photo.id, hostRoute],
   );
   const key = `${family}:${style}:${photo.id}`;
+  // "Your five" before there are five: seen, never made (D29).
+  const previewOnly = family === "fullSet" && !complete;
 
   // Focus, Escape and scroll lock, as the photo viewer does.
   useEffect(() => {
@@ -132,6 +158,7 @@ export function KeepsakePicker({
 
   // Prepare the selected style only; a newer selection aborts the older fetch.
   useEffect(() => {
+    if (previewOnly) return;
     const controller = new AbortController();
     fetch(routeFor(family, style), { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
@@ -169,7 +196,7 @@ export function KeepsakePicker({
       });
     return () => controller.abort();
     // `attempt` re-runs the same selection for Try again.
-  }, [key, family, style, attempt, eventName, routeFor, initialFamily, onClose, router]);
+  }, [key, family, style, attempt, eventName, routeFor, initialFamily, onClose, router, previewOnly]);
 
   const current = prep && prep.key === key ? prep : { status: "preparing" as const, key };
   const shareBlocked = !canShare;
@@ -198,7 +225,7 @@ export function KeepsakePicker({
 
   const saveHref = `${routeFor(family, style)}?download=1`;
   const styles = stylesForPlan(family, features);
-  const fivePhotos = family === "fullSet" && fullSetPhotos ? fullSetPhotos : null;
+  const fivePhotos = family === "fullSet" ? (complete ? fullSetPhotos : fullSetPreviewPhotos) : null;
 
   const preview = (fit: "width" | "contain", source: "display" | "thumbnail", s: KeepsakeStyleId, className?: string) => {
     if (family === "single") {
@@ -221,15 +248,18 @@ export function KeepsakePicker({
         className={className}
         canvasClassName="shadow-[0_1px_2px_rgb(20_20_20/0.06),0_12px_30px_rgb(20_20_20/0.12)]"
         family="fullSet"
-        input={buildFullSetKeepsakeInput(context, s as FullSetStyleId, five)}
+        input={(previewOnly ? buildFullSetPreviewInput : buildFullSetKeepsakeInput)(context, s as FullSetStyleId, five)}
       />
     );
   };
 
-  const subtitle =
-    family === "single"
+  const subtitle = host
+    ? `One new image made from ${host.guestName}’s five photos. The originals stay exactly as they were taken.`
+    : family === "single"
       ? "A new image made from your photo. Your original stays exactly as you took it."
-      : "One new image made from your five photos. Your originals stay exactly as you took them.";
+      : previewOnly
+        ? "A preview with the photos you’ve kept so far. Your originals stay exactly as you took them."
+        : "One new image made from your five photos. Your originals stay exactly as you took them.";
 
   const statusText =
     note === "fullSetGone"
@@ -244,7 +274,7 @@ export function KeepsakePicker({
               ? "Getting it ready…"
               : "Ready to share.";
 
-  const familySwitch = fullSetOpen && (
+  const familySwitch = !host && fullSetOpen && (
     <SegmentedTabs
       idBase={idBase}
       label="Keepsake of"
@@ -259,7 +289,23 @@ export function KeepsakePicker({
     />
   );
 
-  const actions = (
+  const actions = previewOnly ? (
+    <div className="flex flex-col gap-2">
+      <p role="status" className="text-center text-caption font-medium text-ink-muted lg:text-left">
+        Sharing and saving your five together is possible once five photos are kept.
+      </p>
+      <div className="flex gap-3">
+        <Button size="md" className="flex-1" disabled aria-disabled>
+          <Share aria-hidden />
+          Share
+        </Button>
+        <Button variant="secondary" size="md" className="flex-1" disabled aria-disabled>
+          <Download aria-hidden />
+          Save
+        </Button>
+      </div>
+    </div>
+  ) : (
     <div className="flex flex-col gap-2">
       <p
         role={current.status === "failed" ? "alert" : "status"}
@@ -333,7 +379,7 @@ export function KeepsakePicker({
         <div className="absolute top-6 left-6 z-10">
           <Button variant="secondary" size="sm" onClick={onClose} className="h-11 bg-surface shadow-card">
             <ChevronLeft aria-hidden />
-            Back to your photos
+            {host ? "Back to photos" : "Back to your photos"}
           </Button>
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center px-16 py-[60px]">
@@ -362,7 +408,7 @@ export function KeepsakePicker({
         {familySwitch}
         <p className="-mt-1 text-center text-caption font-medium text-ink-muted lg:text-left">{subtitle}</p>
 
-        <div {...(fullSetOpen ? tabPanelProps(idBase, family) : {})} className="flex min-h-0 flex-1 flex-col gap-4">
+        <div {...(familySwitch ? tabPanelProps(idBase, family) : {})} className="flex min-h-0 flex-1 flex-col gap-4">
           {/* Mobile stage. */}
           <div className="flex min-h-0 flex-1 items-center justify-center rounded-2xl bg-surface-stage p-4 lg:hidden">
             <div key={key} className="flex size-full animate-in fade-in duration-150 motion-reduce:animate-none">
@@ -372,7 +418,7 @@ export function KeepsakePicker({
 
           {styles.length > 1 && (
             <StylePicker
-              label={family === "single" ? "Keepsake style" : "Keepsake style for your five"}
+              label={family === "single" ? "Keepsake style" : host ? "Keepsake style for their five" : "Keepsake style for your five"}
               styles={styles}
               family={family}
               value={style}
@@ -384,7 +430,7 @@ export function KeepsakePicker({
 
         {actions}
 
-        <OriginalsRow family={family} photo={photo} fivePhotos={fivePhotos} />
+        {!host && <OriginalsRow family={family} photo={photo} fivePhotos={fivePhotos} />}
       </div>
     </div>
   );

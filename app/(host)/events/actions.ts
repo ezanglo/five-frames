@@ -1,9 +1,9 @@
 "use server";
 
 // Roles (D27, architecture §5b): the Settings saves, Reveal gallery, theme image, capture
-// open/close, Hide/Unhide and link rotate/revoke admit owner and support through their DAL
-// functions. Everything else here (the Create wizard, plan, Free activation, checkout,
-// delete/favorite and original downloads) is owner-only by its DAL's `host_id` predicate.
+// open/close, Hide/Unhide, link rotate/revoke and "Download all" (logged per part, D30) admit
+// owner and support through their DAL functions. Everything else here (the Create wizard, plan,
+// Free activation, checkout, delete/favorite) is owner-only by its DAL's `host_id` predicate.
 
 import { redirect, notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -363,7 +363,8 @@ export async function moderateCaptureAction(
 
 /** Bound to "Download all" (product.md §11.2.3, decision D25). Returns one part of up to 500
  *  originals with freshly signed URLs: the browser asks right before it builds that part's ZIP,
- *  and again if a URL is refused mid-part. No server-side ZIP, no media bytes through here. */
+ *  and again if a URL is refused mid-part. No server-side ZIP, no media bytes through here.
+ *  Owner or support; support logs each part (D30). */
 export async function getBulkDownloadPartAction(eventId: string, partIndex: number) {
   const host = await requireHost();
   if (!Number.isInteger(partIndex) || partIndex < 0) notFound();

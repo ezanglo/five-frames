@@ -210,14 +210,15 @@ describe("Single-photo keepsakes (real Postgres + Storage)", () => {
     expect((await makeSingleKeepsake(event.event_token!, stranger, crypto.randomUUID(), "nope")).kind).toBe("not_found");
   }, 60_000);
 
-  it("refuses expired, archived, media-deleted and rotated-token events", async () => {
+  it("works once hosted access expires (D29); refuses archived, media-deleted and rotated-token events", async () => {
     const event = await openEvent();
     const session = await guest(event.id);
     const capture = await commit(event.id, session);
     const past = new Date(Date.now() - 1000).toISOString();
 
-    await update(event.id, { hosted_until: past });
-    expect((await makeSingleKeepsake(event.event_token!, session, capture.id, "print")).kind).toBe("not_found");
+    // Expired: the guest's own photos are still there, so their keepsakes are too.
+    await update(event.id, { hosted_until: past, grace_until: new Date(Date.now() + 86_400_000).toISOString() });
+    expect((await makeSingleKeepsake(event.event_token!, session, capture.id, "print")).kind).toBe("ok");
     await update(event.id, { hosted_until: null, grace_until: past });
     expect((await makeSingleKeepsake(event.event_token!, session, capture.id, "print")).kind).toBe("not_found");
     await update(event.id, { grace_until: null, media_deleted_at: past });

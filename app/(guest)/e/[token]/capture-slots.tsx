@@ -95,9 +95,9 @@ export function CaptureSlots({
   const pendingKeyRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Declared before `keptPhotos` is computed below, so it reads the current slots itself.
-  const keptForKeepsakes = slots.flatMap((slot) =>
+  const keptForKeepsakes = slots.flatMap((slot, slotIndex) =>
     slot?.status === "committed"
-      ? [{ id: slot.id, message: slot.message, thumbnailUrl: slot.thumbnailUrl, displayUrl: slot.displayUrl, downloadUrl: slot.downloadUrl }]
+      ? [{ id: slot.id, slotIndex, capturedAt: slot.capturedAt, message: slot.message, thumbnailUrl: slot.thumbnailUrl, displayUrl: slot.displayUrl, downloadUrl: slot.downloadUrl }]
       : [],
   );
   const { openFor, picker } = useKeepsakePicker(keepsakes, keptForKeepsakes);

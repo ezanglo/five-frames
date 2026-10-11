@@ -364,6 +364,19 @@ describe("event theme image", { timeout: 60_000 }, () => {
       .eq("id", event.id);
     expect((await getEventThemeForGuest(token))?.imageUrl).toBeTruthy();
 
+    // Expired: still shown, as the guest's own view and keepsakes still are (D29). Archived: not.
+    await supabase
+      .from("events")
+      .update({ hosted_until: new Date(Date.now() - 1000).toISOString() })
+      .eq("id", event.id);
+    expect((await getEventThemeForGuest(token))?.imageUrl).toBeTruthy();
+    await supabase
+      .from("events")
+      .update({ grace_until: new Date(Date.now() - 1000).toISOString() })
+      .eq("id", event.id);
+    expect((await getEventThemeForGuest(token))?.imageUrl).toBeFalsy();
+    await supabase.from("events").update({ hosted_until: null, grace_until: null }).eq("id", event.id);
+
     // Rotated token: the old one resolves to nothing.
     await supabase.from("events").update({ event_token: `evt-${crypto.randomUUID()}` }).eq("id", event.id);
     expect(await getEventThemeForGuest(token)).toBeNull();

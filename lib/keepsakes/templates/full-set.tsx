@@ -107,7 +107,8 @@ function Slot({ rect, photo, radius, position = "absolute" }: { rect: SlotRect; 
         background: SLOT_FILL,
       }}
     >
-      <Img src={photo.src} width={rect.width} height={rect.height} focus={FULL_SET_FOCUS} />
+      {/* An empty slot (preview only, D29) is just the slot fill. */}
+      {photo.src && <Img src={photo.src} width={rect.width} height={rect.height} focus={FULL_SET_FOCUS} />}
     </div>
   );
 }

@@ -14,7 +14,7 @@ import type { EventRow } from "@/lib/db/types";
  *   null    — anything else. Callers treat it as not found.
  *
  * Owner-only functions (plan, checkout, refund request, event or photo deletion, favorite,
- * original and ZIP downloads, co-hosts) don't call this. They keep their `host_id` predicate,
+ * Drive export, co-hosts) don't call this. Original and ZIP downloads admit support, logged (D30). They keep their `host_id` predicate,
  * which is what keeps support away from them. Never add an "or operator" predicate anywhere.
  */
 

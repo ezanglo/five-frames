@@ -1,15 +1,18 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SUPPORT_ACTION_LABELS } from "./labels";
 
 describe("support log labels", () => {
   it("label exactly the action keys the database accepts", () => {
-    const sql = readFileSync(
-      path.resolve(import.meta.dirname, "../../supabase/migrations/20261011040000_support_access.sql"),
-      "utf-8",
-    );
-    const check = sql.match(/action text not null check \(action in \(([\s\S]*?)\)\)/);
+    // The newest migration that (re)defines the check is the one in force.
+    const dir = path.resolve(import.meta.dirname, "../../supabase/migrations");
+    const check = readdirSync(dir)
+      .sort()
+      .reverse()
+      .map((file) => readFileSync(path.join(dir, file), "utf-8"))
+      .map((sql) => sql.match(/check \(action in \(([\s\S]*?)\)\)/))
+      .find(Boolean);
     expect(check).not.toBeNull();
     const keys = [...check![1].matchAll(/'([a-z_]+)'/g)].map((match) => match[1]).sort();
     expect(Object.keys(SUPPORT_ACTION_LABELS).sort()).toEqual(keys);

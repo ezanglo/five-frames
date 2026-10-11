@@ -6,7 +6,15 @@ import { createDraftEvent } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
 import { commitCapture, moderateCapture, reserveCapture } from "@/lib/dal/captures";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
-import { getFullSetAvailability, getFullSetSources, makeFullSetKeepsake } from "@/lib/dal/keepsakes";
+import {
+  getFullSetAvailability,
+  getFullSetSources,
+  isFullSetPreviewable,
+  listHostFullSets,
+  makeFullSetKeepsake,
+  makeHostFullSetKeepsake,
+} from "@/lib/dal/keepsakes";
+import { grantOperator } from "@/lib/dal/operators";
 import { FULL_SET_SLOTS } from "@/lib/keepsakes/geometry";
 import { FULL_SET_STYLES, PRESELECTED_FULL_SET_STYLE } from "@/lib/keepsakes/styles";
 import type { CaptureRow, EventRow } from "@/lib/db/types";
@@ -210,7 +218,7 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     expect(makeFullSetKeepsake.length).toBeLessThanOrEqual(4);
   }, 120_000);
 
-  it("refuses Single-photo and unknown style ids, sharing off, expiry and media deletion", async () => {
+  it("refuses Single-photo and unknown style ids, sharing off and media deletion; works once expired (D29)", async () => {
     const event = await openEvent();
     const session = await guest(event.id);
     await commitMany(event.id, session);
@@ -221,7 +229,7 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("sharing_disabled");
     expect(await getFullSetAvailability({ ...event, sharing_enabled: false }, session)).toBeNull();
     await update(event.id, { sharing_enabled: true, hosted_until: new Date(Date.now() - 1000).toISOString() });
-    expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
+    expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("ok");
     await update(event.id, { hosted_until: null, media_deleted_at: new Date().toISOString() });
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
   }, 60_000);
@@ -287,4 +295,119 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     const endCard = async (jpeg: Buffer) => [...(await sharp(jpeg).extract({ left: 1100, top: 1700, width: 1, height: 1 }).raw().toBuffer())];
     expect(await endCard(a.bytes)).not.toEqual(await endCard(b.bytes));
   }, 60_000);
+
+  it("previews (never makes) a partial set only while capture is open and five are still reachable (D29)", async () => {
+    const event = await openEvent();
+    const session = await guest(event.id);
+    expect(await isFullSetPreviewable(event, session)).toBe(true);
+    const captures = await commitMany(event.id, session, 3);
+    expect(await isFullSetPreviewable(event, session)).toBe(true);
+    // A preview never authorizes an export: the Full Set route still refuses three photos.
+    expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
+
+    // A hidden photo can still be unhidden, so the preview stays; a deleted one never returns.
+    await moderateCapture(hostId, event.id, captures[0].id, "hide");
+    expect(await isFullSetPreviewable(event, session)).toBe(true);
+    await moderateCapture(hostId, event.id, captures[0].id, "delete");
+    expect(await isFullSetPreviewable(event, session)).toBe(false);
+
+    const other = await guest(event.id);
+    await commitMany(event.id, other, 2);
+    expect(await isFullSetPreviewable({ ...event, sharing_enabled: false }, other)).toBe(false);
+    const closed = await update(event.id, { capture_closed_at: new Date().toISOString() });
+    expect(await isFullSetPreviewable(closed, other)).toBe(false);
+  }, 120_000);
+
+  it("is never previewable once all five are kept: it is simply available", async () => {
+    const event = await openEvent();
+    const session = await guest(event.id);
+    await commitMany(event.id, session);
+    expect(await isFullSetPreviewable(event, session)).toBe(false);
+    expect(await getFullSetAvailability(event, session)).not.toBeNull();
+  }, 120_000);
+
+  describe("the host's Full Set of one guest (D29)", () => {
+    it("lists only eligible sessions and makes the same five, in the same order, as the guest gets", async () => {
+      const event = await openEvent();
+      const full = await guest(event.id);
+      const partial = await guest(event.id);
+      const captures = await commitMany(event.id, full);
+      await commitMany(event.id, partial, 2);
+
+      const sets = await listHostFullSets(hostId, event.id);
+      expect(sets).toEqual({ [full]: captures.map((c) => c.id) });
+
+      const outcome = await makeHostFullSetKeepsake(hostId, event.id, full, "signature");
+      if (outcome.kind !== "ok") throw new Error(`expected ok, got ${outcome.kind}`);
+      expect(await signatureOrder(outcome.bytes)).toEqual([0, 1, 2, 3, 4]);
+      expect((await makeHostFullSetKeepsake(hostId, event.id, partial, "signature")).kind).toBe("not_found");
+    }, 120_000);
+
+    it("follows moderation and plan, ignores the guest sharing setting, and works after expiry", async () => {
+      const event = await openEvent({ plan: "free", sharing_enabled: false });
+      const session = await guest(event.id);
+      const captures = await commitMany(event.id, session);
+      expect((await makeHostFullSetKeepsake(hostId, event.id, session, "signature")).kind).toBe("ok");
+      const other = FULL_SET_STYLES.find((s) => s.id !== PRESELECTED_FULL_SET_STYLE)!.id;
+      expect((await makeHostFullSetKeepsake(hostId, event.id, session, other)).kind).toBe("not_found");
+      expect((await makeHostFullSetKeepsake(hostId, event.id, session, "print")).kind).toBe("not_found");
+
+      await moderateCapture(hostId, event.id, captures[2].id, "hide");
+      expect(await listHostFullSets(hostId, event.id)).toEqual({});
+      expect((await makeHostFullSetKeepsake(hostId, event.id, session, "signature")).kind).toBe("not_found");
+      await moderateCapture(hostId, event.id, captures[2].id, "unhide");
+
+      await update(event.id, { hosted_until: new Date(Date.now() - 1000).toISOString() });
+      expect((await makeHostFullSetKeepsake(hostId, event.id, session, "signature")).kind).toBe("ok");
+      await update(event.id, { media_deleted_at: new Date().toISOString() });
+      expect((await makeHostFullSetKeepsake(hostId, event.id, session, "signature")).kind).toBe("not_found");
+      expect(await listHostFullSets(hostId, event.id)).toBeNull();
+    }, 120_000);
+
+    it("admits owner and support (logged once per guest per 30 minutes); another host gets not-found", async () => {
+      const event = await openEvent();
+      const session = await guest(event.id);
+      await commitMany(event.id, session);
+      const others: string[] = [];
+      try {
+        const ids: Record<"host" | "operator", string> = { host: "", operator: "" };
+        for (const role of ["host", "operator"] as const) {
+          const { data, error } = await supabase.auth.admin.createUser({
+            email: `fullset-${role}-${crypto.randomUUID()}@example.test`,
+            password: crypto.randomUUID(),
+            email_confirm: true,
+          });
+          if (error) throw error;
+          others.push(data.user.id);
+          ids[role] = data.user.id;
+        }
+        await grantOperator(ids.operator);
+
+        expect(await listHostFullSets(ids.host, event.id)).toBeNull();
+        expect((await makeHostFullSetKeepsake(ids.host, event.id, session, "signature")).kind).toBe("not_found");
+
+        expect(Object.keys((await listHostFullSets(ids.operator, event.id)) ?? {})).toEqual([session]);
+        expect((await makeHostFullSetKeepsake(ids.operator, event.id, session, "signature")).kind).toBe("ok");
+        expect((await makeHostFullSetKeepsake(ids.operator, event.id, session, "grid")).kind).toBe("ok");
+        const { data: entries, error } = await supabase
+          .from("support_actions")
+          .select("action, new_value")
+          .eq("event_id", event.id);
+        if (error) throw error;
+        expect(entries).toEqual([{ action: "keepsake_made", new_value: { guest_session_id: session, style: "signature" } }]);
+
+        // The owner's own keepsakes are never logged.
+        expect((await makeHostFullSetKeepsake(hostId, event.id, session, "signature")).kind).toBe("ok");
+        const { count } = await supabase.from("support_actions").select("id", { count: "exact", head: true }).eq("event_id", event.id);
+        expect(count).toBe(1);
+        expect((await makeHostFullSetKeepsake(hostId, event.id, "not-a-uuid", "signature")).kind).toBe("not_found");
+      } finally {
+        await supabase.from("events").delete().eq("id", event.id);
+        for (const id of others) {
+          await supabase.from("operators").delete().eq("user_id", id);
+          await supabase.auth.admin.deleteUser(id);
+        }
+      }
+    }, 120_000);
+  });
 });

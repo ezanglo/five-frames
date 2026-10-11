@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useCallback, useMemo, useState, useTransition } from "react";
 import { ArrowUpDown, Download, Eye, EyeOff, Star, Trash2, User } from "lucide-react";
 import { moderateCaptureAction } from "@/app/(host)/events/actions";
 import type { HostCaptureView, ModerationAction } from "@/lib/dal/captures";
@@ -9,8 +9,27 @@ import { Button, ButtonAnchor } from "@/components/ff/button";
 import { ConfirmButton } from "@/components/ff/confirm-button";
 import { SelectInput } from "@/components/ff/field";
 import { Chip, HiddenBadge } from "@/components/ff/pill";
+import { PhotoViewer, type ViewerPhoto } from "@/components/ff/photo-viewer";
 import { cn } from "@/lib/utils";
+import { KeepsakePicker, type PickerPhoto } from "@/components/ff/keepsakes/keepsake-picker";
+import { KeepsakePreview } from "@/components/ff/keepsakes/keepsake-preview";
+import { buildFullSetKeepsakeInput, type KeepsakeContext } from "@/lib/keepsakes/context";
+import { PRESELECTED_FULL_SET_STYLE } from "@/lib/keepsakes/styles";
+import type { PlanFeatures } from "@/lib/plans/registry";
+import type { AccentKey } from "@/lib/theme/accents";
 import { BulkDownloadButton } from "../../bulk-download-button";
+
+/**
+ * What the owner's Photos tab needs to make a guest's Full Set keepsake (D29). `fullSets` maps
+ * each guest session whose Full Set is available to its five capture ids in canonical order, from
+ * `listHostFullSets`. In support access it is offered too, and each keepsake is logged (D30).
+ */
+export type HostKeepsakes = {
+  fullSets: Record<string, readonly string[]>;
+  accent: AccentKey;
+  context: KeepsakeContext;
+  features: PlanFeatures;
+};
 
 const PAGE_SIZE = 24;
 
@@ -21,8 +40,9 @@ const PAGE_SIZE = 24;
  * visible to the host with a 55% ink overlay and a dashed border. Delete always asks first and
  * is terminal — and never returns the guest's frame (product.md §9.3, invariant 4).
  *
- * In support access (D27) only Hide/Unhide remain: no favorite, original download, Download all
- * or delete, and the server refuses each of them for support anyway.
+ * In support access (D27) there is no favorite or delete, and the server refuses both for
+ * support anyway. Original downloads, Download all and Full Set keepsakes are there (D30), each
+ * logged by the server before anything is signed or rendered.
  */
 export function PhotoManager({
   eventId,
@@ -30,17 +50,21 @@ export function PhotoManager({
   timezone,
   captures,
   support = false,
+  keepsakes = null,
 }: {
   eventId: string;
   eventName: string;
   timezone: string;
   captures: HostCaptureView[];
   support?: boolean;
+  keepsakes?: HostKeepsakes | null;
 }) {
   const [guest, setGuest] = useState("all");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [hiddenOnly, setHiddenOnly] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const closeViewer = useCallback(() => setViewerIndex(null), []);
 
   const guests = useMemo(() => {
     const byId = new Map<string, string>();
@@ -62,6 +86,22 @@ export function PhotoManager({
 
   const visible = filtered.slice(0, visibleCount);
 
+  // The viewer pages through everything the filters match, not only the loaded page.
+  const viewerPhotos: ViewerPhoto[] = filtered.map((capture) => {
+    const time = formatEventTime(capture.capturedAt, timezone);
+    return {
+      id: capture.id,
+      src: capture.displayUrl,
+      alt: [`Photo by ${capture.guestDisplayName}`, time, capture.message].filter(Boolean).join(", "),
+      name: capture.guestDisplayName,
+      meta: time,
+      message: capture.message,
+      badge: capture.hidden ? "Hidden from gallery" : null,
+      downloadUrl: capture.downloadUrl,
+    };
+  });
+  const guestFive = guest === "all" ? null : fullSetPhotosFor(keepsakes, guest, captures);
+
   return (
     <div className="flex flex-col gap-5 lg:gap-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -75,11 +115,9 @@ export function PhotoManager({
               {guests.length === 1 ? "" : "s"} · {hiddenCount} hidden from the gallery
             </p>
           </div>
-          {!support && (
-            <div className="lg:hidden">
-              <BulkDownloadButton eventId={eventId} eventName={eventName} photoCount={captures.length} />
-            </div>
-          )}
+          <div className="lg:hidden">
+            <BulkDownloadButton eventId={eventId} eventName={eventName} photoCount={captures.length} />
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 lg:flex lg:items-start">
@@ -119,18 +157,28 @@ export function PhotoManager({
             <EyeOff className="size-4" aria-hidden />
             Hidden only
           </Chip>
-          {!support && (
-            <div className="hidden lg:block">
-              <BulkDownloadButton
-                eventId={eventId}
-                eventName={eventName}
-                photoCount={captures.length}
-                className="h-11"
-              />
-            </div>
-          )}
+          <div className="hidden lg:block">
+            <BulkDownloadButton
+              eventId={eventId}
+              eventName={eventName}
+              photoCount={captures.length}
+              className="h-11"
+            />
+          </div>
         </div>
       </div>
+
+      {keepsakes && guestFive && (
+        <GuestFullSetCard
+          key={guest}
+          eventId={eventId}
+          eventName={eventName}
+          guestSessionId={guest}
+          guestName={guests.find(([id]) => id === guest)?.[1] ?? "Guest"}
+          photos={guestFive}
+          keepsakes={keepsakes}
+        />
+      )}
 
       {captures.length === 0 ? (
         <p className="rounded-xl bg-surface-subtle px-5 py-10 text-center text-label font-medium text-ink-muted lg:bg-surface">
@@ -142,16 +190,26 @@ export function PhotoManager({
         </p>
       ) : (
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
-          {visible.map((capture) => (
+          {visible.map((capture, index) => (
             <HostPhotoCard
               key={capture.id}
               eventId={eventId}
               timezone={timezone}
               capture={capture}
               support={support}
+              onOpen={() => setViewerIndex(index)}
             />
           ))}
         </ul>
+      )}
+
+      {viewerIndex !== null && viewerPhotos[viewerIndex] && (
+        <PhotoViewer
+          photos={viewerPhotos}
+          initialIndex={viewerIndex}
+          onClose={closeViewer}
+          downloadLabel="Download original"
+        />
       )}
 
       {filtered.length > PAGE_SIZE && (
@@ -175,17 +233,108 @@ export function PhotoManager({
   );
 }
 
+/** The guest's five as picker photos, in the server's canonical order, or null. */
+function fullSetPhotosFor(
+  keepsakes: HostKeepsakes | null,
+  guestSessionId: string,
+  captures: readonly HostCaptureView[],
+): PickerPhoto[] | null {
+  const ids = keepsakes?.fullSets[guestSessionId];
+  if (!ids || ids.length !== 5) return null;
+  const five = ids.map((id) => captures.find((c) => c.id === id));
+  if (five.some((c) => !c?.thumbnailUrl)) return null;
+  return five.map((c) => ({
+    id: c!.id,
+    displayUrl: c!.displayUrl,
+    thumbnailUrl: c!.thumbnailUrl!,
+    message: null,
+    downloadUrl: null,
+  }));
+}
+
+/**
+ * Shown when the host filters to one guest whose five are all committed and visible (D29): that
+ * guest's Full Set keepsake, made by the owner from the same five the guest would get.
+ */
+function GuestFullSetCard({
+  eventId,
+  eventName,
+  guestSessionId,
+  guestName,
+  photos,
+  keepsakes,
+}: {
+  eventId: string;
+  eventName: string;
+  guestSessionId: string;
+  guestName: string;
+  photos: PickerPhoto[];
+  keepsakes: HostKeepsakes;
+}) {
+  const [open, setOpen] = useState(false);
+  // Stable, so the picker's prepare effect doesn't re-run when the live dashboard refreshes.
+  const close = useCallback(() => setOpen(false), []);
+  const who = firstName(guestName) ?? guestName;
+  const host = useMemo(
+    () => ({
+      guestName: who,
+      fullSetRoute: (style: string) =>
+        `/events/${encodeURIComponent(eventId)}/keepsake/${encodeURIComponent(guestSessionId)}/${style}`,
+    }),
+    [who, eventId, guestSessionId],
+  );
+  return (
+    <div className="flex items-center gap-4 rounded-2xl bg-surface p-4 shadow-card">
+      <div className="w-14 shrink-0 rotate-[-4deg] shadow-[0_6px_14px_rgb(21_20_26/0.18)] lg:w-16" aria-hidden>
+        <KeepsakePreview
+          family="fullSet"
+          input={buildFullSetKeepsakeInput(
+            keepsakes.context,
+            PRESELECTED_FULL_SET_STYLE,
+            photos.map((p) => ({ src: p.thumbnailUrl })),
+          )}
+        />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+        <div className="flex min-w-0 flex-col">
+          <p className="truncate text-label font-bold text-ink">{who}’s five, together</p>
+          <p className="text-caption font-medium text-ink-muted">A Full Set keepsake of their five photos.</p>
+        </div>
+        <Button variant="secondary" size="sm" className="h-11 self-start lg:self-auto" onClick={() => setOpen(true)}>
+          Make keepsake
+        </Button>
+      </div>
+      {open && (
+        <KeepsakePicker
+          token=""
+          eventName={eventName}
+          accent={keepsakes.accent}
+          context={keepsakes.context}
+          initialFamily="fullSet"
+          photo={photos[0]}
+          fullSetPhotos={photos}
+          features={keepsakes.features}
+          host={host}
+          onClose={close}
+        />
+      )}
+    </div>
+  );
+}
+
 /** Host photo card · default / hidden (DS05). */
 function HostPhotoCard({
   eventId,
   timezone,
   capture,
   support,
+  onOpen,
 }: {
   eventId: string;
   timezone: string;
   capture: HostCaptureView;
   support: boolean;
+  onOpen: () => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [deleted, setDeleted] = useState(false);
@@ -208,14 +357,27 @@ function HostPhotoCard({
       )}
     >
       <div className="relative aspect-[4/3] overflow-hidden bg-surface-subtle lg:aspect-[7/5]">
-        {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url */}
-        <img
-          src={capture.thumbnailUrl}
-          alt={[`Photo by ${capture.guestDisplayName}`, time, capture.message].filter(Boolean).join(", ")}
-          className="absolute inset-0 size-full object-cover"
-        />
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`View ${who}’s photo${time ? `, ${time}` : ""}`}
+          className="ff-focus absolute inset-0 size-full cursor-zoom-in"
+        >
+          {/* The 400px thumbnail is too soft for a card on a dense screen, so the browser picks
+              the display derivative wherever the card is wider than ~200 device pixels. */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- short-lived signed url */}
+          <img
+            src={capture.thumbnailUrl}
+            srcSet={`${capture.thumbnailUrl} 400w, ${capture.displayUrl} 1600w`}
+            sizes="(min-width: 1024px) 25vw, 50vw"
+            alt={[`Photo by ${capture.guestDisplayName}`, time, capture.message].filter(Boolean).join(", ")}
+            loading="lazy"
+            decoding="async"
+            className="size-full object-cover"
+          />
+        </button>
         {capture.hidden && (
-          <span className="absolute inset-0 flex items-start justify-center bg-ink/55 pt-4">
+          <span className="pointer-events-none absolute inset-0 flex items-start justify-center bg-ink/55 pt-4">
             <HiddenBadge />
           </span>
         )}

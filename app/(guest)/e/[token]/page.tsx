@@ -21,7 +21,7 @@ import { JoinForm } from "./join-form";
 import { CaptureSlots } from "./capture-slots";
 import { DownloadOwnPhotosButton, OwnPhotoList, type OwnPhoto } from "./own-photos";
 import type { GuestKeepsakes } from "./keepsakes";
-import { getFullSetAvailability, isKeepsakeEventReachable } from "@/lib/dal/keepsakes";
+import { getFullSetAvailability, isFullSetPreviewable, isKeepsakeEventReachable } from "@/lib/dal/keepsakes";
 import { buildKeepsakeContext } from "@/lib/keepsakes/context";
 import { keptFrameCount } from "@/lib/capture/guest-slots";
 import { linkPreviewMetadata } from "@/lib/media/link-preview-route";
@@ -76,6 +76,7 @@ export default async function GuestEventPage({
           accent: theme?.accent ?? "violet",
           context: buildKeepsakeContext(event, theme?.imageUrl ? { src: theme.imageUrl } : null),
           fullSet: await getFullSetAvailability(event, guestSessionId),
+          fullSetPreview: await isFullSetPreviewable(event, guestSessionId),
           features: eventPlanFeatures(event),
         }
       : null;

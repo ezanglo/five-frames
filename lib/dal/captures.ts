@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
-import { getEventById, getEventForHost, listEventsForHost } from "@/lib/dal/events";
+import { getEventById, listEventsForHost } from "@/lib/dal/events";
 import { getEventAccessFor } from "@/lib/dal/event-access";
 import { logSupportAccess, supportSetCaptureHidden } from "@/lib/dal/support-actions";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
@@ -387,8 +387,11 @@ export type HostCaptureView = {
   message: string | null;
   hidden: boolean;
   favorited: boolean;
+  /** The 400px thumbnail: the grid's small-screen source. */
   thumbnailUrl: string;
-  /** The original, for the owner only. Support never gets an original URL (D27). */
+  /** The ≤1600px display derivative: the grid's sharp source and the viewer's image. */
+  displayUrl: string;
+  /** The owner's pre-signed original, or support's logging route (D30). */
   downloadUrl: string | null;
 };
 
@@ -398,8 +401,9 @@ export type HostCaptureView = {
  * "query is the access check, signed url is its result" rule as the guest-facing view.
  *
  * Admits: owner, support. Support's visit is logged (`photos_viewed`) before anything is
- * signed, and support gets display derivatives only: no original URL, and a capture without
- * a thumbnail is left out rather than shown from its original.
+ * signed. Support's grid shows display derivatives only (a capture without a thumbnail is left
+ * out rather than shown from its original), and its original link is the logging route
+ * `originalDownloadPath`, never a pre-signed URL (D30).
  */
 export async function listCapturesForEventHost(
   userId: string,
@@ -413,7 +417,7 @@ export async function listCapturesForEventHost(
   const { data, error } = await supabase
     .from("captures")
     .select(
-      "id, slot_index, guest_session_id, message, hidden_at, favorited_at, thumbnail_path, storage_path, mime_type, created_at, committed_at, guest_sessions(display_name)",
+      "id, slot_index, guest_session_id, message, hidden_at, favorited_at, thumbnail_path, display_path, storage_path, mime_type, created_at, committed_at, guest_sessions(display_name)",
     )
     .eq("event_id", eventId)
     .eq("status", "committed")
@@ -430,6 +434,7 @@ export async function listCapturesForEventHost(
     hidden_at: string | null;
     favorited_at: string | null;
     thumbnail_path: string | null;
+    display_path: string | null;
     storage_path: string;
     mime_type: string | null;
     created_at: string;
@@ -446,12 +451,17 @@ export async function listCapturesForEventHost(
         ? row.guest_sessions[0]
         : row.guest_sessions;
       const guestDisplayName = guestSession?.display_name ?? "Guest";
-      const [thumbnailUrl, downloadUrl] = await Promise.all([
+      const [thumbnailUrl, displayUrl, downloadUrl] = await Promise.all([
         support
           ? createSignedReadUrl(row.thumbnail_path!)
           : createSignedReadUrl(row.thumbnail_path ?? row.storage_path),
+        // Support views derivatives only; the owner falls back to the original for a capture
+        // that never got one.
         support
-          ? null
+          ? createSignedReadUrl(row.display_path ?? row.thumbnail_path!)
+          : createSignedReadUrl(row.display_path ?? row.thumbnail_path ?? row.storage_path),
+        support
+          ? originalDownloadPath(eventId, row.id)
           : createSignedReadUrl(
               row.storage_path,
               60 * 10,
@@ -469,6 +479,7 @@ export async function listCapturesForEventHost(
         hidden: row.hidden_at !== null,
         favorited: row.favorited_at !== null,
         thumbnailUrl,
+        displayUrl,
         downloadUrl,
       };
     }),
@@ -581,15 +592,17 @@ export type OriginalDownloadPart = {
  * each call, so a part's URLs are minted right before it starts and a retry gets new ones.
  * `id` breaks `created_at` ties so the split is the same on every call.
  *
- * Roles: owner only. Original and ZIP downloads never go to support access (D27).
+ * Admits: owner, support. Support logs one `originals_zip_downloaded` entry per part, before
+ * any URL is signed (D30). A retry of the same part logs again: it signs again.
  */
 export async function listOriginalDownloadUrlsForEventHost(
   hostId: string,
   eventId: string,
   partIndex = 0,
 ): Promise<OriginalDownloadPart | null> {
-  const event = await getEventForHost(hostId, eventId);
-  if (!event) return null;
+  const access = await getEventAccessFor(hostId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  const event = access.event;
 
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -612,6 +625,12 @@ export async function listOriginalDownloadUrlsForEventHost(
 
   const rows = data as Row[];
   const { start, end } = zipPartRange(partIndex, rows.length);
+  if (access.role === "support" && end > start) {
+    await logSupportAccess(hostId, event.id, "originals_zip_downloaded", {
+      part: partIndex + 1,
+      parts: zipPartCount(rows.length),
+    });
+  }
   const items = await Promise.all(
     rows.slice(start, end).map(async (row, offset) => {
       const guestSession = Array.isArray(row.guest_sessions)
@@ -638,6 +657,55 @@ export async function listOriginalDownloadUrlsForEventHost(
     partCount: zipPartCount(rows.length),
     items,
   };
+}
+
+/** The same-origin route that logs a support download, then redirects to the signed original. */
+function originalDownloadPath(eventId: string, captureId: string): string {
+  return `/events/${encodeURIComponent(eventId)}/photos/${encodeURIComponent(captureId)}/original`;
+}
+
+/**
+ * One original, signed for download (`GET /events/[eventId]/photos/[captureId]/original`).
+ * Admits: owner, support. Support's download is logged (`original_downloaded`) before the URL is
+ * signed, so a failed log write signs nothing (D30). Committed, non-deleted captures only,
+ * hidden included, as in "Download all".
+ */
+export async function getOriginalDownloadUrl(
+  userId: string,
+  eventId: string,
+  captureId: string,
+): Promise<string | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(captureId)) return null;
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+
+  const { data, error } = await createServiceClient()
+    .from("captures")
+    .select("id, slot_index, storage_path, mime_type, guest_sessions(display_name)")
+    .eq("id", captureId)
+    .eq("event_id", access.event.id)
+    .eq("status", "committed")
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as {
+    id: string;
+    slot_index: number;
+    storage_path: string;
+    mime_type: string | null;
+    guest_sessions: { display_name: string } | { display_name: string }[] | null;
+  };
+
+  if (access.role === "support") {
+    await logSupportAccess(userId, access.event.id, "original_downloaded", { capture_id: row.id });
+  }
+  const guestSession = Array.isArray(row.guest_sessions) ? row.guest_sessions[0] : row.guest_sessions;
+  return createSignedReadUrl(
+    row.storage_path,
+    60 * 10,
+    filenameForOriginal(row.slot_index, guestSession?.display_name ?? "guest", row.mime_type),
+  );
 }
 
 export type ModerationAction =

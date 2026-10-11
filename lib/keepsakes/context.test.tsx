@@ -4,6 +4,7 @@ import type { EventRow } from "@/lib/db/types";
 import { deriveAccentRoles } from "@/lib/theme/accents";
 import {
   buildFullSetKeepsakeInput,
+  buildFullSetPreviewInput,
   buildKeepsakeContext,
   buildSingleKeepsakeInput,
   keepsakeDate,
@@ -124,6 +125,24 @@ describe("Full Set input (closed, photography-first)", () => {
   it("refuses anything but exactly five photos: no partial, padded or six-photo Full Set", () => {
     for (const n of [0, 1, 4, 6]) {
       expect(() => buildFullSetKeepsakeInput(context, "grid", five.slice(0, Math.min(n, 5)).concat(n === 6 ? [five[0]] : []))).toThrow();
+    }
+  });
+
+  it("refuses a padded set: an empty slot is preview-only (D29)", () => {
+    const padded = [...five.slice(0, 4), { src: "" }];
+    expect(() => buildFullSetKeepsakeInput(context, "grid", padded as never)).toThrow();
+  });
+
+  it("a preview pads to five empty slots and every template draws the empty ones as fill only", () => {
+    const input = buildFullSetPreviewInput(context, "signature", five.slice(0, 2) as never);
+    expect(input.photos.map((p) => p.src)).toEqual(["data:0", "data:1", "", "", ""]);
+    expect(() => buildFullSetPreviewInput(context, "signature", [...five, five[0]] as never)).toThrow();
+    for (const { id } of FULL_SET_STYLES) {
+      const html = renderToStaticMarkup(
+        <FullSetKeepsake input={buildFullSetPreviewInput(context, id, five.slice(0, 2) as never)} target="preview" />,
+      );
+      expect(html).not.toContain('src=""');
+      expect(html.match(/src="data:[01]"/g)).toHaveLength(2);
     }
   });
 

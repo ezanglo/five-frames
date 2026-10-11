@@ -3,7 +3,9 @@ import "server-only";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventByToken } from "@/lib/dal/events";
 import { getGuestSession } from "@/lib/dal/guest-sessions";
-import { deriveEventLifecycleState } from "@/lib/events/lifecycle";
+import { getEventAccessFor, type EventRole } from "@/lib/dal/event-access";
+import { logSupportAccess } from "@/lib/dal/support-actions";
+import { deriveEventLifecycleState, isCaptureOpen } from "@/lib/events/lifecycle";
 import { downloadCaptureObject } from "@/lib/media/storage";
 import { readThemeImageBytes } from "@/lib/dal/event-theme";
 import { keepsakeFilename } from "@/lib/keepsakes/filename";
@@ -23,8 +25,9 @@ import type { CaptureRow, EventRow } from "@/lib/db/types";
  * request is authorized here, fresh, in this order:
  *
  * 1. guest event access: the current event token resolves to an activated event that isn't
- *    expired, archived or media-deleted. This is NOT the capture gate — keepsakes work before,
- *    during and after capture is open (`isCaptureOpen` belongs only to reserve and commit);
+ *    archived or media-deleted. This is NOT the capture gate — keepsakes work before, during and
+ *    after capture is open, and after hosted access expires for as long as the guest's own photos
+ *    are still there (`isCaptureOpen` belongs only to reserve and commit);
  * 2. the signed guest cookie's session exists for this event;
  * 3. the style id belongs to this route's family, and the event's plan offers it (a Free event
  *    has only each family's preselected style, product.md §15.3.1);
@@ -60,11 +63,14 @@ export async function resolveGuestKeepsakeAccess(
   return { event, guestSessionId };
 }
 
-/** Guest event access for keepsakes: activated, not expired/archived, media not deleted. */
+/**
+ * Guest event access for keepsakes: activated, not archived, media not deleted. An expired event
+ * still qualifies: the guest's own view and original downloads stay until the media is deleted,
+ * so the keepsakes made from them do too.
+ */
 export function isKeepsakeEventReachable(event: EventRow, now: Date = new Date()): boolean {
   if (!event.activated_at || !event.event_token || event.media_deleted_at) return false;
-  const state = deriveEventLifecycleState(event, now);
-  return state !== "expired" && state !== "archived";
+  return deriveEventLifecycleState(event, now) !== "archived";
 }
 
 function isEligibleSource(capture: CaptureRow): boolean {
@@ -245,6 +251,11 @@ export type FullSetSources =
  * makes the set permanently unavailable (the row keeps its slot forever); a hide, until unhidden.
  */
 export async function getFullSetSources(eventId: string, guestSessionId: string): Promise<FullSetSources> {
+  return fullSetFrom(await listSessionCommittedRows(eventId, guestSessionId));
+}
+
+/** Every committed row of one session, hidden and deleted included, in canonical order. */
+async function listSessionCommittedRows(eventId: string, guestSessionId: string): Promise<CaptureRow[]> {
   const { data, error } = await createServiceClient()
     .from("captures")
     .select()
@@ -254,9 +265,28 @@ export async function getFullSetSources(eventId: string, guestSessionId: string)
     .order("committed_at", { ascending: true })
     .order("slot_index", { ascending: true });
   if (error) throw error;
-  const rows = data as CaptureRow[];
+  return data as CaptureRow[];
+}
+
+/** The eligibility rule itself, over one session's committed rows in canonical order. */
+function fullSetFrom(rows: readonly CaptureRow[]): FullSetSources {
   if (rows.length !== 5 || !rows.every(isEligibleSource)) return { kind: "unavailable" };
   return { kind: "eligible", captures: rows as unknown as [CaptureRow, CaptureRow, CaptureRow, CaptureRow, CaptureRow] };
+}
+
+/**
+ * Whether the guest's own view may show a preview-only Full Set with the photos kept so far
+ * (decision D29). Only while capture is open and the session can still reach five: fewer than
+ * five committed rows and none deleted (a deletion never returns its frame). The preview is
+ * drawn in the browser from photos the guest already holds; there is no route that exports one,
+ * so nothing here ever authorizes a partial Full Set.
+ */
+export async function isFullSetPreviewable(event: EventRow, guestSessionId: string): Promise<boolean> {
+  if (!event.sharing_enabled || !isKeepsakeEventReachable(event) || !isCaptureOpen(event)) return false;
+  const rows = await listSessionCommittedRows(event.id, guestSessionId);
+  // Zero rows qualifies: the page isn't refreshed after each commit, so the flag must already
+  // be on when the first photo lands. The picker needs at least one photo to show anything.
+  return rows.length < 5 && rows.every((row) => !row.deleted_at);
 }
 
 /**
@@ -301,18 +331,7 @@ async function renderAndConfirmFullSet(
 ): Promise<KeepsakeOutcome> {
   let bytes: Buffer;
   try {
-    const [themeImage, ...photos] = await Promise.all([
-      readThemeImageBytes(access.event),
-      ...captures.map((c) => downloadCaptureObject(c.display_path!)),
-    ]);
-    // A missing source is a retryable failure — never a partial or substituted Full Set.
-    if (photos.some((p) => !p)) return { kind: "render_failed" };
-    bytes = await renderFullSetKeepsakeJpeg({
-      event: keepsakeEventSource(access.event),
-      style: styleId,
-      photos: photos as Buffer[],
-      themeImage,
-    });
+    bytes = await renderFullSetFrom(access.event, captures, styleId);
   } catch (error) {
     console.error("keepsake: full set render failed", error);
     return { kind: "render_failed" };
@@ -328,4 +347,121 @@ async function renderAndConfirmFullSet(
   if (confirmed !== "ok") return { kind: confirmed };
 
   return { kind: "ok", bytes, filename: keepsakeFilename(access.event.name, styleId) };
+}
+
+/**
+ * Renders one Full Set from already-authorized sources. A missing source throws, which callers
+ * report as a retryable failure — never a partial or substituted Full Set.
+ */
+async function renderFullSetFrom(
+  event: EventRow,
+  captures: readonly CaptureRow[],
+  styleId: FullSetStyleId,
+): Promise<Buffer> {
+  const [themeImage, ...photos] = await Promise.all([
+    readThemeImageBytes(event),
+    ...captures.map((c) => downloadCaptureObject(c.display_path!)),
+  ]);
+  if (photos.some((p) => !p)) throw new Error("A Full Set source image is missing");
+  return renderFullSetKeepsakeJpeg({
+    event: keepsakeEventSource(event),
+    style: styleId,
+    photos: photos as Buffer[],
+    themeImage,
+  });
+}
+
+// ------------------------------------------------------------------------------- Host Full Set
+
+/**
+ * The host's Full Set keepsakes (decision D29). Admits: owner, support (D30). Support's keepsake
+ * is logged (`keepsake_made`, one per guest session per 30 minutes) before it renders, so a
+ * failed log write renders nothing. A host Full Set is
+ * one guest session's set, chosen by session, built by the same `getFullSetSources` rule as the
+ * guest's own: exactly five committed, unhidden, undeleted captures in canonical order. The host
+ * never names captures, and a set never mixes guests. The guest sharing setting doesn't apply
+ * (it governs what guests can do); the plan's style entitlement does.
+ */
+type HostAccess = { event: EventRow; role: EventRole };
+
+async function resolveHostKeepsakeAccess(userId: string, eventId: string): Promise<HostAccess | null> {
+  const access = await getEventAccessFor(userId, eventId, ["owner", "support"]);
+  if (!access) return null;
+  const event = access.event;
+  if (!event.activated_at || event.media_deleted_at) return null;
+  if (deriveEventLifecycleState(event) === "archived") return null;
+  return { event, role: access.role };
+}
+
+/**
+ * The guest sessions on this event whose Full Set is available, each with its five capture ids in
+ * canonical order, for the Photos tab. Owner or support; null when not admitted.
+ */
+export async function listHostFullSets(
+  userId: string,
+  eventId: string,
+): Promise<Record<string, readonly string[]> | null> {
+  const access = await resolveHostKeepsakeAccess(userId, eventId);
+  if (!access) return null;
+  const { data, error } = await createServiceClient()
+    .from("captures")
+    .select()
+    .eq("event_id", access.event.id)
+    .eq("status", "committed")
+    .order("committed_at", { ascending: true })
+    .order("slot_index", { ascending: true });
+  if (error) throw error;
+
+  const bySession = new Map<string, CaptureRow[]>();
+  for (const row of data as CaptureRow[]) {
+    const list = bySession.get(row.guest_session_id) ?? [];
+    list.push(row);
+    bySession.set(row.guest_session_id, list);
+  }
+  const sets: Record<string, readonly string[]> = {};
+  for (const [sessionId, rows] of bySession) {
+    const sources = fullSetFrom(rows);
+    if (sources.kind === "eligible") sets[sessionId] = sources.captures.map((c) => c.id);
+  }
+  return sets;
+}
+
+/** `GET /events/[eventId]/keepsake/[guestSessionId]/[styleId]` — owner or support (logged). */
+export async function makeHostFullSetKeepsake(
+  userId: string,
+  eventId: string,
+  guestSessionId: string,
+  styleId: string,
+  hooks: RenderHooks = {},
+): Promise<KeepsakeOutcome> {
+  if (!/^[0-9a-f-]{36}$/i.test(guestSessionId)) return { kind: "not_found" };
+  const access = await resolveHostKeepsakeAccess(userId, eventId);
+  if (!access) return { kind: "not_found" };
+  if (!isFullSetStyleId(styleId) || !isStyleAllowed(styleId, eventPlanFeatures(access.event))) {
+    return { kind: "not_found" };
+  }
+  const sources = await getFullSetSources(access.event.id, guestSessionId);
+  if (sources.kind !== "eligible") return { kind: "not_found" };
+  if (access.role === "support") {
+    await logSupportAccess(userId, access.event.id, "keepsake_made", { guest_session_id: guestSessionId, style: styleId });
+  }
+
+  return measured("fullSet", styleId, async () => {
+    let bytes: Buffer;
+    try {
+      bytes = await renderFullSetFrom(access.event, sources.captures, styleId);
+    } catch (error) {
+      console.error("keepsake: host full set render failed", error);
+      return { kind: "render_failed" };
+    }
+    await hooks.afterRender?.();
+    // Re-confirm: still the owner, and the same five are still the session's eligible set.
+    const [again, now] = await Promise.all([
+      resolveHostKeepsakeAccess(userId, eventId),
+      getFullSetSources(access.event.id, guestSessionId),
+    ]);
+    if (!again || now.kind !== "eligible") return { kind: "not_found" };
+    if (now.captures.some((c, i) => c.id !== sources.captures[i].id)) return { kind: "not_found" };
+    return { kind: "ok", bytes, filename: keepsakeFilename(access.event.name, styleId) };
+  });
 }
