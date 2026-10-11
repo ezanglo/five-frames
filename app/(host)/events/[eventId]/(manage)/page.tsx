@@ -233,7 +233,7 @@ export default async function EventDashboardPage({
     return "Capture has closed for good. Moderation, downloads and sharing still work.";
   }
 
-  const { printSignage } = eventPlanFeatures(event);
+  const { printSignage, tableNumberCards } = eventPlanFeatures(event);
   const shareCard = capturePath ? (
     <SectionCard title="Share with guests" caption="Guests scan or open this to join.">
       <div className="flex gap-4">
@@ -271,6 +271,16 @@ export default async function EventDashboardPage({
           <SignageLink eventId={eventId} format="table-card" label="Table card" />
           <SignageLink eventId={eventId} format="poster" label="Poster" />
           <SignageLink eventId={eventId} format="digital" label="Digital" />
+          {tableNumberCards && (
+            // Needs a table count, so it opens Look → Signage rather than downloading here.
+            <Link
+              href={`/events/${eventId}/settings/look?preview=table-numbers`}
+              className={buttonClass("text", "sm", "flex items-center gap-1 text-caption")}
+            >
+              <Printer className="size-3.5" aria-hidden />
+              Table numbers
+            </Link>
+          )}
         </div>
       )}
     </SectionCard>

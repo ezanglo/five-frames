@@ -613,7 +613,7 @@ No branded template is copied. The references are not wedding-specific.
 
 ### Signage (`lib/media/signage.ts`)
 
-One system in four compositions: an **identity field** (theme image, or night + accent glow,
+One system in five compositions: an **identity field** (theme image, or night + accent glow,
 carrying the lockup, the Fraunces name, date and hashtag), a **white scan side** (the QR plate,
 "Scan. You have five frames.", "No app. No account."), and a thin **accent band**.
 
@@ -623,6 +623,7 @@ carrying the lockup, the Fraunces name, date and hashtag), a **white scan side**
 | Table card | 700 × 500 (7 × 5 in) | 280-unit field left, scan side right | 212 (≈ 5.4 cm) |
 | Poster | 1200 × 1800 (2:3, 24 × 36 in) | 780-unit field on top, then plate + Jakarta 800 instruction at 56 | 540 (≈ 27 cm) |
 | Digital | 1920 × 1080 (16:9) | 1040-unit field left with the name at up to 120, scan side right. For TVs, projectors and tablets, not a scaled poster | 520 |
+| Table numbers (Standard, Premium) | 500 × 700 (5 × 7 in) | 372-unit field on top: lockup, "TABLE" kicker in the accent, the number in Fraunces at one size per set (≈ 1.5 in of ink), one-line name, hashtag. No theme image or date. Scan side below | 160 (≈ 4 cm) |
 
 - **The QR plate is never themed:** ink modules on white. Padding = 4 modules at every size.
   Nothing inside the plate. Accent brackets sit **outside** it (a gap of at least 9 units). The

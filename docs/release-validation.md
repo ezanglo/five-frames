@@ -411,7 +411,7 @@ earlier ones create:
 7. **E** GAL-01 (gallery locked while capture is open)
 8. **B** HOST-07 (close and reopen), with GAL-02 during the closed period
 9. **E** GAL-03 (custom reveal)
-10. **B** HOST-08 … HOST-11 (moderation, downloads, state)
+10. **B** HOST-08 … HOST-12 (moderation, downloads, state, table-number cards)
 11. **E** GAL-04, GAL-07, GAL-08, then GAL-05, GAL-06
 12. **F** OPS-01 … OPS-06
 13. **G** CAP-01, CAP-02, CAP-03
@@ -469,6 +469,12 @@ and picker, the guest's and host's multi-file original download, the host dashbo
 payment copy, the Console's payment rows, and the TUS endpoint. Keepsake routes, templates,
 picker and share/save code are unchanged (`own-photos.tsx` changed only in "Download my photos"),
 as are signage and `DashboardLive`/`/live`. No existing evidence is invalidated.
+
+**Slice 24 invalidates the Slice 17 signage evidence.** It adds a format to the signage renderer,
+and it changes how every format writes its text: relative path data on a 0.1-unit grid instead
+of absolute coordinates. A raster diff shows no visible change, but the rule above applies.
+HOST-12 reprints and scans the QR format and the table card along with the new table-number
+cards.
 
 ---
 
@@ -753,6 +759,28 @@ Run on a desktop browser unless stated. Host A, event E1.
   - the Operator Console shows the same numbers.
 - **Result:** BLOCKED
 - **Evidence / notes:** Partial: E1m dashboard tracked each state (Draft → Active/closed → Open ↔ Closed) and counts (3 guests; 7 photos, then 6 after a delete). The Operator Console comparison was refused by the session's permission policy.
+
+#### HOST-12 · Table-number cards, and the Slice 17 signage reprint (Slice 24, criterion 78)
+- **Where:** desktop browser + a printer + real iPhone and Android phones
+- **Needs:** HOST-06 (E1 activated on Standard or Premium, link current). A Free event from the
+  plan cases, if one exists.
+- **Steps:**
+  1. Settings → Look → Signage → **Numbers**. Enter 0 and 101, then 12, and download.
+  2. Print table 1 and table 12 at 5 × 7 in. Stand one up and read it from across the room
+     (~5 m). Scan each QR from table distance with the iPhone and the Android phone.
+  3. Download and print the QR format and the table card. Scan both.
+  4. On the Free event, look for the Numbers format and the dashboard's "Table numbers" link,
+     then open `/events/<free id>/signage/table-numbers?count=5` directly.
+- **PASS when:**
+  - 0 and 101 are refused; 12 downloads one ZIP of `table-01.svg` … `table-12.svg`, each with
+    its own number and otherwise identical;
+  - the number reads clearly from across the room, and every card's QR opens E1's capture page;
+  - the QR format and table card look as they did at Slice 17 and scan, with nothing themed in
+    the QR's white margin;
+  - the Free event offers neither the format nor the link, and the direct address returns not
+    found.
+- **Result:** NOT RUN
+- **Evidence / notes:**
 
 ### C. Guest capture — real devices
 

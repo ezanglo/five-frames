@@ -35,9 +35,20 @@ describe("plan entitlements", () => {
     }
   });
 
-  it("gives paid events every signage format", () => {
-    expect(signageFormatsFor(paid).map((f) => f.id)).toEqual([...SIGNAGE_FORMATS]);
-    for (const format of SIGNAGE_FORMATS) expect(isSignageFormatAllowed(format, paid)).toBe(true);
+  it("gives Standard and Premium every signage format, table-number cards included (criterion 78)", () => {
+    for (const features of [PLANS.intimate.features, PLANS.celebration.features]) {
+      expect(signageFormatsFor(features).map((f) => f.id)).toEqual([...SIGNAGE_FORMATS]);
+      for (const format of SIGNAGE_FORMATS) expect(isSignageFormatAllowed(format, features)).toBe(true);
+    }
+    expect(isSignageFormatAllowed("table-number", free)).toBe(false);
+  });
+
+  it("gates table-number cards on their own feature, not on print signage alone", () => {
+    const printOnly = { ...paid, tableNumberCards: false };
+    expect(isSignageFormatAllowed("table-number", printOnly)).toBe(false);
+    expect(isSignageFormatAllowed("poster", printOnly)).toBe(true);
+    // A feature flag can't hand a Free-like event table cards without print signage.
+    expect(isSignageFormatAllowed("table-number", { ...free, tableNumberCards: true })).toBe(false);
   });
 
   it("gives a Free event only each family's preselected keepsake style (criterion 84)", () => {

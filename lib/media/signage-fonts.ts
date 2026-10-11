@@ -153,7 +153,7 @@ export function outlineText(
   const alpha = opacity === undefined ? "" : ` fill-opacity="${opacity}"`;
   for (const piece of pieces) {
     if (piece.kind === "glyph") {
-      const d = piece.glyph.getPath(x + piece.x, baseline, style.size).toPathData(2);
+      const d = relativePathData(piece.glyph.getPath(x + piece.x, baseline, style.size));
       if (d) data.push(d);
     } else {
       fallbacks.push(
@@ -167,4 +167,56 @@ export function outlineText(
 
 function round(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * A glyph outline as relative path data on a 0.1-unit grid. 0.1 unit is at most 0.001 in on any
+ * print format, so the letters are unchanged; relative commands make the same glyph the same
+ * bytes wherever it sits, which is what keeps a set of table-number cards small enough to zip
+ * into one response (architecture §7c). Points are snapped before differencing, so rounding
+ * never accumulates along a contour.
+ */
+function relativePathData(path: opentype.Path): string {
+  const snap = (v: number) => Math.round(v * 10);
+  const num = (tenths: number) => {
+    const text = String(tenths / 10);
+    return text.startsWith("0.") ? text.slice(1) : text.startsWith("-0.") ? `-${text.slice(2)}` : text;
+  };
+  let out = "";
+  let cx = 0;
+  let cy = 0;
+  let start: [number, number] = [0, 0];
+  const pair = (x: number, y: number) => {
+    const dx = num(snap(x) - cx);
+    const dy = num(snap(y) - cy);
+    return dy.startsWith("-") ? `${dx}${dy}` : `${dx} ${dy}`;
+  };
+  const sep = (s: string) => (s.startsWith("-") ? s : ` ${s}`);
+  for (const c of path.commands) {
+    switch (c.type) {
+      case "M": {
+        out += `${out ? "m" : "M"}${out ? pair(c.x, c.y) : `${num(snap(c.x))} ${num(snap(c.y))}`}`;
+        [cx, cy] = [snap(c.x), snap(c.y)];
+        start = [cx, cy];
+        break;
+      }
+      case "L":
+        out += `l${pair(c.x, c.y)}`;
+        [cx, cy] = [snap(c.x), snap(c.y)];
+        break;
+      case "Q":
+        out += `q${pair(c.x1, c.y1)}${sep(pair(c.x, c.y))}`;
+        [cx, cy] = [snap(c.x), snap(c.y)];
+        break;
+      case "C":
+        out += `c${pair(c.x1, c.y1)}${sep(pair(c.x2, c.y2))}${sep(pair(c.x, c.y))}`;
+        [cx, cy] = [snap(c.x), snap(c.y)];
+        break;
+      case "Z":
+        out += "z";
+        [cx, cy] = start;
+        break;
+    }
+  }
+  return out;
 }

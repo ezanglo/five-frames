@@ -1,10 +1,15 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { Download, Lock } from "lucide-react";
 import { Button, ButtonAnchor } from "@/components/ff/button";
+import { fieldControlClass } from "@/components/ff/field";
 import type { AccentKey } from "@/lib/theme/accents";
 import {
+  TABLE_COUNT_MAX,
+  TABLE_COUNT_MIN,
+  TABLE_NUMBER_PREVIEW,
+  parseTableCount,
   signageFormatsFor,
   signageFormatSpec,
   type SignageFormat,
@@ -18,6 +23,7 @@ import { SegmentedTabs, tabPanelProps } from "./segmented-tabs";
  * renderer's own SVG (`/events/[id]/signage/[format]/preview`, architecture §7c), so the host sees
  * what prints. Before activation it carries the URL-less placeholder QR and there is no download;
  * afterwards it carries the real QR and each format downloads from the existing route.
+ * Table-number cards preview one sample card and download as a set of the host's count.
  */
 
 export type SignageLook = {
@@ -120,6 +126,68 @@ function DraftBadge() {
 }
 
 /**
+ * Table-number cards: how many tables (the host's only input, never stored), then one ZIP of
+ * that many cards. Enter never submits the surrounding Look form.
+ */
+function TableNumbersDownload({ eventId, disabled }: { eventId: string; disabled: boolean }) {
+  const id = useId();
+  const [value, setValue] = useState("");
+  const count = parseTableCount(value.trim());
+  const invalid = value.trim() !== "" && count === null;
+  const label = count ? `Download ${count} card${count === 1 ? "" : "s"}` : "Download cards";
+
+  let action: ReactNode;
+  if (disabled || !count) {
+    action = (
+      <Button type="button" variant="dark" size="sm" disabled>
+        <Download aria-hidden />
+        {label}
+      </Button>
+    );
+  } else {
+    action = (
+      <ButtonAnchor href={`/events/${eventId}/signage/table-numbers?count=${count}`} download variant="dark" size="sm">
+        <Download aria-hidden />
+        {label}
+      </ButtonAnchor>
+    );
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        <label htmlFor={`${id}-count`} className="text-caption font-semibold text-ink">
+          Tables
+        </label>
+        <input
+          id={`${id}-count`}
+          type="number"
+          inputMode="numeric"
+          min={TABLE_COUNT_MIN}
+          max={TABLE_COUNT_MAX}
+          step={1}
+          placeholder={`${TABLE_COUNT_MIN}–${TABLE_COUNT_MAX}`}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.preventDefault();
+          }}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? `${id}-error` : undefined}
+          className={cn(fieldControlClass, "h-11 w-[5.5rem] px-3")}
+        />
+        {action}
+      </div>
+      {invalid && (
+        <p id={`${id}-error`} className="text-caption font-medium text-danger" role="alert">
+          Enter a whole number from {TABLE_COUNT_MIN} to {TABLE_COUNT_MAX}.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
  * The Signage tab: format switcher, one large format with its size and use, and the Draft badge
  * or the Download action. Downloads use the saved look, so they wait while there are unsaved
  * changes rather than handing over something other than the preview.
@@ -131,6 +199,7 @@ export function SignagePanel({
   features,
   dirty,
   large,
+  initialFormat,
 }: {
   look: SignageLook;
   /** Activated: paid for, or the account's Free event. */
@@ -141,11 +210,17 @@ export function SignagePanel({
   features: PlanFeatures;
   dirty: boolean;
   large?: boolean;
+  /** Open on this format when the plan has it (e.g. the dashboard's "Table numbers" link). */
+  initialFormat?: SignageFormat;
 }) {
   const idBase = useId();
   const formats = signageFormatsFor(features);
   const [format, setFormat] = useState<SignageFormat>(
-    formats.some((f) => f.id === "table-card") ? "table-card" : formats[0].id,
+    initialFormat && formats.some((f) => f.id === initialFormat)
+      ? initialFormat
+      : formats.some((f) => f.id === "table-card")
+        ? "table-card"
+        : formats[0].id,
   );
   const spec = signageFormatSpec(format);
   const portrait = spec.height > spec.width;
@@ -155,6 +230,7 @@ export function SignagePanel({
   if (!activated) note = "The code here is a placeholder. Your real QR and downloads arrive when you activate.";
   else if (!liveCode) note = "Your capture link is revoked, so there’s no code to print. Create a new one in Settings → Links.";
   else if (dirty) note = "Downloads use your saved look. Save your changes to download this one.";
+  else if (format === "table-number") note = "Every card has your event’s real QR, the same on every table.";
   else note = "Uses your event’s real QR. Changing the look never changes where it points.";
 
   return (
@@ -167,9 +243,9 @@ export function SignagePanel({
             size="sm"
             value={format}
             onChange={setFormat}
-            // All four chips stay visible on a phone rather than scrolling out of view.
+            // Every chip stays visible on a phone rather than scrolling out of view.
             className="w-full sm:w-auto [&>button]:px-2.5 sm:[&>button]:px-4"
-            tabs={formats.map((f) => ({ id: f.id, label: f.label }))}
+            tabs={formats.map((f) => ({ id: f.id, label: f.chip ?? f.label }))}
           />
         ) : (
           <p className="text-label font-semibold text-ink">
@@ -181,6 +257,8 @@ export function SignagePanel({
         )}
         {!liveCode ? (
           <DraftBadge />
+        ) : format === "table-number" ? (
+          <TableNumbersDownload eventId={look.eventId} disabled={dirty} />
         ) : dirty ? (
           <Button type="button" variant="dark" size="sm" disabled>
             <Download aria-hidden />
@@ -208,6 +286,7 @@ export function SignagePanel({
         <div className="flex w-full flex-col gap-1 text-caption font-medium text-ink-muted sm:flex-row sm:justify-between sm:gap-6">
           <p className="sm:max-w-[48%]">
             <span className="font-semibold text-ink">{spec.label}</span> · {spec.size}. {spec.use}
+            {format === "table-number" && ` The preview shows table ${TABLE_NUMBER_PREVIEW}.`}
           </p>
           <p className="sm:max-w-[48%] sm:text-right" aria-live="polite">
             {note}

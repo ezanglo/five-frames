@@ -1,10 +1,11 @@
+import { strFromU8, unzipSync } from "fflate";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import { createDraftEvent, getEventForHost, revokeEventToken, rotateEventToken } from "@/lib/dal/events";
 import { beginThemeImageUpload, commitThemeImageUpload } from "@/lib/dal/event-theme";
-import { getSignageDownload, getSignagePreview } from "@/lib/dal/signage";
+import { getSignageDownload, getSignagePreview, getTableNumberCardsDownload } from "@/lib/dal/signage";
 import { SIGNAGE_FORMATS } from "@/lib/media/signage-formats";
 import { deriveAccentRoles } from "@/lib/theme/accents";
 import { EVENT_THEME_BUCKET } from "@/lib/theme/image";
@@ -22,6 +23,8 @@ import type { EventRow } from "@/lib/db/types";
 
 const ORIGIN = "http://localhost:3000";
 const PLACEHOLDER = 'fill="#F5F4F8"';
+/** Formats that download as one SVG; table-number cards only download as a numbered set. */
+const FILE_FORMATS = SIGNAGE_FORMATS.filter((f) => f !== "table-number");
 
 describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
   const supabase = createServiceClient();
@@ -128,7 +131,8 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
   it("activated: every download and preview decodes to exactly {origin}/e/{event_token}", async () => {
     const event = await activated();
     const captureUrl = `${ORIGIN}/e/${event.event_token}`;
-    for (const format of SIGNAGE_FORMATS) {
+    expect(await getSignageDownload(hostAId, event.id, "table-number", ORIGIN)).toBeNull();
+    for (const format of FILE_FORMATS) {
       const download = (await getSignageDownload(hostAId, event.id, format, ORIGIN))!;
       expect(download.filename).toBe(`${event.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-${format}.svg`);
       expect(await decodeSvgQr(download.svg)).toBe(captureUrl);
@@ -177,7 +181,7 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
   it("the theme image is read server-side and embedded, on the field formats only", async () => {
     const event = await withThemeImage(await activated());
     expect(event.theme_image_path).toBeTruthy();
-    for (const format of SIGNAGE_FORMATS) {
+    for (const format of FILE_FORMATS) {
       const { svg } = (await getSignageDownload(hostAId, event.id, format, ORIGIN))!;
       const preview = (await getSignagePreview(hostAId, event.id, format, ORIGIN))!;
       for (const out of [svg, preview]) {
@@ -188,6 +192,11 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
       }
       expect(await decodeSvgQr(svg)).toBe(`${ORIGIN}/e/${event.event_token}`);
     }
+    // Table-number cards never take the image, preview or download.
+    const card = (await getSignagePreview(hostAId, event.id, "table-number", ORIGIN))!;
+    expect(card).not.toContain("<image ");
+    const [first] = Object.values(unzipSync((await getTableNumberCardsDownload(hostAId, event.id, "2", ORIGIN))!.zip));
+    expect(strFromU8(first)).not.toContain("<image ");
     // Host B still gets nothing, image or not.
     expect(await getSignageDownload(hostBId, event.id, "poster", ORIGIN)).toBeNull();
   });
@@ -221,7 +230,7 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
     const oldToken = event.event_token!;
     const rotated = (await rotateEventToken(hostAId, event.id))!;
     expect(rotated.event_token).not.toBe(oldToken);
-    for (const format of SIGNAGE_FORMATS) {
+    for (const format of FILE_FORMATS) {
       const { svg } = (await getSignageDownload(hostAId, event.id, format, ORIGIN))!;
       expect(await decodeSvgQr(svg)).toBe(`${ORIGIN}/e/${rotated.event_token}`);
     }
@@ -235,6 +244,66 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
       expect(preview).not.toContain(rotated.event_token!);
       expect(await decodeSvgQr(preview)).toBeNull();
     }
+  });
+
+  describe("table-number cards (criterion 78)", () => {
+    const cards = (zip: Uint8Array) => Object.entries(unzipSync(zip)).map(([name, bytes]) => ({ name, svg: strFromU8(bytes) }));
+
+    it("Standard and Premium: N cards in one ZIP, every one the same capture link, nothing written", async () => {
+      for (const plan of ["intimate", "celebration"] as const) {
+        const event = await update((await activated()).id, { plan });
+        const captureUrl = `${ORIGIN}/e/${event.event_token}`;
+        const download = (await getTableNumberCardsDownload(hostAId, event.id, "12", ORIGIN))!;
+        expect(download.filename).toBe(`${event.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-table-numbers.zip`);
+        const files = cards(download.zip);
+        expect(files.map((f) => f.name)).toEqual(Array.from({ length: 12 }, (_, i) => `table-${String(i + 1).padStart(2, "0")}.svg`));
+        for (const { svg } of files) {
+          expectNoSecrets(svg, event);
+          expect(svg).not.toContain(PLACEHOLDER);
+          expect(svg).not.toContain("<image ");
+        }
+        expect(await decodeSvgQr(files[0].svg)).toBe(captureUrl);
+        expect(await decodeSvgQr(files[11].svg)).toBe(captureUrl);
+        // One code for the set: no per-table link, parameter or record.
+        const code = (svg: string) => svg.match(/<path d="([^"]+)" fill="#15141A" shape-rendering="crispEdges"\/>/)![1];
+        expect(new Set(files.map((f) => code(f.svg))).size).toBe(1);
+
+        const preview = (await getSignagePreview(hostAId, event.id, "table-number", ORIGIN))!;
+        expect(await decodeSvgQr(preview)).toBe(captureUrl);
+        expect((await getEventForHost(hostAId, event.id))!.updated_at).toBe(event.updated_at);
+      }
+    });
+
+    it("the count is 1–100, strictly", async () => {
+      const event = await update((await activated()).id, { plan: "intimate" });
+      expect(cards((await getTableNumberCardsDownload(hostAId, event.id, "1", ORIGIN))!.zip)).toHaveLength(1);
+      expect(cards((await getTableNumberCardsDownload(hostAId, event.id, "100", ORIGIN))!.zip)).toHaveLength(100);
+      for (const count of [null, "", "0", "101", "-3", "2.5", "1e2", "ten", "12;drop"]) {
+        expect(await getTableNumberCardsDownload(hostAId, event.id, count, ORIGIN), String(count)).toBeNull();
+      }
+    });
+
+    it("refuses a Free event, a Draft, a revoked link and another host (criteria 78, 82)", async () => {
+      const free = await update((await activated()).id, { plan: "free" });
+      expect(await getTableNumberCardsDownload(hostAId, free.id, "10", ORIGIN)).toBeNull();
+      expect(await getSignagePreview(hostAId, free.id, "table-number", ORIGIN)).toBeNull();
+
+      const draftEvent = await draft();
+      expect(await getTableNumberCardsDownload(hostAId, draftEvent.id, "10", ORIGIN)).toBeNull();
+      const draftPreview = (await getSignagePreview(hostAId, draftEvent.id, "table-number", ORIGIN))!;
+      expect(draftPreview).toContain(PLACEHOLDER);
+      expect(await decodeSvgQr(draftPreview)).toBeNull();
+
+      const paid = await update((await activated()).id, { plan: "celebration" });
+      expect(await getTableNumberCardsDownload(hostBId, paid.id, "10", ORIGIN)).toBeNull();
+      expect(await getSignagePreview(hostBId, paid.id, "table-number", ORIGIN)).toBeNull();
+
+      const rotated = (await rotateEventToken(hostAId, paid.id))!;
+      const [first] = cards((await getTableNumberCardsDownload(hostAId, paid.id, "3", ORIGIN))!.zip);
+      expect(await decodeSvgQr(first.svg)).toBe(`${ORIGIN}/e/${rotated.event_token}`);
+      await revokeEventToken(hostAId, paid.id);
+      expect(await getTableNumberCardsDownload(hostAId, paid.id, "3", ORIGIN)).toBeNull();
+    });
   });
 
   it("previews stop once the event is no longer editable", async () => {

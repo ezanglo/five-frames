@@ -3,10 +3,12 @@ import "server-only";
 import { getEventForHost } from "@/lib/dal/events";
 import { readThemeImageBytes } from "@/lib/dal/event-theme";
 import { canEditEventTheme } from "@/lib/events/lifecycle";
-import { isSignageFormatAllowed } from "@/lib/media/signage-formats";
+import { TABLE_NUMBER_PREVIEW, isSignageFormatAllowed, parseTableCount } from "@/lib/media/signage-formats";
+import { renderTableNumberZip } from "@/lib/media/table-numbers";
 import { eventPlanFeatures } from "@/lib/plans/registry";
 import {
   PREVIEW_QR,
+  formatTakesImage,
   isSignageFormat,
   liveSignageQr,
   renderEventSignageSvg,
@@ -30,6 +32,9 @@ import type { EventRow } from "@/lib/db/types";
  * Both serve only the formats the event's plan includes (product.md §15.3.1, criterion 82): a
  * Free event gets the phone-screen format, and a request for any other is not found, even by
  * its address.
+ *
+ * Table-number cards (Standard and Premium, criterion 78) download only as a set, through
+ * `getTableNumberCardsDownload`; their preview is one sample card. Their gate is the same.
  */
 
 /** The preview's `<img>` is small; the crop is the download's, just at a lower resolution. */
@@ -43,7 +48,8 @@ export async function getSignageDownload(
   format: string,
   origin: string,
 ): Promise<SignageDownload | null> {
-  if (!isSignageFormat(format)) return null;
+  // Table-number cards only come as a numbered set (below).
+  if (!isSignageFormat(format) || format === "table-number") return null;
   const event = await getEventForHost(hostId, eventId);
   if (!event || !isSignageFormatAllowed(format, eventPlanFeatures(event))) return null;
   const qr = liveSignageQr(event, origin);
@@ -51,7 +57,7 @@ export async function getSignageDownload(
 
   const svg = await renderEventSignageSvg(format, {
     ...presentation(event, {}),
-    themeImage: format === "qr" ? null : await readThemeImageBytes(event),
+    themeImage: formatTakesImage(format) ? await readThemeImageBytes(event) : null,
     qr,
   });
   return { svg, filename: signageFilename(event.name, format) };
@@ -80,11 +86,36 @@ export async function getSignagePreview(
     format,
     {
       ...presentation(event, overrides),
-      themeImage: format === "qr" ? null : await readThemeImageBytes(event),
+      themeImage: formatTakesImage(format) ? await readThemeImageBytes(event) : null,
       qr: liveSignageQr(event, origin) ?? PREVIEW_QR,
+      tableNumber: TABLE_NUMBER_PREVIEW,
     },
     { imageMaxEdge: PREVIEW_IMAGE_EDGE },
   );
+}
+
+export type TableNumberCardsDownload = { zip: Uint8Array; filename: string };
+
+/**
+ * N table-number cards as one ZIP (product.md §11.3, criterion 78). Same gate as a signage
+ * download, plus the plan's `tableNumberCards` and a strict 1–100 count. The count is never
+ * stored, and every card carries the same live QR.
+ */
+export async function getTableNumberCardsDownload(
+  hostId: string,
+  eventId: string,
+  countParam: string | null,
+  origin: string,
+): Promise<TableNumberCardsDownload | null> {
+  const count = parseTableCount(countParam);
+  if (count === null) return null;
+  const event = await getEventForHost(hostId, eventId);
+  if (!event || !isSignageFormatAllowed("table-number", eventPlanFeatures(event))) return null;
+  const qr = liveSignageQr(event, origin);
+  if (qr?.kind !== "live") return null;
+
+  const zip = await renderTableNumberZip({ ...presentation(event, {}), qr }, count);
+  return { zip, filename: `${safeName(event.name)}-table-numbers.zip` };
 }
 
 /** The only event fields signage may show. Everything else on the row stays here. */
@@ -103,7 +134,10 @@ function presentation(event: EventRow, overrides: SignagePreviewOverrides) {
   };
 }
 
+function safeName(eventName: string): string {
+  return eventName.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "event";
+}
+
 export function signageFilename(eventName: string, format: SignageFormat): string {
-  const safe = eventName.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "event";
-  return `${safe}-${format}.svg`;
+  return `${safeName(eventName)}-${format}.svg`;
 }

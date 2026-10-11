@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { unzipSync, strFromU8 } from "fflate";
 import { beforeAll, describe, expect, it } from "vitest";
 import { WORDMARK_TITTLE_PATH } from "@/lib/brand/logo";
 import { decodeSvgQr } from "@/test/qr-decode";
@@ -12,11 +13,13 @@ import {
   type SignageInput,
   type SignageQr,
 } from "./signage";
-import { SIGNAGE_FORMATS, signageFormatSpec, type SignageFormat } from "./signage-formats";
+import { SIGNAGE_FORMATS, parseTableCount, signageFormatSpec, type SignageFormat } from "./signage-formats";
+import { renderTableNumberZip, tableCardFilename } from "./table-numbers";
 import {
   GUEST_INSTRUCTION,
   INK,
   NO_APP_REASSURANCE,
+  TABLE_LABEL,
   QUIET_ZONE_MODULES,
   WHITE,
   contains,
@@ -66,6 +69,7 @@ function input(overrides: Partial<SignageInput> = {}): SignageInput {
     accent: deriveAccentRoles("marigold"),
     themeImage: null,
     qr: LIVE,
+    tableNumber: 12,
     ...overrides,
   };
 }
@@ -177,14 +181,14 @@ describe("renderEventSignage — geometry per format", () => {
     for (const t of layout.texts) {
       const onField = layout.field ? contains(layout.field, t.box) : false;
       if (t.role === "instruction" || t.role === "reassurance") expect(onField).toBe(false);
-      if (layout.field && (t.role === "name" || t.role === "date" || t.role === "hashtag")) expect(onField).toBe(true);
+      if (layout.field && ["name", "date", "hashtag", "tableLabel", "tableNumber"].includes(t.role)) expect(onField).toBe(true);
     }
   });
 
   it.each(SIGNAGE_FORMATS)("%s uses the theme image only where the design places it, cropped to the field", async (format) => {
     const { svg, layout } = await renderEventSignage(format, input({ themeImage: busyImage }));
     const images = svg.match(/<image /g) ?? [];
-    if (format === "qr") {
+    if (format === "qr" || format === "table-number") {
       expect(layout.image).toBeNull();
       expect(images).toHaveLength(0);
     } else {
@@ -215,7 +219,8 @@ describe("renderEventSignage — geometry per format", () => {
     expect(text).toContain(NO_APP_REASSURANCE);
     expect(text.join(" ")).toContain("Dani’s 40th");
     expect(text).toContain("#DaniTurns40");
-    if (format !== "qr") expect(text).toContain("Sun, 18 Oct 2026");
+    // The table-number card leaves the date off: the number has the field.
+    if (format !== "qr" && format !== "table-number") expect(text).toContain("Sun, 18 Oct 2026");
     expect(svg).toContain(WORDMARK_TITTLE_PATH);
   });
 });
@@ -254,7 +259,7 @@ describe("renderEventSignage — text safety", () => {
 });
 
 describe("renderEventSignage — long names and hashtags", () => {
-  const MAX_LINES: Record<SignageFormat, number> = { qr: 2, "table-card": 3, poster: 2, digital: 3 };
+  const MAX_LINES: Record<SignageFormat, number> = { qr: 2, "table-card": 3, poster: 2, digital: 3, "table-number": 1 };
 
   it.each(SIGNAGE_FORMATS)("%s steps a long name down, wraps it, and ellipsizes only as a last resort", async (format) => {
     const short = await renderEventSignage(format, input({ eventName: "Dani’s 40th" }));
@@ -265,8 +270,11 @@ describe("renderEventSignage — long names and hashtags", () => {
     const size = (l: SignageLayout) => names(l)[0].style.size;
     expect(size(short.layout)).toBeGreaterThanOrEqual(size(medium.layout));
     expect(size(medium.layout)).toBeGreaterThanOrEqual(size(long.layout));
-    if (format !== "qr") expect(size(short.layout)).toBeGreaterThan(size(medium.layout));
-    expect(names(medium.layout).map((t) => t.text).join(" ")).toBe("The Reyes–Villanueva Family Homecoming Weekend");
+    if (format !== "qr" && format !== "table-number") expect(size(short.layout)).toBeGreaterThan(size(medium.layout));
+    // The table-number card gives the name one line under the number.
+    if (format !== "table-number") {
+      expect(names(medium.layout).map((t) => t.text).join(" ")).toBe("The Reyes–Villanueva Family Homecoming Weekend");
+    }
     expect(names(long.layout).length).toBeLessThanOrEqual(MAX_LINES[format]);
     expect(names(long.layout).at(-1)!.text.endsWith("…")).toBe(true);
     for (const t of names(long.layout)) {
@@ -389,5 +397,83 @@ describe("QR modes", () => {
     const a = (await renderEventSignage("table-card", input({ qr: PREVIEW_QR }))).svg;
     const b = (await renderEventSignage("table-card", input({ qr: PREVIEW_QR, eventName: "Other", accent: deriveAccentRoles("teal") }))).svg;
     expect(placeholder(a)).toBe(placeholder(b));
+  });
+});
+
+describe("table-number cards (criterion 78)", () => {
+  const number = (l: SignageLayout) => l.texts.find((t) => t.role === "tableNumber")!;
+  const cards = (overrides: Partial<SignageInput> = {}) => {
+    const { eventName, eventDate, hashtag, accent } = input(overrides);
+    return { eventName, eventDate, hashtag, accent, qr: LIVE as Extract<SignageQr, { kind: "live" }> };
+  };
+
+  it.each([1, 7, 10, 48, 88, 100])("table %i: the number is the largest text, on the field, inside the safe area", async (n) => {
+    const { layout } = await renderEventSignage("table-number", input({ tableNumber: n, eventName: LONG_NAME, hashtag: "ReyesVillanuevaHomecoming_2027" }));
+    const placed = number(layout);
+    expect(placed.text).toBe(String(n));
+    expect(layout.texts.find((t) => t.role === "tableLabel")!.text).toBe(TABLE_LABEL);
+    for (const t of layout.texts) if (t !== placed) expect(placed.style.size).toBeGreaterThan(t.style.size);
+    expect(contains(layout.field!, placed.box)).toBe(true);
+    expect(contains(layout.safe, placed.box)).toBe(true);
+    for (const t of layout.texts.filter((t) => t !== placed && t.role !== "previewLabel" && t.role !== "previewNote")) {
+      expect(intersects(placed.box, t.box), `${t.role} overlaps the number`).toBe(false);
+    }
+    // Across a room: at least 1.4 in of ink at 100 units per inch.
+    expect(placed.box.height).toBeGreaterThanOrEqual(140);
+  });
+
+  it("every card in a set uses one number size and one layout, whatever its digits", async () => {
+    const layouts = await Promise.all([1, 9, 10, 99, 100].map(async (n) => (await renderEventSignage("table-number", input({ tableNumber: n }))).layout));
+    expect(new Set(layouts.map((l) => number(l).style.size)).size).toBe(1);
+    expect(new Set(layouts.map((l) => number(l).baseline)).size).toBe(1);
+    expect(new Set(layouts.map((l) => JSON.stringify(l.plate))).size).toBe(1);
+  });
+
+  it.each([0, 101, -1, 1.5, Number.NaN, undefined])("refuses table number %s", async (n) => {
+    await expect(renderEventSignage("table-number", input({ tableNumber: n }))).rejects.toThrow();
+  });
+
+  it("parses the count strictly: whole numbers 1–100 only", () => {
+    for (const ok of ["1", "12", "100"]) expect(parseTableCount(ok)).toBe(Number(ok));
+    for (const bad of [null, "", "0", "101", "1000", "-1", "1.5", "1e2", " 5", "5 ", "0x10", "abc", "12abc"]) {
+      expect(parseTableCount(bad), String(bad)).toBeNull();
+    }
+  });
+
+  it("names files in table order", () => {
+    expect(tableCardFilename(1, 12)).toBe("table-01.svg");
+    expect(tableCardFilename(12, 12)).toBe("table-12.svg");
+    expect(tableCardFilename(7, 100)).toBe("table-007.svg");
+    expect(tableCardFilename(100, 100)).toBe("table-100.svg");
+  });
+
+  it("refuses a ZIP of 0 or 101 cards", async () => {
+    for (const count of [0, 101, 2.5]) await expect(renderTableNumberZip(cards(), count)).rejects.toThrow();
+  });
+
+  it("100 cards with the longest name and hashtag: one ZIP under 4 MB, every card the same code", { timeout: 120_000 }, async () => {
+    // The name ellipsizes at the line's width, so the worst case is the most complex glyphs at
+    // the smallest step, not the longest string.
+    const zip = await renderTableNumberZip(
+      cards({ eventName: "🎉 g&@%$ßQŴgggg&&&&@@@@%%%%$$$$ßßßßQQQQ&&&&gggg@@@@ " + LONG_NAME, hashtag: "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW" }),
+      100,
+    );
+    // Vercel's function response limit is 4.5 MB (architecture §7c); this case is about 1.3 MB.
+    expect(zip.byteLength).toBeLessThan(4 * 1024 * 1024);
+
+    const files = unzipSync(zip);
+    const names = Object.keys(files);
+    expect(names).toEqual(Array.from({ length: 100 }, (_, i) => tableCardFilename(i + 1, 100)));
+    const codes = new Set<string>();
+    for (const [i, name] of names.entries()) {
+      const svg = strFromU8(files[name]);
+      codes.add(svg.match(/<path d="([^"]+)" fill="#15141A" shape-rendering="crispEdges"\/>/)![1]);
+      expect(visibleText(svg)).not.toMatch(/https?:|\/e\//);
+      expect(svg).not.toContain(TOKEN);
+      expect(svg).not.toContain("<image ");
+      if ([0, 41, 99].includes(i)) expect(await decode(svg)).toBe(CAPTURE_URL);
+    }
+    // One QR for the whole set: no per-table link, parameter or tracking.
+    expect(codes.size).toBe(1);
   });
 });

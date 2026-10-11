@@ -39,7 +39,8 @@ export default async function LookSettingsPage({
       activated={Boolean(event.activated_at)}
       liveCode={Boolean(event.activated_at && event.event_token)}
       features={eventPlanFeatures(event)}
-      initialTab={preview === "signage" ? "signage" : undefined}
+      initialTab={preview === "signage" || preview === "table-numbers" ? "signage" : undefined}
+      initialSignageFormat={preview === "table-numbers" ? "table-number" : undefined}
       initial={{
         accent: theme?.accent ?? "violet",
         hashtag: event.hashtag ?? "",

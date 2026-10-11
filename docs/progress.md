@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 23, time sections in the revealed gallery, is `complete`: migration on dev, 642/642 tests and the human checklist passed.** Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 24, table-number cards, is `complete`: no migration, every signage test and the human checklist passed.** Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -10,7 +10,8 @@ Last updated: 2026-10-11 (**Slice 23, time sections in the revealed gallery, is 
   [Slice 22](#slice-22--capacity-override-2026-10-11-complete).
   Slice 23, time sections, is `complete`. See
   [Slice 23](#slice-23--time-sections-2026-10-11-complete).
-  Not started: 24 table-number cards.
+  Slice 24, table-number cards, is `complete`. See
+  [Slice 24](#slice-24--table-number-cards-2026-10-11-complete).
 - **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
   founder's request. Operators open any event's host pages from the Console, change its
   settings, and view and hide its photos. Plan, payment, deletion, ownership and original
@@ -54,6 +55,79 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 24 — Table-number cards (2026-10-11): `complete`
+
+Standard and Premium hosts enter how many tables they have (1–100), preview a sample card, and
+download that many numbered cards as one ZIP. Every card carries the same event capture QR
+(product.md §11.3, criterion 78; architecture §7c "Table-number cards"). Not committed, not
+deployed. No migration.
+
+**Built:**
+- A fifth signage format, `table-number`: 500 × 700 (5 × 7 in portrait), laid out in
+  `signage-layout.ts`. The field holds the lockup, "TABLE", the number, a one-line name and the
+  hashtag; the white side holds the plate and the fixed copy. No theme image, no date. One number
+  size for the whole set (fitted to "100").
+- `signageFormatsFor` lists it only with `printSignage` **and** `tableNumberCards`.
+  `isTableNumber` / `parseTableCount` / `TABLE_NUMBER_PREVIEW` (12) are in `signage-formats.ts`.
+- `lib/media/table-numbers.ts`: `renderTableNumberZip` builds `table-01.svg`… with `fflate` (new
+  dependency, named in architecture §7c).
+- `getTableNumberCardsDownload` (`lib/dal/signage.ts`) behind
+  `/events/[id]/signage/table-numbers?count=N`: owner, activated with a token, plan feature,
+  strict count. `getSignageDownload` refuses `table-number`, so it downloads only as a set. The
+  preview route draws table 12.
+- **Slice 27 must classify `getTableNumberCardsDownload`** with the other signage functions. It
+  is owner-only today, through `getEventForHost`.
+- Look → Signage: a "Numbers" chip, a Tables field (Enter never submits the Look form) and
+  "Download N cards". Dashboard "More signage" → "Table numbers" opens Look on that format
+  (`?preview=table-numbers`). The Share step's tip names the cards.
+- **Every signage format's text is now written as relative path data on a 0.1-unit grid**
+  (`signage-fonts.ts`). Before that change, 100 cards came to 3.9 MB in the worst case, too close
+  to the 4 MB bar. After it, the worst case is 1.3 MB and a typical event is 1.2 MB. A raster
+  diff at 4× density showed only anti-aliasing changes on about 100 edge pixels per run of text.
+  **This invalidates the Slice 17 print-and-scan evidence** under release-validation.md's rule,
+  so HOST-12 re-prints the existing formats too.
+
+**Verification:**
+- `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
+- `signage.test.ts` 106 ✔. The existing geometry, quiet-zone raster, decode, accent and
+  text-safety checks now cover the fifth format. New checks:
+  - the number is the largest text, on the field and in the safe area, for 1, 7, 10, 48, 88 and
+    100, with one size across a set;
+  - invalid numbers are refused, and the count is parsed strictly;
+  - file names;
+  - 100 cards with complex-glyph text stay under 4 MB, with every card the same code (three
+    decoded).
+- `entitlements.test.ts`: Standard and Premium get the format, Free doesn't, and the feature
+  flag alone can't grant it.
+- `signage.integration.test.ts` (real Postgres) 13 ✔:
+  - Standard and Premium ZIPs carry N cards with one capture link and write nothing;
+  - the count is held to 1–100;
+  - Free, Draft (placeholder preview, no download), another host and a revoked link are refused;
+  - rotating the link moves the cards;
+  - the theme image never appears.
+- Full suite: 675/677. The 2 failures were 5 s timeouts in `captures.integration.test.ts`, which
+  passed 18/18 alone. Each full run times out a different DB test. See "Other open items".
+
+**Human checklist on local dev against the dev database, all 5 passed** (reported by the user 2026-10-11):
+1. Activated Standard or Premium event → Settings → Look → Signage → **Numbers**. Expect a 5 × 7
+   card showing table 12 in the event's accent and hashtag, with no theme image, the real QR, and
+   a Tables field. Type 0, then 101: an error shows and Download is disabled. Type 12: "Download
+   12 cards" saves `<event>-table-numbers.zip` with `table-01.svg` … `table-12.svg`. Open two of
+   the files: the right numbers, identical design.
+2. Print one card at 5 × 7 in (or at 100% scale). The number should read clearly from across a
+   room (~5 m). Scan its QR with a phone from table distance: it opens this event's capture
+   page.
+3. Download the QR and table-card formats and print one. They should look as before, and the QR
+   should still scan (the text encoding changed).
+4. On a Draft event, the Numbers card shows the placeholder code and the "Draft preview" badge,
+   with no Tables field. On a Free event, there's no Numbers chip and no "Table numbers"
+   dashboard link, and `/events/<id>/signage/table-numbers?count=5` returns not found.
+5. Dashboard → "More signage" → **Table numbers** opens Look → Signage on Numbers. At phone width
+   (≈390 px), all format chips are visible, the Tables field and button fit with no sideways
+   scroll, and pressing Enter in the field doesn't save or submit the Look form.
+
+Release-validation case HOST-12 is the print-and-scan check for the release candidate.
 
 ## Slice 23 — Time sections (2026-10-11): `complete`
 
@@ -249,7 +323,7 @@ committed, not deployed.
 **Deploy blocker:** the marketing site already shows three things the product doesn't provide
 yet (at the user's request, 2026-10-11):
 - the Free first event, until Slice 21;
-- numbered table cards on the paid plans, until Slice 24;
+- ~~numbered table cards on the paid plans~~ (built in Slice 24, complete; it ships with the next deploy);
 - "Download all as ZIP files", until Slice 26 (which needs Slice 25, R2 storage, first).
 
 Don't deploy Slice 20 until all three have landed.
@@ -363,7 +437,7 @@ it. Automated checks pass (unit 444/444, build). **Needs a quick visual look at 
 - co-host access for Premium after launch (product.md §11.2.2, criterion 87, architecture
   §7f);
 - Drive and co-host may be shown as "coming soon";
-- table-number cards are listed now, so **Slice 24 must land before deploying too**.
+- table-number cards are listed now (Slice 24, now complete, must deploy with them).
 
 **"Download all" as ZIP files is now MVP** (product.md §11.2.3, criterion 88, D25, architecture
 §7 "Bulk download", roadmap Slice 26, after Slice 25 moves storage to R2 (D26)):
@@ -2683,8 +2757,8 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. **Slice 21 still needs its human checklist** (the Slice 21 section). In a fresh session,
-   **Slice 24: table-number cards**. Then Slices 25–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
+1. **Slice 21 still needs its human checklist** (the Slice 21 section). Then Slices 25–26
+   (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
    before anything deploys, because the site already advertises them.
    - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user
      to create the Cloudflare account, enable R2 and put its keys in `.env.local` / Vercel

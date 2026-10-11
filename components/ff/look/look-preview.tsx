@@ -22,6 +22,7 @@ import {
   type KeepsakeStyleMeta,
   type SingleStyleId,
 } from "@/lib/keepsakes/styles";
+import type { SignageFormat } from "@/lib/media/signage-formats";
 import type { PlanFeatures } from "@/lib/plans/registry";
 import { cn } from "@/lib/utils";
 import { GuestPhonePreview } from "./guest-phone-preview";
@@ -43,6 +44,8 @@ export type LookPreviewProps = {
   dirty: boolean;
   /** Open on this tab (e.g. the Share step's "Look → Signage" link). */
   initialTab?: "signage";
+  /** Open the Signage tab on this format (e.g. the dashboard's "Table numbers" link). */
+  initialSignageFormat?: SignageFormat;
 };
 
 type StageTab = "overview" | "guest" | "keepsakes" | "signage";
@@ -144,6 +147,7 @@ function LookStage({
   features,
   dirty,
   initialTab,
+  initialSignageFormat,
   className,
 }: LookPreviewProps & { className?: string }) {
   const idBase = useId();
@@ -212,7 +216,15 @@ function LookStage({
             <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} features={features} large />
           )}
           {tab === "signage" && (
-            <SignagePanel look={signage} activated={activated} liveCode={liveCode} features={features} dirty={dirty} large />
+            <SignagePanel
+              look={signage}
+              activated={activated}
+              liveCode={liveCode}
+              features={features}
+              dirty={dirty}
+              initialFormat={initialSignageFormat}
+              large
+            />
           )}
         </div>
       </div>
@@ -230,6 +242,7 @@ function LookMobilePreview({
   features,
   dirty,
   initialTab,
+  initialSignageFormat,
 }: LookPreviewProps) {
   const idBase = useId();
   const [tab, setTab] = useState<Exclude<StageTab, "overview">>(initialTab ?? "guest");
@@ -271,7 +284,14 @@ function LookMobilePreview({
             <KeepsakesPanel context={keepsakeContext} sharingEnabled={sharingEnabled} features={features} />
           )}
           {tab === "signage" && (
-            <SignagePanel look={signage} activated={activated} liveCode={liveCode} features={features} dirty={dirty} />
+            <SignagePanel
+              look={signage}
+              activated={activated}
+              liveCode={liveCode}
+              features={features}
+              dirty={dirty}
+              initialFormat={initialSignageFormat}
+            />
           )}
         </div>
       </div>

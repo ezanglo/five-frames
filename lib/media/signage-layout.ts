@@ -13,6 +13,7 @@ import type { TextMeasurer, TextStyle } from "./signage-fonts";
  * Every format is one system: an identity field (theme image or night + accent glow) carrying
  * the lockup, name, date and hashtag; a white scan side with the QR plate and the fixed copy; and
  * a thin accent band. The QR format is the all-white exception, with no field and no image.
+ * The table-number card puts its number in the field, above the name, and never takes the image.
  *
  * The QR plate is never themed: it is white, it always rests on white, its padding is at least
  * four modules at every size, and nothing — image, tint, bracket, text — is drawn inside it.
@@ -29,6 +30,7 @@ export const GUEST_INSTRUCTION = "Scan. You have five frames.";
 export const NO_APP_REASSURANCE = "No app. No account.";
 export const PREVIEW_LABEL = "PREVIEW";
 export const PREVIEW_NOTE = "Not a working code";
+export const TABLE_LABEL = "TABLE";
 
 /** A QR's quiet zone, in modules (ISO/IEC 18004). */
 export const QUIET_ZONE_MODULES = 4;
@@ -51,6 +53,8 @@ export type SignageContent = {
   /** Whether a theme image is available; only the field formats draw it. */
   hasImage: boolean;
   code: SignageCode;
+  /** The table-number card's number (1–100); required by that format, ignored by the others. */
+  tableNumber?: number;
 };
 
 export type TextRole =
@@ -59,6 +63,8 @@ export type TextRole =
   | "hashtag"
   | "instruction"
   | "reassurance"
+  | "tableLabel"
+  | "tableNumber"
   | "previewLabel"
   | "previewNote";
 
@@ -630,6 +636,79 @@ function digital(content: SignageContent, tools: LayoutTools): SignageLayout {
   };
 }
 
+/**
+ * One standing card per table (product.md §11.3; architecture §7c "Table-number cards"). The
+ * field carries the lockup, a "TABLE" kicker, the number as large as the field allows, the name
+ * and the hashtag; the white side is the plate and the fixed copy. No theme image and no date:
+ * the number has to dominate from across a room. The number's size is fixed across a set (it
+ * steps down only if "100" wouldn't fit), so 7 and 100 on neighbouring tables match.
+ */
+function tableNumberCard(content: SignageContent, tools: LayoutTools): SignageLayout {
+  const width = 500;
+  const height = 700;
+  const fieldHeight = 372;
+  const margin = 40;
+  const cx = width / 2;
+  const number = content.tableNumber;
+  if (!Number.isInteger(number) || number! < 1 || number! > 100) {
+    throw new Error("table-number signage needs a table number from 1 to 100");
+  }
+  const lockup = { x: 28, y: 28, width: lockupWidth(16), height: 16, tone: "onDark" as const };
+  const { plate, code } = placePlate(cx - plateSlot(160) / 2, 392, 160, content.code);
+  const brackets = placeBrackets(plate, 11, 20, 4, content.accent.base);
+  const texts: PlacedText[] = [];
+
+  texts.push(
+    place(tools, "tableLabel", TABLE_LABEL, { font: "body800", size: 17, letterSpacing: 5 }, cx, "middle", 92, content.accent.onDark),
+  );
+
+  // Sized against the widest number a set can contain, never the card's own.
+  const numberSteps = [236, 212, 188];
+  const maxNumberWidth = width - 2 * margin;
+  const numberStyle: TextStyle = {
+    font: "display600",
+    size: numberSteps.find((size) => tools.measure("100", { font: "display600", size }).width <= maxNumberWidth) ?? numberSteps.at(-1)!,
+  };
+  const numberBaseline = 280;
+  texts.push(place(tools, "tableNumber", String(number), numberStyle, cx, "middle", numberBaseline, WHITE));
+
+  const hashtagBaseline = 348;
+  const nameBaseline = content.hashtag ? 320 : 338;
+  const { lines, style } = fitName(
+    content.name,
+    { font: "display600", steps: [24, 21, 18], maxLines: 1, lineHeight: 1.1, maxWidth: maxNumberWidth },
+    tools,
+    () => true,
+  );
+  texts.push(place(tools, "name", lines[0], style, cx, "middle", nameBaseline, WHITE));
+  if (content.hashtag) {
+    const fitted = fitLine(`#${content.hashtag}`, "body700", [15, 13, 12], maxNumberWidth, tools);
+    texts.push(place(tools, "hashtag", fitted.text, fitted.style, cx, "middle", hashtagBaseline, content.accent.onDark));
+  }
+
+  texts.push(
+    ...scanCopy(tools, cx, plate.y + plate.height + 42, { font: "body700", size: 19 }, { font: "body500", size: 14 }, 22),
+  );
+  if (code.kind === "preview") texts.push(...placePreviewLabels(tools, code.rect));
+
+  return {
+    format: "table-number",
+    width,
+    height,
+    field: { x: 0, y: 0, width, height: fieldHeight, scrim: [0, 0, 0] },
+    image: null,
+    glow: { color: content.accent.base },
+    lockup,
+    plate,
+    code,
+    brackets,
+    band: { x: 0, y: 688, width, height: 12, fill: content.accent.fill },
+    texts,
+    // 0.25 in at 100 units per inch, like the table card.
+    safe: inset(width, height, 25),
+  };
+}
+
 export function layoutSignage(format: SignageFormat, content: SignageContent, tools: LayoutTools): SignageLayout {
   const clean = { ...content, name: words(content.name).join(" ") || "Your event" };
   switch (format) {
@@ -641,5 +720,7 @@ export function layoutSignage(format: SignageFormat, content: SignageContent, to
       return poster(clean, tools);
     case "digital":
       return digital(clean, tools);
+    case "table-number":
+      return tableNumberCard(clean, tools);
   }
 }

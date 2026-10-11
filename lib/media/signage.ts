@@ -22,7 +22,7 @@ import { escapeXml } from "./svg";
 export { SIGNAGE_FORMATS, isSignageFormat, type SignageFormat } from "./signage-formats";
 
 /**
- * Event signage (product.md §11.3, architecture §7c, decision D19): four formats of one themed
+ * Event signage (product.md §11.3, architecture §7c, decision D19): five formats of one themed
  * system, each a self-contained SVG rendered on demand and never persisted. The same function
  * draws the host's Look preview and the download; only the QR input differs.
  *
@@ -62,9 +62,11 @@ export type SignageInput = {
   /** Without "#". */
   hashtag: string | null;
   accent: AccentRoles;
-  /** The normalized theme image, already authorized by the caller. Unused by the QR format. */
+  /** The normalized theme image, already authorized by the caller. Unused by the QR and table-number formats. */
   themeImage: Buffer | null;
   qr: SignageQr;
+  /** The table-number card's number, 1–100. Required by that format; the others ignore it. */
+  tableNumber?: number;
 };
 
 export type SignageRenderOptions = {
@@ -92,8 +94,9 @@ export async function renderEventSignage(
       dateLabel: keepsakeDate(input.eventDate)?.label ?? null,
       hashtag: input.hashtag ? input.hashtag.replace(/^#/, "") || null : null,
       accent: input.accent,
-      hasImage: format !== "qr" && input.themeImage !== null,
+      hasImage: formatTakesImage(format) && input.themeImage !== null,
       code,
+      tableNumber: input.tableNumber,
     },
     { measure: measureText },
   );
@@ -103,6 +106,11 @@ export async function renderEventSignage(
   // An image that can't be decoded degrades to the no-image field rather than failing the sign.
   const finalLayout = layout.image && !image ? layoutWithoutImage(layout, input.accent) : layout;
   return { svg: writeSvg(finalLayout, input.eventName, image, matrix), layout: finalLayout };
+}
+
+/** The QR format is all white; table-number cards keep the number dominant (architecture §7c). */
+export function formatTakesImage(format: SignageFormat): boolean {
+  return format !== "qr" && format !== "table-number";
 }
 
 export async function renderEventSignageSvg(

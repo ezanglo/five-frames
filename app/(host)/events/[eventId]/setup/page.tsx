@@ -390,7 +390,7 @@ export default async function EventSetupPage({
   }
 
   const baseUrl = await getRequestBaseUrl();
-  const { printSignage } = eventPlanFeatures(event);
+  const { printSignage, tableNumberCards } = eventPlanFeatures(event);
   const capturePath = event.event_token ? `/e/${event.event_token}` : null;
   const qr = capturePath ? await qrSvgDataUri(`${baseUrl}${capturePath}`) : null;
   const displayHost = baseUrl.replace(/^https?:\/\//, "");
@@ -435,8 +435,9 @@ export default async function EventSetupPage({
                     </ButtonAnchor>
                   </div>
                   <p className="text-caption font-medium text-ink-muted">
-                    Tip: print the QR on table cards or show it on a screen near the entrance. All
-                    four signage formats (QR, table card, poster and digital) are in{" "}
+                    Tip: print the QR on table cards or show it on a screen near the entrance. Every
+                    signage format (QR, table card, poster, digital
+                    {tableNumberCards ? " and numbered table cards" : ""}) is in{" "}
                     <Link
                       href={`/events/${eventId}/settings/look?preview=signage`}
                       className="ff-focus rounded-sm font-semibold text-brand-ink underline-offset-4 hover:underline"

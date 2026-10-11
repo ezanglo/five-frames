@@ -14,6 +14,7 @@ import { AccentSwatches } from "./accent-swatches";
 import { HashtagField } from "./hashtag-field";
 import { GuestKeepsakesToggle, WelcomeMessageField } from "./look-fields";
 import { LookPreview } from "./look-preview";
+import type { SignageFormat } from "@/lib/media/signage-formats";
 import type { PlanFeatures } from "@/lib/plans/registry";
 import { ThemeImageControl } from "./theme-image-control";
 
@@ -47,6 +48,7 @@ export function LookStudio({
   liveCode = false,
   features,
   initialTab,
+  initialSignageFormat,
   initial,
   action,
   backHref,
@@ -65,6 +67,7 @@ export function LookStudio({
    *  phone-screen sign only (product.md §15.3.1). */
   features: PlanFeatures;
   initialTab?: "signage";
+  initialSignageFormat?: SignageFormat;
   initial: LookInitial;
   action: (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
   backHref?: string;
@@ -159,6 +162,7 @@ export function LookStudio({
       features={features}
       dirty={dirty}
       initialTab={initialTab}
+      initialSignageFormat={initialSignageFormat}
     />
   );
 

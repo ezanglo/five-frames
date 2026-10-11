@@ -4,7 +4,8 @@ Companion to [docs/product.md](./product.md), which remains the authoritative pr
 This document covers **how** the product is built. It does not restate product requirements.
 
 Status: **approved baseline** — five-photo, no-video MVP. Ready for implementation.
-Last updated: 2026-10-11 (operator support access, decision D27, planned as Slice 27: one
+Last updated: 2026-10-11 (Slice 24 as built: table-number cards at 5 × 7 in, ZIP-only download,
+signage text as relative path data — §7c. Earlier the same day: operator support access, decision D27, planned as Slice 27: one
 event-access check with per-function roles, operators running any event through the host's own
 pages, an append-only `support_actions` log shown to the host, display derivatives only — §4,
 §5b, §7a, §7f, §8b, §10, §11, §13. Earlier the same day: plans, decision D24: a plan registry (`lib/plans/`), `events.plan` set
@@ -1188,7 +1189,8 @@ capture's state, or touch an original.
 ## 7c. Signage and previews
 
 product.md §10.1, §11.3; decision D19. Extends the Slice 8 signage renderer (`lib/media/signage.ts`):
-four formats of self-contained SVG, rendered on demand, never persisted.
+five formats of self-contained SVG (four, plus table-number cards on Standard and Premium),
+rendered on demand, never persisted.
 
 ### Themed signage
 
@@ -1238,7 +1240,7 @@ sibling inline route; an implementation choice). It is never a separate mock-up.
 |---|---|
 | Guest screens | The real guest shell components, with sample content and the event's theme, inside a scaled frame on a host-authenticated page. No token and no guest DAL call, so nothing a guest could reach is created |
 | Keepsake styles, both families (five Single-photo, five Full Set) | The real keepsake templates in the DOM (§7b), with bundled sample photos (portrait + landscape; five mixed-orientation samples for the Full Set) |
-| Four signage formats | The real signage renderer, server-side (above) |
+| Signage formats | The real signage renderer, server-side (above) |
 
 Nothing here is a screenshot, so previews cannot drift from production output except through
 DOM/Satori rendering differences, which each style's visual check covers.
@@ -1288,6 +1290,24 @@ input is the closed signage input plus `tableNumber: 1..100`.
   Draft previews use `preview`. The Look page shows it only when the event's plan has
   `tableNumberCards` (Standard or Premium).
 - `test/qr-decode.ts` decodes the format's rasterized output, like the other formats.
+
+**As built (Slice 24):**
+- **The card.** 500 × 700, 5 × 7 in portrait, for a table-number stand. The field (night plus
+  accent glow) carries the lockup, a "TABLE" kicker, the number in Fraunces, a one-line name and
+  the hashtag. There is no date. The white side carries a 160-unit QR (≈ 4 cm) and the fixed
+  copy. The number's size is fitted to "100", the widest number a set can hold, so every card in
+  a set matches.
+- **Download only as a set.** `getSignageDownload` refuses `table-number`, and
+  `getTableNumberCardsDownload` serves the ZIP. Card files are `table-01.svg` …, padded to the
+  count's digits. Its gate is `signageFormatsFor`, which requires `printSignage` and
+  `tableNumberCards`.
+- **Text is relative path data on a 0.1-unit grid** (`signage-fonts.ts`), for every format. 0.1
+  unit is at most 0.001 in in print. Relative commands make a repeated glyph the same bytes
+  wherever it sits. The ZIP compresses each file on its own, so this is what keeps 100 cards at
+  about 1.3 MB in the worst case (complex glyphs at the name's smallest step), against 3.9 MB
+  with absolute coordinates. Don't go back to absolute path data.
+- Look → Signage lists it as "Numbers", with a Tables field. The dashboard links to it with
+  `?preview=table-numbers`.
 
 ---
 
