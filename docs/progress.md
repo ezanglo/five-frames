@@ -1,11 +1,11 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 26, "Download all" as ZIP files, is `complete`: no migration, all tests and the human checklist passed.** Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 26, "Download all" as ZIP files, is `complete`: no migration, all tests and the human checklist passed.** Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `complete`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
-  because the site already advertises Free. Slice 21, the Free first event, is `awaiting human verification`.
-  See [Slice 21](#slice-21--free-first-event-2026-10-11-awaiting-human-verification).
+  because the site already advertises Free. Slice 21, the Free first event, is `complete`.
+  See [Slice 21](#slice-21--free-first-event-2026-10-11-complete).
   Slice 22, the capacity override, is `complete`. See
   [Slice 22](#slice-22--capacity-override-2026-10-11-complete).
   Slice 23, time sections, is `complete`. See
@@ -381,7 +381,7 @@ without it. Production needs it before (or with) the deploy (Release follow-ups)
   cap with plan and payment unchanged, and no form on an owned event or a draft.
 - release-validation.md CAP-03 is the same check for the release candidate, and still runs then.
 
-## Slice 21 — Free first event (2026-10-11): `awaiting human verification`
+## Slice 21 — Free first event (2026-10-11): `complete`
 
 A host account activates one event on Free (₱0, 10 guests, 7 days) itself, with no payment and
 no operator. Free's lighter event is enforced on the server (product.md §7.2, §15.3.1, criteria
@@ -440,6 +440,9 @@ needs it applied before (or with) the deploy.
 - Updated call sites in `payments` and `plans` integration tests for the new `activateEvent`
   signature.
 
+**Human verification: PASS** (founder, 2026-10-11, items 1–8 below, against dev with the
+migration applied).
+
 **Human verification checklist (Slice 21 exit).** An earlier "testing passed" (2026-10-11) came
 before the migration reached dev. On dev, the Share step, Free choice and every activation would
 have failed then, so it isn't counted. Run the list against dev:
@@ -475,7 +478,7 @@ committed, not deployed.
 
 **Deploy blocker:** the marketing site already shows three things the product doesn't provide
 yet (at the user's request, 2026-10-11):
-- the Free first event, until Slice 21;
+- ~~the Free first event~~ (Slice 21, complete);
 - ~~numbered table cards on the paid plans~~ (built in Slice 24, complete; it ships with the next deploy);
 - ~~"Download all as ZIP files"~~ (built in Slice 26, complete; it ships with the next deploy).
 
@@ -2910,9 +2913,10 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. **Human checklist outstanding:** Slice 21 (its section). It must pass before anything
-   deploys, because the site already advertises the Free event. Slice 26 passed. The next build slice
-   is 27, operator support access (roadmap.md), in a fresh session. It isn't a deploy blocker.
+1. **Every slice the site advertises (20, 21, 24, 26) is built, committed and passed.** Nothing
+   blocks a release candidate except the user's timing call and the production migrations
+   below, which need explicit approval. The next build slice is 27, operator support access
+   (roadmap.md), in a fresh session. It isn't a deploy blocker.
    - Slice 25 changed the upload path, so every media case in release-validation.md reruns on
      the next RC.
    - Every environment that deploys Slice 25 code needs the four `R2_*` variables and that
