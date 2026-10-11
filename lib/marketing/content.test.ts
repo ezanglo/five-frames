@@ -39,7 +39,7 @@ function sourceFiles(dir: string): string[] {
 describe("marketing facts come from the product", () => {
   it("offers every plan, straight from the registry the Share step uses (D24)", () => {
     expect(MARKETING_PLANS).toEqual([PLANS.free, ...PAID_PLANS]);
-    expect(PRICES_LABEL).toBe("₱499 or ₱999");
+    expect(PRICES_LABEL).toBe("₱499 or ₱1,399");
     expect(PRICE_FROM_LABEL).toBe("₱499");
     expect(HOSTED_ACCESS_LABEL).toBe("up to 12 months");
   });

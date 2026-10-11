@@ -1691,7 +1691,7 @@ marketing and DAL all read it):
 PLANS = {
   free:        { priceCentavos: 0,     guestSessionCap: 10,  hostedAccessDays: 7,   tableNumberCards: false },
   intimate:    { priceCentavos: 49900, guestSessionCap: 100, hostedAccessDays: 183, tableNumberCards: true  },
-  celebration: { priceCentavos: 99900, guestSessionCap: 300, hostedAccessDays: 365, tableNumberCards: true  },
+  celebration: { priceCentavos: 139900, guestSessionCap: 300, hostedAccessDays: 365, tableNumberCards: true  },
 }
 ```
 

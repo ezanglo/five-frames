@@ -19,7 +19,7 @@ describe("plan registry (product.md §15.3, D24)", () => {
   it("holds the product's prices, capacities and hosted access", () => {
     expect(PLANS.free).toMatchObject({ pricePhp: 0, guestSessionCap: 10, hostedAccessDays: 7 });
     expect(PLANS.intimate).toMatchObject({ pricePhp: 499, guestSessionCap: 100 });
-    expect(PLANS.celebration).toMatchObject({ pricePhp: 999, guestSessionCap: 300, hostedAccessDays: 365 });
+    expect(PLANS.celebration).toMatchObject({ pricePhp: 1399, guestSessionCap: 300, hostedAccessDays: 365 });
     expect(PLANS.free.hostedAccessLabel).toBe("7 days");
     expect(PLANS.intimate.hostedAccessLabel).toBe("6 months");
     expect(PLANS.celebration.hostedAccessLabel).toBe("12 months");
@@ -40,7 +40,7 @@ describe("plan registry (product.md §15.3, D24)", () => {
     expect(isPaidPlanId("free")).toBe(false);
     expect(isPaidPlanId("celebration")).toBe(true);
     expect(priceCentavos("intimate")).toBe(49_900);
-    expect(priceCentavos("celebration")).toBe(99_900);
+    expect(priceCentavos("celebration")).toBe(139_900);
   });
 
   it("rejects anything that isn't a plan id", () => {

@@ -24,7 +24,7 @@ export const FREE_PLAN = PLANS.free;
 /** "₱499" — the lowest paid price, for "then from …" lines. */
 export const PRICE_FROM_LABEL = formatPrice(Math.min(...PAID_PLANS.map((p) => p.pricePhp)));
 
-/** "₱499 or ₱999". */
+/** "₱499 or ₱1,399". */
 export const PRICES_LABEL = PAID_PLANS.map((p) => formatPrice(p.pricePhp)).join(" or ");
 
 export const FRAMES = SHOTS_PER_GUEST;

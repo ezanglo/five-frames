@@ -96,7 +96,7 @@ export const PLANS: Record<PlanId, Plan> = {
     id: "celebration",
     label: "Premium",
     forWhom: "Weddings, corporate events and big celebrations",
-    pricePhp: 999,
+    pricePhp: 1399,
     guestSessionCap: 300,
     hostedAccessDays: 365,
     features: PAID_FEATURES,
