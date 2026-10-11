@@ -470,11 +470,69 @@ Already covered in C (previews) and E (download buttons). Add, if not yet shown:
 | A. Must fix before the first pilot | B. Nice to improve later | C. Ideas to validate before building |
 |---|---|---|
 | (bugs, confusing copy, anything that could lose photos or break trust) | (polish, small wording) | (new features — only after pilot hosts ask for them) |
-| | | |
-| | | |
-| | | |
+| A1. Confirm dialog before **Keep photo** | B1. "Start shooting" sounds too strong | C1. Edit the message after keeping |
+| A2. Make **open capture** the main post-setup button, not a switch | B2. Shorten / lighten the Look step | C2. Reorder kept photos |
+| A3. Check why keepsakes looked unavailable after capture closed | | C3. Remove the message feature entirely |
+| | | C4. Show a hidden photo faded on the guest's view, "Hidden by host" |
+| | | C5. Capture link shows the gallery link once capture closes |
+| | | C6. Free: unlimited small events (≈30/month cap), upgradable |
+| | | C7. Paid extras on top of a plan: printing the signage for the host, a physical photobook album, a video slideshow / highlights |
 
 Rule of thumb: if it could **lose a photo, leak a photo, or embarrass a host on the day**, it's A. Everything else waits for pilot evidence.
+
+### What she said (meeting #1)
+
+**During the demo**
+- The "once kept, this photo is final" note gets read past. Since a kept photo can't be changed, it needs a real confirmation, not just a line of text.
+- Wants to add or edit the message after the photo is kept. Wants to reorder photos.
+- "Start shooting" sounds a little extreme.
+- A guest who kept photos should see a link to the gallery from their capture link once capture is closed.
+- Opening capture on the day shouldn't be a switch. It's the main thing the host does after setup, so it should be a big, obvious button.
+- Hidden photos shouldn't disappear from the guest's own view. Show them faded, with a note that the host hid them.
+- Guests should still be able to make, share and download keepsakes after capture closes.
+- Free: instead of only the first event, make it unlimited for small events, so hosts come back and share it with their circle. A good lead-in to a mobile app (like iPhone Memories or Facebook Memories). Free events should be upgradable for more guests. Cap it, maybe 30 events a month.
+
+**First impressions**
+- "I can take photos on my own, hassle free, without lining up."
+- An extra gimmick for an event, especially for trending things, and guests feel more included.
+
+**Guest experience**
+- Nothing was confusing.
+- Five, and keeping is final, feels fair, not stressful. There are workarounds if you want them.
+
+**Host experience**
+- Setup is straightforward. The Look step felt longest, because you're setting up everything guests will see.
+- "I'd need to try the Free one first" before trusting it at her own event.
+- Understood the capture link vs the gallery link.
+
+**Look and brand**
+- Yes, she'd pay for it. Keepsakes feel special.
+
+**Trust and privacy**
+- As a guest, fine: you know the people at the event, and you already chose which photos to keep.
+- Support access is fine: photographers and photo booths already see everything.
+
+**Value**
+- Most valuable: the gallery, because everything is in one place instead of scattered.
+- Could remove: the message. It only shows when you open a photo, and it's optional.
+- Missing for a host: a physical photobook album, or a video slideshow / highlights edit.
+
+### My notes on each item (checked against the code and product.md after the meeting)
+
+| # | Status today | What it would take |
+|---|---|---|
+| A1 | Preview shows a line of text only | Small UI change: a confirm step on Keep. Keep it calm, no scare copy. The idempotent reserve key already stops double-taps, so this is about intent, not safety |
+| A2 | Capture is a switch on the Dashboard | UI change only. Product rule stays: the host opens it explicitly, never automatically |
+| A3 | Code already shows keepsakes on the closed screen (D29), but only when **Sharing** is on and the event hasn't been deleted. On Free there's one style per family | Reproduce what she saw first. It may be the sharing setting or the Free limits, not a bug |
+| B1 | Copy | Find a softer phrase |
+| B2 | Look is optional; skipping it still looks finished | Make "you can skip this" clearer before making the step smaller |
+| C1 | product.md §9.3–9.4: the message is part of the capture and final once kept; keepsakes use the committed message | Product change. Conflicts with C3: decide whether the message stays at all first |
+| C2 | product.md §10.5 rules out reordering. Full Set is always in commit order (invariant 14) | Product change; would touch the Full Set rules |
+| C3 | Optional field in preview | Pilot data: how many guests actually write one? |
+| C4 | product.md §8.3: hiding removes the photo from the guest's view | Product change. Trade-off: a host may hide a photo *because* it's embarrassing, and a "hidden by host" label tells the guest. Ask pilot hosts |
+| C5 | Deliberately separate (product.md §13): the capture link never leads to the gallery, partly because a host can set the gallery to "only me" | Possible if it respects the gallery's visibility and reveal. Product change |
+| C6 | product.md §7.2 and §16: one Free event per account, ever; self-service upgrades are a non-goal | Business decision first (§8 Pricing): does unlimited Free undercut Standard ₱499? Then product.md, then code (the one-Free guard, D16) |
+| C7 | **Printing signage:** agreed as a separate, quoted add-on (Key decisions, product.md §11.3, §15). Nothing in the app records it yet, so handle it outside the app and keep it out of the Console's plan payment (progress.md "Release follow-ups"). **Photobook, slideshow:** Replay is post-MVP; a photobook editor and print ordering are non-goals | Printing: a product decision, then a build slice once hosts actually ask for it. Photobook and slideshow: ask pilot hosts what they'd pay for |
 
 ---
 
@@ -1000,7 +1058,7 @@ Fill in during the meeting. Three kinds:
 |---|---|---|---|---|---|
 | First 1–2 channels | §9 table | TODAY | | | |
 | Facebook page now or after pilots | | DEFER | | | |
-| Self-service prices (₱499/₱999) | Keep / change | DEFER to after pilots | | | |
+| Self-service prices (₱499/₱999) | Keep / change | DEFER to after pilots | Standard ₱499, **Premium ₱1,399** | Premium is the managed plan: we set it up with them and help on the day, so it's priced for our time | Updated in the app and product.md; goes live with the next deploy |
 | Managed-service prices | | RESEARCH + pilots | | | |
 
 ### Responsibilities
@@ -1080,7 +1138,8 @@ Only what's needed to run a good real-world pilot. No feature wish lists.
 ## Section 14 — Meeting notes and outcomes
 
 **Key decisions**
--
+- Premium goes from ₱999 to ₱1,399, because it's the managed, hands-on plan. Standard stays ₱499
+- Signage is sold as **print-ready files**, not printed items. If a host asks us to print, it's a separate add-on we quote first and they agree to before we print or charge anything. Never a hidden charge. The site, the host screens and the Terms now say so
 -
 -
 
@@ -1089,12 +1148,13 @@ Only what's needed to run a good real-world pilot. No feature wish lists.
 -
 
 **Product feedback** (see §4 buckets)
--
+- Must fix before the first pilot: confirm on Keep (A1), make "open capture" the main button (A2), check keepsakes after capture closes (A3)
+- She'd pay for it, keepsakes feel special, the gallery is the most valuable part, nothing on the guest side confused her
 -
 
 **Business ideas (parked, not tasks)**
--
--
+- Unlimited small Free events (≈30/month), upgradable for more guests. Leads into a "memories" mobile app (C6, discuss under §8 Pricing)
+- Paid add-ons on top of a plan: printing the signage (agreed, handled outside the app for now), a physical photobook album, a video slideshow / highlights (C7)
 
 **Agreed responsibilities**
 -
