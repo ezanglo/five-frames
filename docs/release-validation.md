@@ -343,6 +343,17 @@ gallery's photo viewer ignored every tap, swipe and key: it rendered inside the 
 made `inert` while the viewer is open. It now renders beside it. GAL-04's viewer steps need a
 rerun on a build with that repair.
 
+### Support downloads and keepsakes (D30, 2026-10-11) — OPS-07, OPS-08, GAL-12 amended
+
+Not yet deployed. Needs migration `20261011050000_support_downloads.sql`, already applied to production (local `.env.local` points there; see progress.md).
+Support access now downloads originals and Download all, and makes guest Full Sets, each logged.
+
+### Keepsakes after expiry, Full Set preview, host Full Set (D29, 2026-10-11) — GAL-10, GAL-11, GAL-12 new
+
+Not yet deployed. No migration. Guest keepsakes now last until media deletion, not expiry
+(GAL-10). A guest may preview "Your five" before five while capture is open (GAL-11). The owner
+can make one guest's Full Set from the Photos tab (GAL-12).
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.
@@ -1142,6 +1153,53 @@ Open gallery links on a phone that is **not** signed in as host A.
 - **Evidence / notes:** Local: unit tests for the slug and renderer; `curl` against `next dev`
   showed the slugged and bare paths reaching the same pages, noindex. No chat app was used.
 
+#### GAL-10 · Guest keepsakes after hosted access expires (D29)
+- **Where:** any browser, on the guest's original browser (their cookie)
+- **Needs:** an event where the guest kept at least one photo (five for the Full Set step), with
+  `hosted_until` in the past and `grace_until` in the future (a Free event over 7 days old, or
+  set on the test database)
+- **Steps:**
+  1. Open the guest's capture link in the browser they joined from.
+  2. Tap a photo's keepsake action, pick a style, Save.
+  3. With five kept, open "Your five, together" and Save.
+- **PASS when:** the theme image shows on the page and in the keepsakes; both saves produce a
+  JPEG; after archive (`grace_until` past) the keepsake actions are gone.
+- **Result:** NOT RUN
+- **Evidence / notes:** Integration tests cover expired → ok, archived and media-deleted → refused.
+
+#### GAL-11 · "Your five" preview before five (D29)
+- **Where:** real phone (HUMAN-ONLY for the device's share sheet not opening)
+- **Needs:** an open event; a guest with 2 kept photos
+- **Steps:**
+  1. On the capture screen, open a kept photo's keepsake action.
+  2. Switch to **Your five**; try each style.
+  3. Keep a third photo; open the picker again.
+  4. Close capture; reload; open a photo's keepsake action.
+- **PASS when:** the preview shows the kept photos in the order taken, with the other slots
+  plain; Share and Save are disabled with one factual line; no Full Set card, count or "take
+  more" prompt appears anywhere else; step 3 shows three; after step 4 there is no "Your five"
+  tab.
+- **Result:** NOT RUN
+- **Evidence / notes:** Unit tests cover empty slots in every template and the export builder
+  refusing a padded set.
+
+#### GAL-12 · Host makes a guest's Full Set (D29)
+- **Where:** desktop and phone, signed in as the owner; then as operator O in support access
+- **Needs:** an event with guest A (five kept, visible) and guest B (three kept)
+- **Steps:**
+  1. Photos tab → filter to guest A → **Make keepsake**; pick a style; Save; Share where offered.
+  2. Filter to guest B, then to "All guests".
+  3. Hide one of A's photos; reload; filter to A. Unhide it.
+  4. Open the same Photos tab as operator O in support access; filter to A; make and save the
+     keepsake, trying two styles.
+- **PASS when:** the saved image holds A's five in the order A's own Full Set uses; no card
+  appears for B or for "All guests"; after the hide, A's card is gone and returns on unhide; O
+  gets the same card and image, and the host's Dashboard lists one "Made a guest's Full Set
+  keepsake" (D30), not one per style. On a Free event only the signature style is offered.
+- **Result:** NOT RUN
+- **Evidence / notes:** Integration tests cover order, eligibility, moderation, plan, expiry,
+  another host and support access.
+
 ### F. Operator / manual payment
 
 Automated (provider-side) refund execution is **out of scope**. Refunds are executed outside the
@@ -1269,15 +1327,17 @@ app and recorded through the Operator Console (D17).
      timezone). Save, reload, and reopen Settings.
   4. Open and close capture. Rotate the capture link. Hide one photo, then unhide it.
   5. Upload a new event image in Look, and download the phone-screen sign.
-  6. Look for: favorite, delete, a photo's download, Download all, plan choice, activation.
+  6. Look for: favorite, delete, plan choice, activation. Download one photo's original, and use
+     Download all (D30).
   7. Request `/events/<E1>/setup?step=share` directly.
   8. On E3 (O's own event), open it from the Console.
 - **PASS when:**
   - every page shows the support banner naming host A, and the breadcrumb leads back to the Console;
   - each change takes effect exactly as the host's would; the reveal time shows the same local
     time after reload, with no day shift;
-  - Photos shows thumbnails with Hide/Unhide only; favorites show but can't be changed; there is no
-    delete, original download, Download all, plan or activation control;
+  - Photos shows thumbnails with Hide/Unhide, an original download and Download all; the
+    downloaded original is the full-resolution file; favorites show but can't be changed; there is
+    no delete, plan or activation control;
   - the Share step URL gives "We can't find that page";
   - on E3 there is no banner (O is its host).
 - **Result:** NOT RUN (new, D27)
@@ -1291,7 +1351,8 @@ app and recorded through the Operator Console (D17).
   2. As host A, open E1's Dashboard.
 - **PASS when:**
   - the Console lists each OPS-07 action newest first, with O's email and time, including one
-    "Viewed photos" (not one per photo or per refresh) and "Downloaded signage";
+    "Viewed photos" (not one per photo or per refresh), "Downloaded signage", "Downloaded an
+    original photo" and one "Downloaded all original photos" per ZIP part (D30);
   - host A sees "FiveFrames support activity" with the same actions and times, in words, and no
     operator name or email;
   - nothing on either page edits or removes an entry.

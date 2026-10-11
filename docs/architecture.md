@@ -317,7 +317,7 @@ getEventAccess(userId, eventId): Promise<{ event, role: EventRole } | null>
 - **Each DAL function admits roles explicitly.** A function on product.md §5.1.3's "can" list
   takes `userId`, calls `getEventAccess` and refuses any role it doesn't name. Functions on the
   "can't" list (plan, checkout, refund request, event deletion, capture delete and favorite,
-  original downloads, D25 ZIP, Drive export, co-hosts) keep their `host_id = hostId` predicate
+  Drive export, co-hosts) keep their `host_id = hostId` predicate
   and are not migrated. They stay unreachable to support because nobody changed them.
 - **No blanket predicate.** There is never an `or operator` added to an existing query. Moving a
   function to `getEventAccess` is a deliberate, reviewed change, one function at a time.
@@ -351,8 +351,13 @@ revoke update, delete on public.support_actions from anon, authenticated, servic
   call would leave an unlogged change.
 - **Photo views.** The support moderation view's DAL function logs `photos_viewed` before it
   signs anything: at most one entry per operator, event and 30 minutes, so live dashboard
-  refreshes don't flood the log. It signs **display derivatives only**. Original signing stays
-  owner-only.
+  refreshes don't flood the log. Its grid uses **display derivatives only**.
+- **Original downloads and keepsakes (D30).** Support's original link is the same-origin route
+  `GET /events/[eventId]/photos/[captureId]/original` (`getOriginalDownloadUrl`), which logs
+  `original_downloaded` and then redirects to the signed URL, so nothing is pre-signed for
+  support. `listOriginalDownloadUrlsForEventHost` logs `originals_zip_downloaded` once per part
+  before signing it. `makeHostFullSetKeepsake` logs `keepsake_made` before rendering, one per
+  operator, event and guest session per 30 minutes (the SQL dedupes, like photo views).
 - **Host-facing list.** The host's event page reads the event's entries and renders each through
   a label map ("Opened capture", "Viewed photos"), never the raw key, and never the operator's
   identity. The Console's event page shows the same entries with the operator's email.
@@ -368,10 +373,12 @@ revoke update, delete on public.support_actions from anon, authenticated, servic
   `openCapture`, `closeCapture`, the four link rotate/revoke functions, the theme image's begin,
   commit and remove, `getEventThemeForHost`, `getEventCaptureStats`,
   `listCapturesForEventHost`, `moderateCapture` (support: hide and unhide only), the three
-  signage reads, `getDashboardVersion`, `listSupportActionsForEvent`.
+  signage reads, `getDashboardVersion`, `listSupportActionsForEvent`, and from D30
+  `getOriginalDownloadUrl`, `listOriginalDownloadUrlsForEventHost`, `listHostFullSets` and
+  `makeHostFullSetKeepsake` (each logged for support).
 - **Owner-only, unchanged:** `updateEventConfig` (the Create wizard), `setEventPlan`,
-  `activateFreeEvent`, `startProviderCheckout`, `getLatestPaymentForEvent`,
-  `listOriginalDownloadUrlsForEventHost`, the setup (Share) and checkout pages.
+  `activateFreeEvent`, `startProviderCheckout`, `getLatestPaymentForEvent`, the setup (Share)
+  and checkout pages.
 - **SQL.** `support_update_event(operator, event, action, patch)` maps each action key to a
   closed column list and refuses any other column. One `update` writes back only those columns,
   and the entry records only the keys whose value changed (a no-op save writes no entry). Link
@@ -867,6 +874,7 @@ two families:
 |---|---|---|---|
 | Single-photo | One committed capture, chosen by the guest | 5 | `GET /e/[token]/keepsake/photo/[captureId]/[styleId]` |
 | Full Set | The requesting session's five committed captures, **derived by the server** | 5 | `GET /e/[token]/keepsake/set/[styleId]` |
+| Full Set (host, D29) | One session's five, chosen by session by the owner or support (logged, D30), **derived by the server** | 5 | `GET /events/[eventId]/keepsake/[guestSessionId]/[styleId]` |
 
 Both families use the same registry, render pipeline, DAL module (`lib/dal/keepsakes.ts`),
 response contract, sharing toggle and preview approach. They differ only in how the source photos
@@ -988,6 +996,18 @@ Set's photos. It never accepts capture ids from the client.
 - **The same function drives availability in the UI:** it plus `sharing_enabled` sets the flag on
   the guest's own view and completion screen, so the page and the route cannot disagree. Where the
   flag is false, the Full Set is **absent** from the page, not shown disabled (product.md §10.2.2).
+- **Preview before five (D29):** `isFullSetPreviewable` (capture open, sharing on, fewer than five
+  committed rows, none deleted) lets the guest's picker show "Your five" with the photos kept so
+  far, laid out by `(committed_at, slot_index)` in the browser. It is drawn only in the DOM with
+  `buildFullSetPreviewInput`, which pads empty slots. Nothing is requested, Share and Save are off,
+  and no route exports a partial set: `buildFullSetKeepsakeInput` refuses an empty slot and
+  `getFullSetSources` is unchanged.
+- **Host Full Set (D29):** `listHostFullSets` runs the same eligibility rule over every session of
+  the event (owner or support) for the Photos tab, and `makeHostFullSetKeepsake` renders one session's
+  set through the same `getFullSetSources` and renderer. The host names a session, never
+  captures, so a set never mixes guests. It re-confirms owner access and the same five ids
+  before responding. Support access is admitted and logged (D30). The guest sharing setting doesn't apply; the
+  plan's style entitlement does; it works until media deletion or archive.
 
 ### Crop and orientation
 
@@ -1037,8 +1057,10 @@ are GETs and need no CSRF token.
 Every request re-checks, in the DAL:
 
 1. **guest event access holds**: `event_token` resolves (via the existing `getEventByToken`) to an
-   event whose lifecycle is not expired/archived. A rotated, revoked or refund-cleared token
-   therefore resolves to nothing;
+   activated event that is not archived and whose media isn't deleted (`isKeepsakeEventReachable`).
+   An expired event still qualifies (D29): the guest's own view and originals last until media
+   deletion, so their keepsakes do too. A rotated, revoked or refund-cleared token therefore
+   resolves to nothing;
 2. the signed guest cookie holds a session for **this** event;
 3. `sharing_enabled` is true;
 4. `styleId` is in the registry **for this route's family**;
@@ -1478,7 +1500,7 @@ Not built in this update. product.md §11.2.2 defines it, with the same "coming 
   `cohost` role to `getEventAccess` for an accepted, unrevoked co-host on a Premium event.
   - Owner-only functions (plan, payment, refund, invites, deletion) stay as they are.
   - Each function on product.md §11.2.2's "can run" list admits `cohost` deliberately. That list
-    is wider than support's: it includes delete, favorite and original downloads. There is no
+    is wider than support's: it includes delete and favorite. There is no
     blanket "or co-host" predicate.
   - If co-host ships before Slice 27, it builds `getEventAccess` itself, with the same rules.
 - **Shape:** an `event_cohosts` table (`event_id`, `user_id`, invited email, `invited_at`,
@@ -1864,7 +1886,7 @@ Browser (EventSource) ──▶ GET /events/[eventId]/live ──▶ DAL getDash
 | Host owns event | DAL ownership predicate on every event query |
 | Operator authorization | `requireOperator()` reads the `operators` table for the authenticated Supabase Auth user on every Console route/action (§5a); never a client-asserted role |
 | Operator/host conflict of interest | DAL equality check (`event.host_id !== operatorUserId`) on manual-payment confirm and manual-refund mutations (§5a) |
-| Operator support access (planned) | `getEventAccess` role check per DAL function, owner-only functions untouched; each change and its `support_actions` entry in one transaction; display derivatives only, never originals; log visible to the host (§5b, D27) |
+| Operator support access (planned) | `getEventAccess` role check per DAL function, owner-only functions untouched; each change and its `support_actions` entry in one transaction; display derivatives in the grid; originals and keepsakes only through logging paths (D30); log visible to the host (§5b, D27) |
 | Guest scoped to one event | Signed cookie bound to `guest_session_id` + `event_id` |
 | Capture gate | Server-side re-check of paid/active/open on **reserve and commit**, not just page render |
 | Media privacy | Short-lived presigned URLs minted after an access check; one private R2 bucket (`captures/`, `theme/`), no public access, no custom domain |
@@ -2034,7 +2056,7 @@ traffic to track, not before.
 | In-app browsers (FB/Messenger/IG) restrict camera, file picker, or direct storage upload | Core guest flow broken for a large share of PH users | Validated inside the first capture slice, on real devices, as an exit condition — not deferred to final QA |
 | HEIC conversion needed and expensive or lossy | Photo pipeline rework | Materialized in Slice 15: the prebuilt `sharp` can't decode HEVC HEIC. MVP accepts JPEG/PNG/WebP directly and relies on browser conversion where it happens (§7 "HEIC/HEIF"); no client conversion or custom image stack. Originals stay untouched; the derivative path is isolated behind `lib/media/` |
 | Venue network worse than resumable upload can absorb | Guests lose captures | Reservation TTL guarantees no permanently lost frame; measure real failure rates during capture-slice device testing |
-| Operator account compromised (once support access lands, §5b) | One login reaches every event's settings and display photos | Few operators, granted only by the checked-in script (D15); no deletion or original downloads in support access; every action and photo view logged and shown to the host. Slice 27 decides whether operator accounts need a second factor |
+| Operator account compromised (once support access lands, §5b) | One login reaches every event's settings and photos, originals included (D30) | Few operators, granted only by the checked-in script (D15); no deletion in support access; every action, photo view, download and keepsake logged and shown to the host. Slice 27 decides whether operator accounts need a second factor |
 | Service role key exposure | Total data compromise — RLS does not stop it (§10) | Server-only modules, no `NEXT_PUBLIC_` secrets, key never referenced outside `lib/dal/` and `lib/auth/` |
 | Plan capacities (up to 300 sessions, 1,500 captures) not yet load-tested; no load test has run at any size | Join/reserve contention or storage throughput surprises at a big Premium event | Load-test the Premium cap (300 joins, then captures) against a preview deployment before launch. Operators can raise a cap, so the test also covers a few hundred above 300 |
 | Free event abused through new accounts | Free storage and hosting for repeat users | Email-confirmed sign-up, 10 sessions and 7 days bound the value. Accepted (product.md §19) |

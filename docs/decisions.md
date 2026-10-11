@@ -1237,3 +1237,75 @@ name, over the theme image only where that page would show it.
 - A gallery link shared before reveal may keep its plain preview in chat apps that cached it.
 - Chat apps keep their own copy of a preview image. Rotating a link can't recall it.
 
+## D29 — Keepsakes after expiry, a guest preview of the Full Set, and host-made Full Sets
+
+**Status:** Accepted (2026-10-11). Built (architecture §7b; product.md §10.2, §10.2.2, §10.2.3,
+invariant 14, criteria 94–97). Amends D20.
+
+**Decision:**
+- Guest keepsakes, of both families, work until the event is archived or its media is deleted,
+  not only until hosted access expires. The guest theme image follows the same window.
+- While capture is open and a session can still reach five, the guest's own keepsake picker shows
+  "Your five" as a browser-only preview of the photos kept so far, with empty slots plain and
+  Share and Save off. There is no other Full Set surface before five.
+- The event's owner can make one guest session's Full Set keepsake from the Photos tab, chosen by
+  session, built from the same five in the same order as the guest's.
+
+**Reasoning:**
+- Free events expire after 7 days. Their guests still had their own photos and originals on the
+  page, but their keepsake actions vanished without explanation. Keepsakes are derivatives of
+  photos the guest can already download, so they share that window.
+- The owner asked for guests to see what their five together would look like. A preview inside
+  the picker the guest already opened shows that without a card, count or prompt, so the
+  allowance still isn't presented as a task.
+- Hosts wanted to make a guest's Full Set themselves. Choosing a session, not photos, keeps the
+  Full Set one guest's five in canonical order and reuses the existing eligibility rule.
+
+**Alternatives rejected:**
+- **A preview with "take more photos" copy, or a Full Set card before five:** it's an engagement
+  nudge (product.md §4), and after capture closes it can never be completed.
+- **Exporting a partial set:** a Full Set is five. The export builder refuses an empty slot.
+- **Host picks any five photos:** a keepsake would mix guests' photos, against invariant 14's
+  "never another guest's content".
+- **Support access making host Full Sets:** a keepsake is a download of guest media, and those
+  stay owner-only (D27).
+
+**Consequences:**
+- `isKeepsakeEventReachable` no longer refuses `expired`. Integration tests now expect a keepsake
+  after expiry and refusal once archived or media-deleted.
+- `buildFullSetPreviewInput` is DOM-only. `buildFullSetKeepsakeInput` refuses an empty slot.
+- New owner-only route `GET /events/[eventId]/keepsake/[guestSessionId]/[styleId]`, with
+  `listHostFullSets` and `makeHostFullSetKeepsake` in `lib/dal/keepsakes.ts`.
+- `keepsakeResponse` moved to `lib/keepsakes/respond.ts`, shared by the guest and host routes.
+
+## D30 — Support access may download originals and make guest Full Sets, logged
+
+**Status:** Accepted (2026-10-11). Built (architecture §5b; product.md §5.1.3, §10.2.3, criteria
+22, 91, 97, 98). Amends D27 (support had display derivatives only) and D29 (host Full Set was
+owner-only).
+
+**Decision:** An operator in support access can download originals, individually and with
+"Download all", and make a guest's Full Set keepsake from the Photos tab. Each one is a
+`support_actions` entry the host sees: every original, every ZIP part, and one keepsake entry
+per guest per 30 minutes.
+
+**Reasoning:**
+- Operators set up and run events for hosts who aren't technical. Sending the host their photos,
+  or a guest's Full Set, is part of that support, and making the host do it defeated the point.
+- Invariant 13 holds: the action is permitted, but never silent. Logging happens before any URL
+  is signed or any keepsake rendered, so a failed log write gives nothing.
+
+**Alternatives rejected:**
+- **Display copies only:** not what a host asking for "the photos" means.
+- **A pre-signed original link in support's grid, logged on page load:** logs a view, not a
+  download, and leaves a working URL nobody logged using. Support gets a same-origin route that
+  logs and redirects.
+- **One log entry per keepsake style tried:** the picker renders each style it shows, so this
+  would flood the host's log with one action.
+
+**Consequences:**
+- Migration `20261011050000_support_downloads.sql`: three action keys, and
+  `log_support_access` admits them. Already applied to the database local `.env.local` points at, which is production (project `lrheuifbgbplekxnljfv`), on 2026-10-11, without prior approval. It is additive and safe under older code.
+- Google Drive export stays owner-only when it ships.
+- The terms and privacy copy must say staff may download photos (product.md §5.1.3, §19).
+

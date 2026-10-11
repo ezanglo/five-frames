@@ -54,10 +54,12 @@ change, not a refactor.
     an event's guest capacity) are server-authoritative and auditable, and happen only through
     the Operator Console — never a host-declared, ad hoc, or undocumented action. Every operator
    action in support access, including viewing photos, is permanently logged and shown to the host.
-14. A keepsake is a derivative, made only from the requesting guest's own committed, non-hidden
-    captures. A **Single-photo keepsake** uses one of them. A **Full Set keepsake** uses exactly
-    the five committed captures of the requesting session, all non-hidden, in commit order, with
-    no guest message. Hiding any of the five makes the Full Set unavailable until the capture is
+14. A keepsake is a derivative, made only from one guest session's own committed, non-hidden
+    captures. A **Single-photo keepsake** uses one of the requesting guest's. A **Full Set
+    keepsake** uses exactly the five committed captures of one session, all non-hidden, in commit
+    order, with no guest message, made by that session's guest, the event's owner, or support
+    access (logged), and never from host-picked photos. A guest may preview a partial Full Set in
+    the browser while capture is open, but a partial one is never exported. Hiding any of the five makes the Full Set unavailable until the capture is
     unhidden, and deleting one makes it permanently unavailable. It is never made from four
     captures. A keepsake never contains another guest's content, the guest's display name, or
     the capture/gallery link or QR, and making or sharing one never changes gallery access.
@@ -121,9 +123,12 @@ change, not a refactor.
   (`support_update_event`, `support_set_capture_hidden`, `log_support_access`), and a new
   support-capable event column must be added to that function's per-action allowlist and to
   `lib/support/labels.ts`. Never add a blanket "or operator" predicate, and never move an owner-only function (plan,
-  checkout, refund request, event or photo deletion, favorite, original/ZIP/Drive downloads,
+  checkout, refund request, event or photo deletion, favorite, Drive export,
   co-hosts) onto it. A support change and its `support_actions` entry commit in one transaction.
-  Support may sign display derivatives only, never originals. Every new host DAL function must
+  Support's photo grid shows display derivatives only. Its original downloads, "Download all"
+  parts and host Full Set keepsakes are allowed (D30), but only through paths that write the
+  `support_actions` entry before anything is signed or rendered: never hand support a
+  pre-signed original URL. Every new host DAL function must
   state which roles it admits.
 - **Event Theme & Keepsakes (decisions D19, D20; architecture §7a–§7c).**
   - The theme image is public-facing but **not publicly addressable**. It lives in the private
@@ -136,10 +141,12 @@ change, not a refactor.
     decision. The render inputs are closed structs: never add the display name, welcome message,
     tokens, links or counts to them, and never add a message or per-photo metadata to the Full
     Set input.
-  - **The server derives a Full Set's captures.** `getFullSetSources` selects by the cookie's
-    guest session **and** event, and requires exactly five committed, unhidden, undeleted
-    captures, ordered by `(committed_at, slot_index)`. Never accept capture ids from the client
-    for a Full Set, never build a partial one, and never reorder. Full Set crops are the
+  - **The server derives a Full Set's captures.** `getFullSetSources` selects by one guest
+    session **and** event (the guest's cookie, or the session the owner chose, D29), and
+    requires exactly five committed, unhidden, undeleted captures, ordered by
+    `(committed_at, slot_index)`. Never accept capture ids from the client for a Full Set, never
+    export a partial one, and never reorder. The guest's partial preview is DOM-only
+    (`buildFullSetPreviewInput`); `buildFullSetKeepsakeInput` refuses an empty slot. Full Set crops are the
     deterministic `coverCrop` rule. No smart crop, face detection or other content analysis.
   - Accent colors are registry keys. Never interpolate a host-entered string into CSS or SVG
     (SVG text always goes through `escapeXml`).
@@ -247,8 +254,12 @@ change, not a refactor.
 - Keepsake designs are "keepsake styles", never "frames". Copy must not tie the five styles to
   the five-photo allowance, and must never merge the two families ("ten styles"). Nobody gets an
   editor: the host sets image, accent and hashtag, and the guest picks a style.
-- The Full Set is never a goal. Before a session has five committed, visible captures, it is
-  absent: no locked or teaser state, no "unlock", and no progress toward it.
+- The Full Set is never a goal. Before a session has five committed, visible captures, it
+  exists only as the preview inside the guest's own keepsake picker (D29), with Share and Save
+  off and one factual line. No card, banner, count, "unlock", progress or "take more" copy
+  anywhere else, and no preview once capture closes.
+- Guest keepsakes last until the media is deleted, not until hosted access expires (D29). The
+  guest page and theme image follow the same window (`isKeepsakeEventReachable`).
 
 ## Verification
 

@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 27, operator support access, is `complete`: migration on dev, all tests and the human checklist passed.** Slice 26, "Download all" as ZIP files, is `complete`. Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `complete`. Slice 20 is complete and deploys with 21. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**D29 keepsake changes, D30 support downloads, the Photos tab viewer and the Terms/Privacy pages are `complete`: tests and the user's local check passed.** Not deployed; production already has the D30 migration (applied by mistake, see below), and the legal pages await a lawyer's review. **Slice 27, operator support access, is `complete`: migration on dev, all tests and the human checklist passed.** Slice 26, "Download all" as ZIP files, is `complete`. Slice 25, media storage on Cloudflare R2, is `complete`. Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `complete`. Slice 20 is complete and deploys with 21. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -18,12 +18,28 @@ Last updated: 2026-10-11 (**Slice 27, operator support access, is `complete`: mi
   [Slice 26](#slice-26--download-all-as-zip-files-2026-10-11-complete).
 - **Operator support access (D27), Slice 27: `complete`.** See
   [Slice 27](#slice-27--operator-support-access-2026-10-11-complete).
-  Not on the marketing site, so it doesn't block the site deploy. Before real customers it needs
-  the terms and privacy copy to say staff may view photos (product.md §19).
+  Not on the marketing site, so it doesn't block the site deploy. The Terms and Privacy pages
+  (below) now disclose it.
 - **Readable share links and link previews (D28): `awaiting human verification`.** Capture and
   gallery links carry the event name (`/g/<slug>/<token>`; the token is still the credential),
   and chat apps get a preview image (architecture §5). Also repairs the gallery viewer, which
   ignored all input. Verify with release-validation.md GAL-09 and GAL-04.
+- **Support downloads and keepsakes (D30): `complete`.** Support access can
+  download originals (one at a time through a logging redirect route, and Download all) and
+  make guest Full Set keepsakes, each logged for the host. Migration
+  `20261011050000_support_downloads.sql` was applied to production by mistake (`db query --linked -f`
+  plus `migration repair`): local `.env.local` and the linked project point at the production
+  database. It is additive and safe under the deployed code. The integration tests for D29/D30
+  also ran against production; their cleanup ran, but test R2 objects are likely orphaned.
+  Point local at a separate dev project before running integration tests or migrations again. The Terms and Privacy pages disclose it. Deployed verification: release-validation.md OPS-07, OPS-08 and GAL-12.
+  The host Photos tab also got sharper cards (thumbnail/display `srcset`) and the gallery's
+  photo viewer. The user's local check of D29, D30 and the viewer passed (2026-10-11). That is
+  not deployment evidence.
+- **Keepsakes after expiry, Full Set preview, host Full Set (D29): `complete`.** Guest keepsakes last until media deletion (Free events expire after 7 days,
+  which had silently removed them). While capture is open, a guest's picker previews "Your five"
+  with the photos kept so far, Share and Save off. The owner can make one guest's Full Set from
+  the Photos tab. Integration tests passed (against production, see D30 above). Deployed
+  verification: release-validation.md GAL-10–GAL-12.
 - **Deferred to the first update after launch: Co-host access** (D24, product.md §11.2.2,
   architecture.md §7f). It's on the site as "coming soon". To test it when it ships, use
   criterion 87: the co-host can run the event but not own it, and other hosts and revoked
@@ -113,7 +129,7 @@ doesn't own the test event:
 **Follow-ups:**
 - Operator second factor (D27): not built. Recommend Supabase Auth MFA on operator accounts
   before real customers. Needs the founder's go-ahead, because it adds a sign-in step.
-- Terms and privacy copy for staff viewing photos (product.md §19), before real customers.
+- Terms and Privacy pages (`/terms`, `/privacy`, `lib/marketing/legal.ts`) are drafted from the product's real rules, including support access on the host's behalf. Before real customers: a lawyer's review, and the `privacy@fiveframes.app` and `support@fiveframes.app` mailboxes must exist.
 
 ## Slice 26 — Download all as ZIP files (2026-10-11): `complete`
 
@@ -3011,7 +3027,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **`payments.plan` NOT NULL and drop `begin_provider_checkout()`** once no deployment runs pre-plans code (architecture §8c "As built"). Backfill any null `payments.plan` to `celebration` first | Deployment-order dependency | After Slice 20 is deployed everywhere this database is served |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |
-| **Support-access disclosure in the terms and privacy policy** (product.md §5.1.3, §19): FiveFrames staff may view and change an event, including viewing its photos, to support it. Required before Slice 27 ships to real customers | Business/legal decision | Pre-launch, with Slice 27 |
+| **Legal review of the Terms and Privacy pages** (product.md §5.1.3, §19). Drafted 2026-10-11 in `lib/marketing/legal.ts`, including support access (view, change, download, keepsakes, on the host's behalf). Needs a lawyer's review (Data Privacy Act, liability, NPC registration), a legal entity name if one is required, and the `privacy@` / `support@fiveframes.app` mailboxes | Business/legal decision | Pre-launch |
 | **Advance-expiry warning channel.** The warning is in-product only; no outbound email or SMS exists (D18 launch prerequisite) | Product decision | Pre-launch |
 | **Sales contact channel.** `SALES_CONTACT` (`lib/payments/mode.ts`) is `null`, so the Share step and footer have no "contact us" link. Choose the channel (Messenger, email or phone) and set it | Business decision + one-line change | Before hosts who weren't sold in person can sign up |
 | **Manual-payment receiving account(s)** for bank and GCash/Maya transfers, and whether discounted sales are allowed. The host's Share step always shows the list price; the Console records the real amount (D23) | Business decision | Before the first sale |
