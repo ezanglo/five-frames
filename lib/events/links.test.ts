@@ -13,7 +13,7 @@ const SLUGGED = new RegExp(`^/(e|g)/(${SLUG_SOURCE})/(${TOKEN_SOURCE})$`);
 
 describe("event link slugs", () => {
   it("reads the event name as lowercase ASCII words", () => {
-    expect(slugifyEventName("Maria & Jon’s Wedding!")).toBe("maria-and-jon-s-wedding");
+    expect(slugifyEventName("Maria & Jon’s Wedding!")).toBe("maria-and-jons-wedding");
     expect(slugifyEventName("  Café   Reunión 2026 ")).toBe("cafe-reunion-2026");
   });
 

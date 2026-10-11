@@ -18,6 +18,8 @@ export function slugifyEventName(name: string): string | null {
     .normalize("NFKD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
+    // "Jon's" reads as one word, not "jon-s".
+    .replace(/['’]/g, "")
     .replace(/&/g, " and ")
     .match(/[a-z0-9]+/g);
   if (!words) return null;
