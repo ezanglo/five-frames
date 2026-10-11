@@ -44,6 +44,7 @@ import {
   WizardShell,
   type WizardStep,
 } from "@/components/ff/host/wizard";
+import { captureLinkPath, captureQrPath } from "@/lib/events/links";
 
 export const metadata = { title: "Set up event · FiveFrames" };
 
@@ -391,8 +392,9 @@ export default async function EventSetupPage({
 
   const baseUrl = await getRequestBaseUrl();
   const { printSignage, tableNumberCards } = eventPlanFeatures(event);
-  const capturePath = event.event_token ? `/e/${event.event_token}` : null;
-  const qr = capturePath ? await qrSvgDataUri(`${baseUrl}${capturePath}`) : null;
+  const capturePath = captureLinkPath(event);
+  const qrPath = captureQrPath(event);
+  const qr = qrPath ? await qrSvgDataUri(`${baseUrl}${qrPath}`) : null;
   const displayHost = baseUrl.replace(/^https?:\/\//, "");
   const name = firstName(host.name);
 

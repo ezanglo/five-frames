@@ -16,6 +16,7 @@ import {
   HostSheet,
   HostTopNav,
 } from "@/components/ff/host/host-chrome";
+import { captureLinkPath } from "@/lib/events/links";
 
 /**
  * Event pages (D6 Dashboard · D7 Photos · D8 Settings; mobile 06 / 06b / 07). Desktop: top nav
@@ -44,7 +45,7 @@ export default async function EventLayout({
   const meta = [formatEventDate(event.event_date, { year: true }), event.timezone]
     .filter(Boolean)
     .join(" · ");
-  const guestPath = event.activated_at && event.event_token ? `/e/${event.event_token}` : null;
+  const guestPath = event.activated_at ? captureLinkPath(event) : null;
 
   return (
     <HostFrame>

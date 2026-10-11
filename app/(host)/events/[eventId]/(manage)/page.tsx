@@ -40,6 +40,7 @@ import { LivePill } from "@/components/ff/pill";
 import { SHOTS_PER_GUEST } from "@/components/ff/shots";
 import { DashboardLive } from "../dashboard-live";
 import { CaptureToggle } from "./capture-toggle";
+import { captureLinkPath, captureQrPath, galleryLinkPath } from "@/lib/events/links";
 
 /**
  * Host dashboard tab (D6 / mobile 06). Desktop: a main column (stat tiles, latest photos) and a
@@ -82,9 +83,10 @@ export default async function EventDashboardPage({
   const tz = event.timezone;
 
   const baseUrl = await getRequestBaseUrl();
-  const capturePath = event.activated_at && event.event_token ? `/e/${event.event_token}` : null;
-  const galleryPath = event.activated_at && event.gallery_token ? `/g/${event.gallery_token}` : null;
-  const qr = capturePath ? await qrSvgDataUri(`${baseUrl}${capturePath}`) : null;
+  const capturePath = event.activated_at ? captureLinkPath(event) : null;
+  const galleryPath = event.activated_at ? galleryLinkPath(event) : null;
+  const qrPath = event.activated_at ? captureQrPath(event) : null;
+  const qr = qrPath ? await qrSvgDataUri(`${baseUrl}${qrPath}`) : null;
   const displayHost = baseUrl.replace(/^https?:\/\//, "");
 
   const boundOpen = openCaptureAction.bind(null, eventId);

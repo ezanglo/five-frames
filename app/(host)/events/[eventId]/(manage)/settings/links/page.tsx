@@ -12,6 +12,7 @@ import { ButtonLink } from "@/components/ff/button";
 import { HighlightCard, SectionCard } from "@/components/ff/cards";
 import { ConfirmButton } from "@/components/ff/confirm-button";
 import { CopyLinkButton } from "@/components/ff/copy-button";
+import { captureLinkPath, galleryLinkPath } from "@/lib/events/links";
 
 export const metadata = { title: "Links · Settings · FiveFrames" };
 
@@ -56,7 +57,7 @@ export default async function LinksSettingsPage({
           icon={<Camera />}
           label="Capture link"
           help="For guests at the venue — lets them join and shoot while capture is open."
-          path={event.event_token ? `/e/${event.event_token}` : null}
+          path={captureLinkPath(event)}
           rotate={rotateEventTokenAction.bind(null, eventId)}
           revoke={revokeEventTokenAction.bind(null, eventId)}
         />
@@ -70,7 +71,7 @@ export default async function LinksSettingsPage({
                 ? "View-only. Visibility is set to only you, so it opens nothing for anyone else."
                 : "View-only. Anyone with it can see the revealed gallery now."
           }
-          path={event.gallery_token ? `/g/${event.gallery_token}` : null}
+          path={galleryLinkPath(event)}
           rotate={rotateGalleryTokenAction.bind(null, eventId)}
           revoke={revokeGalleryTokenAction.bind(null, eventId)}
         />

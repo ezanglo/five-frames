@@ -102,7 +102,8 @@ app/
   (operator)/             Operator Console — Supabase Auth session + operator grant required (§5a)
   (guest)/e/[token]/      Guest capture — event token in path, guest cookie for session;
                           keepsake route lives under it (§7b)
-  (gallery)/g/[token]/    Gallery viewer — gallery token in path
+  (gallery)/g/[token]/    Gallery viewer — gallery token in path. Both token pages also answer
+                          at /<e|g>/<slug>/<token> and serve preview-image (§5, D28)
   (demo)/demo/            Public pre-purchase demo — client-only, no DAL calls (§6b, D14)
   api/
     webhooks/paymongo/    Signed webhook → activation
@@ -241,6 +242,24 @@ honest answer matters, and it is narrower than "RLS is our backstop".
 Rotation replaces the token, which immediately invalidates the old URL. Possession of the gallery
 token is the credential for "anyone with the link" visibility; it grants nothing when visibility
 is "only me" or the gallery is unrevealed.
+
+**Link shape (D28).** A shared link reads `/e/<slug>/<token>` or `/g/<slug>/<token>`, where the
+slug is the event name as lowercase ASCII words (`lib/events/links.ts`). The slug is decoration:
+a `next.config.ts` rewrite drops it, and only the token is looked up, so a renamed event's old
+links keep working and a wrong slug opens nothing it shouldn't. The bare `/e/<token>` and
+`/g/<token>` forms stay valid forever. QR codes (on-screen and signage) keep encoding the bare
+path, which is shorter and so a less dense code. The rewrite matches a 22-character base64url
+token only, so no fixed child route of a token page may be 22 characters long.
+
+**Link previews (D28).** Both token pages set noindex metadata with the event name and point
+`og:image` at `/<e|g>/<token>/preview-image`, a 1200 × 630 JPEG rendered on request
+(`lib/media/link-preview.tsx`) and never stored. It shows the event name, date and FiveFrames
+mark, over the theme image only where that link's own page may show it: the guest rule for the
+capture link, and a gallery granted to link holders for the gallery link (criterion 43). Before
+reveal or under "only me" it is the plain night card. It never shows a capture. The image URL
+carries a key that changes when the image or that permission changes, so a chat app re-fetching
+the page picks up the new image. The response is `no-store`. Chat apps keep their own copies of
+a preview, which a later rotation or revoke can't recall.
 
 ### 5a. Operators
 
@@ -819,6 +838,7 @@ URLs minted by the DAL **after the surface's own access check**:
 | Guest event screens (`/e/[token]`) | Valid, current `event_token` (so it is only reachable after activation, and a rotated or revoked token stops it) |
 | Gallery pages (`/g/[token]`) | Only in the branch where gallery access is actually granted. The locked/"only me" branch never loads it (criterion 43) |
 | Keepsake and signage renderers | None to the browser; the server reads bytes with the service client |
+| Link preview images (§5, D28) | No signed URL. The server embeds the bytes in a rendered JPEG, only when that link's own page would show the image |
 | Operator Console pages | **Never.** No Console DAL function selects or signs it |
 | Support access (§5b) | `getEventAccess` admits `support`, same as host event pages (planned, Slice 27) |
 

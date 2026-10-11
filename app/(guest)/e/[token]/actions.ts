@@ -15,6 +15,7 @@ import {
 } from "@/lib/auth/guest-session";
 import { hasReachedGuestCapacity, isCaptureOpen } from "@/lib/events/lifecycle";
 import { createSignedReadUrl } from "@/lib/media/storage";
+import { captureLinkPath } from "@/lib/events/links";
 import type { CaptureRow } from "@/lib/db/types";
 
 export type JoinActionState = { error: string | null; atCapacity?: boolean };
@@ -48,7 +49,7 @@ export async function joinEvent(
 
   await setGuestSessionCookie(token, event.id, outcome.session.id);
 
-  redirect(`/e/${token}`);
+  redirect(captureLinkPath(event) ?? `/e/${token}`);
 }
 
 /** Guest-facing result shapes are plain data — serializable across the client/server boundary. */

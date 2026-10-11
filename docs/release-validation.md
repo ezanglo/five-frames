@@ -335,6 +335,14 @@ which is not deployment evidence. Needs migration
 operator O. OPS-01 also gains a check: an ordinary host who requests another host's event page
 directly gets "We can't find that page" (that is support access's address).
 
+### Share links, link previews and a viewer repair (D28, 2026-10-11) — GAL-09 new
+
+Not yet deployed. Capture and gallery links now read `/<e|g>/<slug>/<token>`, and both pages
+give chat apps a preview image (GAL-09). QR codes are unchanged. Separately, the revealed
+gallery's photo viewer ignored every tap, swipe and key: it rendered inside the list that is
+made `inert` while the viewer is open. It now renders beside it. GAL-04's viewer steps need a
+rerun on a build with that repair.
+
 ## Test target
 
 One Vercel deployment of the final intended release code. Every case runs against it.
@@ -1111,6 +1119,28 @@ Open gallery links on a phone that is **not** signed in as host A.
   - "Show more" (once there are more than 30 photos) only adds photos below, and nothing jumps.
 - **Result:** NOT RUN
 - **Evidence / notes:**
+
+#### GAL-09 · Readable links and link previews in real chat apps (D28)
+- **Where:** real phone, in Messenger and iMessage (WhatsApp optional). HUMAN-ONLY: an unfurl
+  only counts when a real chat app fetched it.
+- **Needs:** an event with a theme image; its gallery not yet revealed, visibility "anyone with
+  the link"
+- **Steps:**
+  1. Copy the capture link and the gallery link from Settings → Links. Paste each into a chat.
+  2. Open both links from the chat.
+  3. Reveal the gallery, then paste the gallery link into a new chat.
+  4. Set visibility to **Only me** and paste the gallery link into another new chat.
+  5. Open an old bare link (`/e/<token>`, `/g/<token>`) and scan the printed or on-screen QR.
+- **PASS when:**
+  - both links read `/<e|g>/<event-name-slug>/<token>`;
+  - the capture link's preview shows the event name over the theme image;
+  - before reveal and under Only me, the gallery preview shows the event name on the plain dark
+    card and no theme image; after reveal it shows the theme image;
+  - no preview shows a guest's photo;
+  - both slugged links open the right pages, and the bare links and the QR still work.
+- **Result:** NOT RUN
+- **Evidence / notes:** Local: unit tests for the slug and renderer; `curl` against `next dev`
+  showed the slugged and bare paths reaching the same pages, noindex. No chat app was used.
 
 ### F. Operator / manual payment
 

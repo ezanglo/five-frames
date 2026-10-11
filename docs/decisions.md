@@ -1210,3 +1210,30 @@ Mechanism (architecture §5b):
   URL" narrows to the Console's own pages. Support access may sign **display derivatives** only,
   never originals.
 - Every new host DAL function from here on must state which roles it admits.
+
+## D28 — Readable share links and link previews
+
+**Status:** Accepted (2026-10-11). Built (architecture §5 "Link shape", "Link previews").
+
+**Decision:** Capture and gallery links carry the event name as a slug before the token
+(`/g/maria-and-jon/<token>`), and both token pages give chat apps a preview image with the event
+name, over the theme image only where that page would show it.
+
+**Reasoning:**
+- A bare 22-character token reads as spam in a chat. The name tells the recipient what it is.
+- The token stays the whole credential, so product.md §8.2's "long and unguessable" still holds.
+- A preview is a derivative like a keepsake, and reuses that renderer.
+
+**Alternatives rejected:**
+- **Slug only:** anyone who guesses an event name could open a revealed "anyone with the link"
+  gallery. Breaks invariant 8 and criterion 27.
+- **A short token beside the slug:** weaker for a shorter link, and §8.2 says the links are long.
+- **The theme image in every gallery preview:** criterion 43 keeps it off a gallery link that
+  grants no access.
+- **A stored slug column:** a derived slug needs no migration, and an unread slug can't go stale.
+
+**Consequences:**
+- QR codes keep the bare token path. Printed signs and links shared before this change work.
+- A gallery link shared before reveal may keep its plain preview in chat apps that cached it.
+- Chat apps keep their own copy of a preview image. Rotating a link can't recall it.
+

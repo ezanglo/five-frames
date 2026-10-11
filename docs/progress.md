@@ -20,6 +20,10 @@ Last updated: 2026-10-11 (**Slice 27, operator support access, is `complete`: mi
   [Slice 27](#slice-27--operator-support-access-2026-10-11-complete).
   Not on the marketing site, so it doesn't block the site deploy. Before real customers it needs
   the terms and privacy copy to say staff may view photos (product.md §19).
+- **Readable share links and link previews (D28): `awaiting human verification`.** Capture and
+  gallery links carry the event name (`/g/<slug>/<token>`; the token is still the credential),
+  and chat apps get a preview image (architecture §5). Also repairs the gallery viewer, which
+  ignored all input. Verify with release-validation.md GAL-09 and GAL-04.
 - **Deferred to the first update after launch: Co-host access** (D24, product.md §11.2.2,
   architecture.md §7f). It's on the site as "coming soon". To test it when it ships, use
   criterion 87: the co-host can run the event but not own it, and other hosts and revoked

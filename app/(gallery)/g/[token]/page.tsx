@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ImageOff, Lock } from "lucide-react";
 import { getEventByGalleryToken } from "@/lib/dal/events";
@@ -11,7 +12,16 @@ import { EventDateLine, GuestShell } from "@/components/ff/guest-shell";
 import { HighlightCard } from "@/components/ff/cards";
 import { StatusPill } from "@/components/ff/pill";
 import { RevealCountdown } from "@/components/ff/reveal-countdown";
+import { linkPreviewMetadata } from "@/lib/media/link-preview-route";
 import { GalleryArchive } from "./gallery-archive";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  return linkPreviewMetadata("gallery", (await params).token);
+}
 
 /**
  * The public gallery (product.md §7.4/§8.2, guest 05 Gallery · locked / revealed). Possession of

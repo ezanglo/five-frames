@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Clock, Image as ImageIcon, Lock, Users } from "lucide-react";
 import { eventPlanFeatures } from "@/lib/plans/registry";
 import { getEventByToken } from "@/lib/dal/events";
@@ -23,6 +24,15 @@ import type { GuestKeepsakes } from "./keepsakes";
 import { getFullSetAvailability, isKeepsakeEventReachable } from "@/lib/dal/keepsakes";
 import { buildKeepsakeContext } from "@/lib/keepsakes/context";
 import { keptFrameCount } from "@/lib/capture/guest-slots";
+import { linkPreviewMetadata } from "@/lib/media/link-preview-route";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ token: string }>;
+}): Promise<Metadata> {
+  return linkPreviewMetadata("capture", (await params).token);
+}
 
 /**
  * The guest event page (guest 01 Join · 02 Your Five · 04 Completion). The lifecycle drives

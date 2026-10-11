@@ -1,5 +1,7 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
+
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventAccessFor, type EventAccess } from "@/lib/dal/event-access";
 import { supportUpdateEvent } from "@/lib/dal/support-actions";
@@ -230,8 +232,12 @@ export async function getEventThemeForHost(
 export async function getEventThemeForGuest(eventToken: string): Promise<EventThemeView | null> {
   const event = await eventByColumn("event_token", eventToken);
   if (!event || !event.activated_at) return null;
+  return themeViewForEvent(event, guestMayShowThemeImage(event));
+}
+
+function guestMayShowThemeImage(event: EventRow): boolean {
   const state = deriveEventLifecycleState(event);
-  return themeViewForEvent(event, state !== "expired" && state !== "archived");
+  return Boolean(event.activated_at) && state !== "expired" && state !== "archived";
 }
 
 /**
@@ -243,6 +249,35 @@ export async function getEventThemeForGallery(galleryToken: string): Promise<Eve
   const event = await eventByColumn("gallery_token", galleryToken);
   if (!event || !isGalleryOpenToLinkHolders(event)) return null;
   return themeViewForEvent(event, true);
+}
+
+/**
+ * What a shared link's preview may show (architecture §5 "Link previews"): the event name and
+ * date for any current token, and the theme image only where that link's own page would show
+ * it (the guest rule above, or a gallery granted to link holders, criterion 43). `imageKey`
+ * changes when the image or that permission does, so the preview URL changes with it and chat
+ * apps fetch it again. Null for a token that matches nothing.
+ */
+export type LinkPreviewSource = {
+  event: EventRow;
+  mayShowImage: boolean;
+  imageKey: string;
+};
+
+export async function getLinkPreviewSource(
+  link: "capture" | "gallery",
+  token: string,
+): Promise<LinkPreviewSource | null> {
+  const event = await eventByColumn(link === "capture" ? "event_token" : "gallery_token", token);
+  if (!event) return null;
+  const allowed =
+    link === "capture" ? guestMayShowThemeImage(event) : isGalleryOpenToLinkHolders(event);
+  const mayShowImage = allowed && Boolean(event.theme_image_path) && !event.media_deleted_at;
+  const imageKey = createHash("sha256")
+    .update(mayShowImage ? event.theme_image_path! : "none")
+    .digest("base64url")
+    .slice(0, 10);
+  return { event, mayShowImage, imageKey };
 }
 
 async function eventByColumn(column: "event_token" | "gallery_token", token: string) {
