@@ -30,13 +30,18 @@ export async function signUp(
     return { error: `Use at least ${MIN_PASSWORD_LENGTH} characters for your password.` };
   }
 
+  const baseUrl = await getRequestBaseUrl();
   const supabase = await createServerAuthClient();
   // The name lives in the auth user's own metadata — a host-side greeting only; it is never
-  // shown to guests.
+  // shown to guests. The confirmation link returns through /auth/confirm, which signs this
+  // browser in; without it the link lands on the bare Site URL, confirmed but signed out.
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName } },
+    options: {
+      data: { full_name: fullName },
+      emailRedirectTo: `${baseUrl}/auth/confirm?next=/dashboard&flow=signup`,
+    },
   });
 
   if (error) {
@@ -60,7 +65,12 @@ export async function resendSignupConfirmation(
 ): Promise<AuthActionState> {
   const email = String(formData.get("email") ?? "").trim();
   const supabase = await createServerAuthClient();
-  const { error } = await supabase.auth.resend({ type: "signup", email });
+  const baseUrl = await getRequestBaseUrl();
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: { emailRedirectTo: `${baseUrl}/auth/confirm?next=/dashboard&flow=signup` },
+  });
   if (error && error.status === 429) {
     return { error: "Too many requests — wait a minute, then try again.", sentTo: email };
   }
