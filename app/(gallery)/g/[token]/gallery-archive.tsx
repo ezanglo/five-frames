@@ -91,50 +91,54 @@ export function GalleryArchive({
     );
   }
 
+  // The viewer renders beside the inert list, never inside it: `inert` covers the whole
+  // subtree, so a viewer nested there would ignore every tap, swipe and key.
   return (
-    <div className="flex flex-col gap-4" inert={viewerIndex !== null}>
-      <div className="hidden items-center justify-between gap-4 text-label font-medium text-ink-muted md:flex">
-        <p className="tabular">
-          Showing {Math.min(visibleCount, captures.length)} of {captures.length}
-        </p>
-        <p>Click a photo to open it · ← → to browse</p>
-      </div>
-      {timeSections ? (
-        groupBySection(visible).map((group) => (
-          <section key={group.key} aria-labelledby={`section-${group.key}`} className="flex flex-col gap-3">
-            <h2 id={`section-${group.key}`} className="text-heading font-bold text-ink">
-              {group.label}
-            </h2>
-            <GalleryLayoutList
-              layout={layout}
-              items={group.items}
-              label={`Photos from ${group.label}`}
-              renderTile={(capture, index) => renderTile(capture, group.start + index)}
-            />
-          </section>
-        ))
-      ) : (
-        <GalleryLayoutList layout={layout} items={visible} label="Event photos" renderTile={renderTile} />
-      )}
+    <>
+      <div className="flex flex-col gap-4" inert={viewerIndex !== null}>
+        <div className="hidden items-center justify-between gap-4 text-label font-medium text-ink-muted md:flex">
+          <p className="tabular">
+            Showing {Math.min(visibleCount, captures.length)} of {captures.length}
+          </p>
+          <p>Click a photo to open it · ← → to browse</p>
+        </div>
+        {timeSections ? (
+          groupBySection(visible).map((group) => (
+            <section key={group.key} aria-labelledby={`section-${group.key}`} className="flex flex-col gap-3">
+              <h2 id={`section-${group.key}`} className="text-heading font-bold text-ink">
+                {group.label}
+              </h2>
+              <GalleryLayoutList
+                layout={layout}
+                items={group.items}
+                label={`Photos from ${group.label}`}
+                renderTile={(capture, index) => renderTile(capture, group.start + index)}
+              />
+            </section>
+          ))
+        ) : (
+          <GalleryLayoutList layout={layout} items={visible} label="Event photos" renderTile={renderTile} />
+        )}
 
-      {hasMore ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
-          className="self-center md:mt-2"
-        >
-          Show more
-        </Button>
-      ) : (
-        <p className="text-center text-caption font-medium text-ink-muted md:hidden">
-          Tap a photo to open it.
-        </p>
-      )}
+        {hasMore ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}
+            className="self-center md:mt-2"
+          >
+            Show more
+          </Button>
+        ) : (
+          <p className="text-center text-caption font-medium text-ink-muted md:hidden">
+            Tap a photo to open it.
+          </p>
+        )}
+      </div>
 
       {viewerIndex !== null && (
         <PhotoViewer photos={photos} initialIndex={viewerIndex} onClose={closeViewer} />
       )}
-    </div>
+    </>
   );
 }
