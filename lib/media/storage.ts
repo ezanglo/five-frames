@@ -1,55 +1,61 @@
 import "server-only";
 
 import sharp from "sharp";
-import { createServiceClient } from "@/lib/supabase/service-client";
-import { CAPTURES_BUCKET, SIGNED_TUS_PATH_SUFFIX } from "@/lib/media/constants";
+import {
+  CAPTURES_PREFIX,
+  IMMUTABLE_CACHE_CONTROL,
+  deleteKeys,
+  deletePrefix,
+  getObject,
+  headObject,
+  presignGet,
+  presignPut,
+  putObject,
+  type PresignedPut,
+} from "@/lib/storage/r2";
+import { CAPTURE_MAX_BYTES, CAPTURE_MIME_TYPES } from "@/lib/media/constants";
 
 /**
- * Private bucket for photo originals and derivatives (architecture §7, invariant 8). No
- * object here is ever public; every read is a short-lived signed URL minted after an
- * access check, and every write from a guest browser happens through a signed upload URL
- * scoped to one specific path — the one narrow exception to "the browser never touches
- * Supabase directly" (D3/D4).
+ * Photo originals and derivatives under the private bucket's `captures/` prefix (architecture
+ * §7, §7h, invariant 8). Capture rows store paths without the prefix
+ * (`{event}/{session}/{reserve_key}/original`); it is added here, at the storage edge. No object
+ * is ever public: every read is a short-lived presigned URL minted after an access check, and
+ * the only browser write is a presigned PUT for one reserved object key.
  */
-const BUCKET = CAPTURES_BUCKET;
+const key = (path: string) => `${CAPTURES_PREFIX}${path}`;
 
-const ACCEPTED_MIME_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/heic",
-  "image/heif",
-]);
-
-export type SignedUpload = { signedUrl: string; token: string };
+const ACCEPTED_MIME_TYPES: ReadonlySet<string> = new Set(CAPTURE_MIME_TYPES);
 
 /**
- * Mints a time-limited signed upload credential for one specific object path (D7). The
- * browser either PUTs its file bytes directly to `signedUrl`, or — for the resumable path —
- * presents `token` in the TUS `x-signature` header. Either way, no Supabase client or
- * broader credential ever reaches the browser, only a scoped capability for this one path.
+ * A guest-supplied description of the file about to be uploaded. Only a fast, calm refusal:
+ * the presigned URL then binds the exact type and length, and commit verifies the stored object.
  */
-export async function createSignedUploadUrl(path: string): Promise<SignedUpload> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUploadUrl(path, { upsert: true });
-
-  if (error) throw error;
-  return { signedUrl: data.signedUrl, token: data.token };
+export function isAcceptableCaptureFile(declared: { sizeBytes: number; contentType: string }): boolean {
+  return (
+    Number.isInteger(declared.sizeBytes) &&
+    declared.sizeBytes > 0 &&
+    declared.sizeBytes <= CAPTURE_MAX_BYTES &&
+    ACCEPTED_MIME_TYPES.has(declared.contentType)
+  );
 }
 
 /**
- * Signed TUS resumable-upload endpoint for this project (D7, first-party: direct storage
- * hostname is recommended for large-file performance). Derived from the same project URL
- * already used for every other Supabase client, not a new secret. It carries the signed-upload
- * suffix because the browser authenticates with `x-signature` only (NET-02).
+ * Upload authorization for exactly one reserved object (D7/D26): a single presigned PUT with the
+ * declared type and exact length signed in. A failed or interrupted upload is restarted from the
+ * start by Retry, which overwrites the same key; nothing about it is resumable, and nothing
+ * needs to be (the frame is consumed only at commit). It proves only "you may write these bytes
+ * here", never that the slot is still yours — commit re-checks that.
  */
-export function getResumableUploadEndpoint(): string {
-  const projectUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (!projectUrl) throw new Error("NEXT_PUBLIC_SUPABASE_URL is not configured");
-  const projectId = new URL(projectUrl).hostname.split(".")[0];
-  return `https://${projectId}.storage.supabase.co/storage/v1/upload/resumable${SIGNED_TUS_PATH_SUFFIX}`;
+export async function createCaptureUpload(
+  path: string,
+  declared: { sizeBytes: number; contentType: string },
+): Promise<PresignedPut> {
+  return presignPut(key(path), {
+    contentType: declared.contentType,
+    contentLength: declared.sizeBytes,
+    cacheControl: IMMUTABLE_CACHE_CONTROL,
+    expiresInSeconds: 60 * 60,
+  });
 }
 
 export type UploadedObjectCheck =
@@ -61,26 +67,12 @@ export type UploadedObjectCheck =
  * authorized to upload to actually exists and looks like an image, before the frame is
  * ever consumed. Upload authorization alone never implies a slot was safely filled.
  */
-export async function verifyUploadedObject(
-  path: string,
-): Promise<UploadedObjectCheck> {
-  const supabase = createServiceClient();
-  const lastSlash = path.lastIndexOf("/");
-  const folder = path.slice(0, lastSlash);
-  const fileName = path.slice(lastSlash + 1);
-
-  const { data, error } = await supabase.storage.from(BUCKET).list(folder, {
-    search: fileName,
-  });
-
-  if (error) throw error;
-  const entry = data?.find((item) => item.name === fileName);
-  if (!entry || !entry.metadata) return { exists: false };
-
-  const mimeType = String(entry.metadata.mimetype ?? "");
-  if (!ACCEPTED_MIME_TYPES.has(mimeType)) return { exists: false };
-
-  return { exists: true, mimeType, sizeBytes: Number(entry.metadata.size ?? 0) };
+export async function verifyUploadedObject(path: string): Promise<UploadedObjectCheck> {
+  const head = await headObject(key(path));
+  if (!head) return { exists: false };
+  if (!ACCEPTED_MIME_TYPES.has(head.contentType)) return { exists: false };
+  if (head.sizeBytes <= 0 || head.sizeBytes > CAPTURE_MAX_BYTES) return { exists: false };
+  return { exists: true, mimeType: head.contentType, sizeBytes: head.sizeBytes };
 }
 
 export type Derivatives = {
@@ -94,19 +86,11 @@ export type Derivatives = {
 /**
  * Generates display and thumbnail derivatives from the committed original and writes them
  * as separate objects (invariant 10: the original itself is never modified or overwritten).
- * HEIC/HEIF originals are decoded by sharp's libvips build and re-encoded as JPEG, since
- * HEIC has poor cross-browser display support — the original bytes are untouched either way.
  */
-export async function generateDerivatives(
-  originalPath: string,
-): Promise<Derivatives> {
-  const supabase = createServiceClient();
-  const { data: blob, error: downloadError } = await supabase.storage
-    .from(BUCKET)
-    .download(originalPath);
-  if (downloadError) throw downloadError;
+export async function generateDerivatives(originalPath: string): Promise<Derivatives> {
+  const originalBuffer = await getObject(key(originalPath));
+  if (!originalBuffer) throw new Error("capture original not found");
 
-  const originalBuffer = Buffer.from(await blob.arrayBuffer());
   const image = sharp(originalBuffer).rotate();
 
   const [display, thumbnailBuffer] = await Promise.all([
@@ -118,17 +102,10 @@ export async function generateDerivatives(
   const displayPath = `${basePath}/display`;
   const thumbnailPath = `${basePath}/thumbnail`;
 
-  const [displayUpload, thumbnailUpload] = await Promise.all([
-    supabase.storage
-      .from(BUCKET)
-      .upload(displayPath, display.data, { contentType: "image/jpeg", upsert: true }),
-    supabase.storage
-      .from(BUCKET)
-      .upload(thumbnailPath, thumbnailBuffer, { contentType: "image/jpeg", upsert: true }),
+  await Promise.all([
+    putObject(key(displayPath), display.data, "image/jpeg"),
+    putObject(key(thumbnailPath), thumbnailBuffer, "image/jpeg"),
   ]);
-
-  if (displayUpload.error) throw displayUpload.error;
-  if (thumbnailUpload.error) throw thumbnailUpload.error;
 
   return {
     displayPath,
@@ -143,45 +120,37 @@ export async function generateDerivatives(
  * derivatives). Never used on an original, and never writes. Null when the object is missing.
  */
 export async function downloadCaptureObject(path: string): Promise<Buffer | null> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase.storage.from(BUCKET).download(path);
-  if (error || !data) return null;
-  return Buffer.from(await data.arrayBuffer());
+  return getObject(key(path));
 }
 
 /**
- * Permanently removes objects from the private bucket (retention/deletion, product.md
- * §15.2). Removing an already-absent path is not an error from Supabase Storage's own
- * `remove()` — it simply isn't included in the returned list — which is what makes a
- * retry-after-partial-failure safe: re-deleting the objects a previous attempt already
- * removed is a harmless no-op, not a failure.
+ * Permanently removes objects (retention/deletion, product.md §15.2). Deleting an absent object
+ * succeeds, so a retry after a partial failure is a harmless no-op.
  */
 export async function deleteObjects(paths: string[]): Promise<void> {
-  if (paths.length === 0) return;
-  const supabase = createServiceClient();
-  const { error } = await supabase.storage.from(BUCKET).remove(paths);
-  if (error) throw error;
+  await deleteKeys(paths.map(key));
 }
 
 /**
- * Signed read URL, minted only after the caller has already done its own access check.
- * Pass `downloadFilename` for a URL that must actually save a file rather than navigate
- * the browser to it (Supabase's `response-content-disposition: attachment` header on the
- * signed response itself, not the HTML `download` attribute — the latter is silently
- * ignored by browsers for a cross-origin URL like a Supabase Storage signed URL).
+ * Every object under one event's capture folder, including orphans a row no longer points at
+ * (an upload whose reservation lapsed). D18 permanent deletion runs this after deleting the
+ * rows' own paths.
+ */
+export async function deleteEventCaptureFolder(eventId: string): Promise<number> {
+  if (!/^[0-9a-f-]{36}$/i.test(eventId)) throw new Error("invalid event id");
+  return deletePrefix(key(`${eventId}/`));
+}
+
+/**
+ * Presigned read URL, minted only after the caller has already done its own access check.
+ * Pass `downloadFilename` for a URL that must actually save a file rather than navigate the
+ * browser to it: the response itself carries `Content-Disposition: attachment` (the HTML
+ * `download` attribute is ignored for a cross-origin URL like this one).
  */
 export async function createSignedReadUrl(
   path: string,
   expiresInSeconds = 60 * 10,
   downloadFilename?: string,
 ): Promise<string> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(path, expiresInSeconds, {
-      download: downloadFilename ?? false,
-    });
-
-  if (error) throw error;
-  return data.signedUrl;
+  return presignGet(key(path), { ttlSeconds: expiresInSeconds, downloadFilename });
 }

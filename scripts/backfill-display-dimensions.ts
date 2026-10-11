@@ -10,15 +10,14 @@
  * Dry run by default: it lists what it would write. Pass `--apply` to write.
  *
  * Usage: pnpm ops:backfill-display-dimensions [--apply]
- * Talks only to the project .env.local points at. Never run against production without its own
+ * Reads display derivatives from R2 (D26). Talks only to the project and bucket .env.local points at. Never run against production without its own
  * explicit approval.
  */
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import sharp from "sharp";
-
-const BUCKET = "captures";
+import { downloadCaptureObject } from "@/lib/media/storage";
 
 function loadEnvLocal() {
   const envPath = path.resolve(import.meta.dirname, "..", ".env.local");
@@ -64,12 +63,12 @@ async function main() {
   let written = 0;
   const missing: string[] = [];
   for (const capture of pending) {
-    const { data: blob, error } = await supabase.storage.from(BUCKET).download(capture.display_path);
-    if (error || !blob) {
+    const bytes = await downloadCaptureObject(capture.display_path);
+    if (!bytes) {
       missing.push(capture.id);
       continue;
     }
-    const size = uprightSize(await sharp(Buffer.from(await blob.arrayBuffer())).metadata());
+    const size = uprightSize(await sharp(bytes).metadata());
     if (!size) {
       missing.push(capture.id);
       continue;

@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 24, table-number cards, is `complete`: no migration, every signage test and the human checklist passed.** Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 25, media storage on Cloudflare R2, is `complete`: no migration, every test and the human checklist passed (bucket CORS set by the founder).** Slice 24, table-number cards, is `complete`. Slice 23, time sections, is `complete`. Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -12,6 +12,8 @@ Last updated: 2026-10-11 (**Slice 24, table-number cards, is `complete`: no migr
   [Slice 23](#slice-23--time-sections-2026-10-11-complete).
   Slice 24, table-number cards, is `complete`. See
   [Slice 24](#slice-24--table-number-cards-2026-10-11-complete).
+- **R2 storage (D26), Slice 25: `complete`.** See
+  [Slice 25](#slice-25--storage-on-cloudflare-r2-2026-10-11-complete).
 - **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
   founder's request. Operators open any event's host pages from the Console, change its
   settings, and view and hide its photos. Plan, payment, deletion, ownership and original
@@ -55,6 +57,97 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 25 — Storage on Cloudflare R2 (2026-10-11): `complete`
+
+Media (capture originals and derivatives, theme images) moved from Supabase Storage to the
+founder's private R2 bucket: `captures/` and `theme/` prefixes, presigned reads and uploads, no
+public access, no custom domain, no CDN (D26 "As built", architecture §7, §7a, §7h). No
+migration: rows keep their paths, and the prefix is added at the storage edge. Not committed,
+not deployed.
+
+**Built:**
+- `lib/storage/r2.ts`, the one R2 client (`@aws-sdk/client-s3` + presigner, new dependencies).
+  It holds presigned GETs on fixed time windows (stable URLs for browser caching), presigned
+  PUTs with the type, exact length and cache policy signed, get/put/head, list, batch delete and
+  delete by prefix. `lib/media/storage.ts` and `theme-storage.ts` keep their callers' API on top.
+- **Guest upload is one restartable presigned PUT** (TUS, `tus-js-client` and `lib/media/tus.ts`
+  removed). `reserveSlot(token, key, { sizeBytes, contentType })`:
+  - An unusable file (wrong type, empty, over 50 MB) is refused before any slot is touched.
+    New `unsupported_file` outcome, copy "This file can’t be kept. Choose a JPG, PNG or WebP
+    photo under 50 MB." Supabase used to reject these at upload with the generic Retry error.
+  - The page-load probe passes `null` and gets no URL.
+  - Retry re-reserves the same key and re-sends the whole file to the same object.
+- Theme upload sends the server's signed headers. Begin signs the declared size and type.
+- D18 permanent deletion also deletes the event's whole `captures/{event_id}/` prefix, so
+  uploads under lapsed reservations (orphans nothing removed before) go too.
+- `filenameFromSignedUrl` reads `response-content-disposition` (RFC 5987 names).
+- `pnpm ops:backfill-display-dimensions` reads from R2. `ops:retire-share-cards` deliberately
+  stays on Supabase Storage (legacy cleanup).
+- **Dev media copied:** `pnpm ops:copy-media-to-r2 --apply` copied 414 of the 420 objects that
+  committed captures and current theme images point at (idempotent, read-only on Supabase).
+  The other 6 belong to two captures of 2026-09-22 integration-test events ("Test event …")
+  whose objects were already gone from Supabase Storage. Nothing was lost. Abandoned uploads and
+  test leftovers stay behind in Supabase Storage, unused.
+
+**Verification:**
+- `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔ (client bundle scanned: no SDK, no `R2_*` names, no secret)
+- New `captures.upload.integration.test.ts` (real R2, the browser's exact `fetch` PUT) 11 ✔:
+  - a 10+ MB photo commits in one PUT with derivatives and `private, max-age=31536000, immutable`;
+  - R2 answers 403 for another length, another type, an unsigned header set, or a URL pointed at
+    another reservation's key;
+  - a failed upload restarted under the same key gives one row, one frame and one object;
+  - unusable files are refused with no row created;
+  - the probe gets no URL;
+  - a lapsed upload lands, commit refuses it, and prefix deletion removes it;
+  - commit refuses a stored non-image;
+  - read URLs are identical within a window and valid for ≥ TTL;
+  - download URLs answer `attachment` with non-ASCII names;
+  - a tampered or unsigned URL is refused.
+- The other media integration suites moved to `test/storage.ts` and pass against real R2:
+  captures 18, event-theme, keepsakes, Full Set, lifecycle, gallery layouts, signage and
+  operator-events (91 in all). The NET-02 Keep test now uploads through the real presigned PUT.
+- Unit: `keep.test.ts` (new refusal case), `save-files.test.ts`, demo isolation guard (now also
+  forbids `lib/storage`, `@aws-sdk` and the presign helpers in the demo).
+- Full suite: 685/685 ✔ (63 files), with no DB timeouts on this run.
+
+**Bucket CORS (set by the founder in the dashboard, 2026-10-11)** (Cloudflare dashboard → R2
+→ the bucket → Settings → CORS policy). The app's R2 token is object-scoped and can't set it.
+Each environment's bucket lists its own origins. For dev/local plus the site's origin. Since 2026-10-11 that is `https://www.fiveframes.app`: the apex `fiveframes.app` always redirects to `www`, and `five-frames.vercel.app` is no longer used. The origin must be `www`, because that is the page's origin when it uploads:
+
+```json
+[
+  {
+    "AllowedOrigins": ["http://localhost:3000", "https://www.fiveframes.app"],
+    "AllowedMethods": ["GET", "PUT"],
+    "AllowedHeaders": ["content-type", "cache-control"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Add any preview origin used for validation. Images in `<img>` don't need CORS, but uploads and
+the fetch-based downloads (and D25's ZIP) do. Vercel needs the four `R2_*` variables in every
+environment that deploys this code.
+
+**Human checklist on local dev against the dev database, all 7 passed** (reported by the user 2026-10-11):
+1. Guest: join an open event and Keep a normal phone photo. It shows in Your Five and on the
+   host dashboard, and still shows after a reload.
+2. Keep a photo over 6 MB. It saves the same way.
+3. During an upload, set DevTools → Network → Offline, wait for "Photo didn’t upload…", go back
+   online, tap Retry. Exactly one capture, and "shots left" drops by one.
+4. Choose a GIF or another non-photo file and tap Keep. Expect "This file can’t be kept. Choose
+   a JPG, PNG or WebP photo under 50 MB.", no frame used.
+5. Host → Settings → Look: upload a theme image, then replace it. Each shows right away and on
+   the guest screen.
+6. An existing dev event made before today: its photos, theme image, gallery and a keepsake
+   still render (copied objects).
+7. Host Photos: download one original, then "Download all". Files land with their usual names.
+   Guest: download one of your own photos.
+
+NET-02 and the other media cases still rerun on real devices in the
+release pass (release-validation.md, "Storage move to Cloudflare R2").
 
 ## Slice 24 — Table-number cards (2026-10-11): `complete`
 
@@ -2757,21 +2850,20 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 
 ## Next step
 
-1. **Slice 21 still needs its human checklist** (the Slice 21 section). Then Slices 25–26
-   (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
-   before anything deploys, because the site already advertises them.
-   - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user
-     to create the Cloudflare account, enable R2 and put its keys in `.env.local` / Vercel
-     first. The founder chose one bucket with `captures/` and `theme/` prefixes, presigned
-     reads from the S3 endpoint, and no custom domain or CDN (D26, architecture §7h).
-   - It changes the upload path, so every media case in release-validation.md reruns after it.
+1. **Human checklist outstanding:** Slice 21 (its section). Then Slice 26, Download all as ZIP files (roadmap.md), in a fresh
+   session. Slices 21, 24 and 26 must all land before anything deploys, because the site
+   already advertises them.
+   - Slice 25 changed the upload path, so every media case in release-validation.md reruns on
+     the next RC.
+   - Every environment that deploys Slice 25 code needs the four `R2_*` variables and that
+     environment's own bucket CORS.
 2. **Release candidate timing is the user's call.** Slices 20–24 change the Share step, the
    pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.
    Cutting the RC after the plan slices avoids rerunning those twice. If an RC is cut sooner,
    recheck those screens after the plan slices land.
    - The dev database already has `20261001000000`, `20261002000000`, `20261011000000`, `20261011010000`, `20261011020000` and `20261011030000`.
    - Don't deploy code from Slice 19 or Slice 20 against a database that lacks them.
-3. For that RC: deploy to `five-frames.vercel.app`, then run `/e2e-validate`:
+3. For that RC: deploy to `https://www.fiveframes.app` (the site's origin since 2026-10-11; the apex redirects to `www`; replaces `five-frames.vercel.app`), then run `/e2e-validate`:
    - the targeted reruns from "Gallery-layout change after RC `6d8aca8`" and "Sales-led payment
      change after RC `6d8aca8`", plus plan cases once they're added to release-validation.md;
    - then SMOKE-01;
@@ -2790,6 +2882,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | Item | Type | Notes |
 |---|---|---|
 | **Production environment reconciliation.** Vercel Production serves the **dev** Supabase project, an interim state since Slice 2. A real launch needs a production Supabase project, separated Vercel environment scopes, `CRON_SECRET`, and the Supabase Auth redirect allowlist for the production origin. Live PayMongo keys and a live-mode webhook are needed only once `PAYMENT_MODE` becomes `online` (D23). None of these is provisioned | Deployment configuration (needs explicit approval) | Before real payments or guest data |
+| **R2 for production (Slice 25, D26).** Production needs its own private R2 bucket (APAC, no custom domain, no public access), an object-scoped token, the four `R2_*` variables in Vercel Production, and CORS for the production origin. Run `pnpm ops:copy-media-to-r2` only if that environment has media worth keeping. Supabase Storage objects stay where they are, unused; delete them only with explicit approval | Deployment configuration (needs explicit approval) | Before real guest data |
 | **Vercel function region vs Supabase region.** Functions run in US East (`iad1`); Supabase is in `ap-southeast-1`. Reconcile placement, then re-check representative latency (architecture §12) | Deployment configuration | Before real traffic |
 | **`share_path` drop migration** `20260930020000` is written and unapplied. Order: (1) deploy code that no longer uses `share_path` everywhere this database is served; (2) rerun `pnpm ops:retire-share-cards --apply`; (3) apply the migration (Slice 16 section). It stays unapplied during the validation pass (ENV-02) | Deployment-order dependency | Next deploy / release |
 | **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |

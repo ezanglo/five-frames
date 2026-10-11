@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { captureStorage } from "@/test/storage";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { createDraftEvent } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
@@ -78,12 +79,9 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
   async function commitMany(eventId: string, sessionId: string, count = 5): Promise<CaptureRow[]> {
     const out: CaptureRow[] = [];
     for (let i = 0; i < count; i++) {
-      const reserved = await reserveCapture(eventId, sessionId, crypto.randomUUID());
+      const reserved = await reserveCapture(eventId, sessionId, crypto.randomUUID(), null);
       if (reserved.kind !== "reserved") throw new Error(`expected reserved, got ${reserved.kind}`);
-      const { error } = await supabase.storage
-        .from("captures")
-        .upload(reserved.capture.storage_path, photos[i], { contentType: "image/jpeg", upsert: true });
-      if (error) throw error;
+      await captureStorage.put(reserved.capture.storage_path, photos[i], "image/jpeg");
       const committed = await commitCapture(eventId, sessionId, reserved.capture.id, `PRIVATE MESSAGE ${i}`);
       if (committed.kind !== "committed") throw new Error("expected committed");
       out.push(committed.capture);
@@ -155,7 +153,7 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     expect((await getFullSetSources(event.id, session)).kind).toBe("unavailable");
     expect(await getFullSetAvailability(event, session)).toBeNull();
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
-    const pending = await reserveCapture(event.id, session, crypto.randomUUID());
+    const pending = await reserveCapture(event.id, session, crypto.randomUUID(), null);
     expect(pending.kind).toBe("reserved");
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
   }, 60_000);
@@ -183,7 +181,7 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     expect((await getFullSetSources(event.id, session)).kind).toBe("unavailable");
     expect((await makeFullSetKeepsake(event.event_token!, session, "signature")).kind).toBe("not_found");
     // The deleted capture still holds its slot: the session can't commit a replacement.
-    expect((await reserveCapture(event.id, session, crypto.randomUUID())).kind).toBe("frames_exhausted");
+    expect((await reserveCapture(event.id, session, crypto.randomUUID(), null)).kind).toBe("frames_exhausted");
     expect((await makeFullSetKeepsake(event.event_token!, session, "prints")).kind).toBe("not_found");
   }, 60_000);
 
@@ -242,12 +240,12 @@ describe("Full Set keepsakes (real Postgres + Storage)", () => {
     const event = await openEvent();
     const session = await guest(event.id);
     const captures = await commitMany(event.id, session);
-    const download = async (path: string) => Buffer.from(await (await supabase.storage.from("captures").download(path)).data!.arrayBuffer());
+    const download = async (path: string) => (await captureStorage.get(path))!;
     const before = await Promise.all(captures.flatMap((c) => [c.storage_path, c.display_path!, c.thumbnail_path!]).map(download));
     const rowsBefore = (await supabase.from("captures").select().eq("event_id", event.id).order("id")).data;
     const listing = async () =>
-      (await Promise.all(captures.map((c) => supabase.storage.from("captures").list(c.storage_path.slice(0, c.storage_path.lastIndexOf("/"))))))
-        .map((r) => r.data!.map((o) => o.name).sort().join(","));
+      (await Promise.all(captures.map((c) => captureStorage.list(c.storage_path.slice(0, c.storage_path.lastIndexOf("/"))))))
+        .map((paths) => paths.map((p) => p.slice(p.lastIndexOf("/") + 1)).sort().join(","));
     const filesBefore = await listing();
 
     await update(event.id, { capture_closed_at: new Date().toISOString() }); // gallery still unrevealed, private

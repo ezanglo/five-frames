@@ -79,10 +79,21 @@ describe("filenameFromSignedUrl", () => {
   it("reads the name the signed URL was minted with", () => {
     expect(
       filenameFromSignedUrl(
-        "https://x.supabase.co/storage/v1/object/sign/captures/a/original?token=t&download=my-shot-2.jpg",
+        `https://b.acct.r2.cloudflarestorage.com/captures/a/original?X-Amz-Signature=s&response-content-disposition=${encodeURIComponent(
+          `attachment; filename="my-shot-2.jpg"; filename*=UTF-8''my-shot-2.jpg`,
+        )}`,
         "fallback.jpg",
       ),
     ).toBe("my-shot-2.jpg");
+    // A non-ASCII name survives through the RFC 5987 form, not the ASCII fallback.
+    expect(
+      filenameFromSignedUrl(
+        `https://b.test/k?response-content-disposition=${encodeURIComponent(
+          `attachment; filename="0001-Jos_.jpg"; filename*=UTF-8''${encodeURIComponent("0001-José.jpg")}`,
+        )}`,
+        "fallback.jpg",
+      ),
+    ).toBe("0001-José.jpg");
     expect(filenameFromSignedUrl("https://x.test/a?token=t", "fallback.jpg")).toBe("fallback.jpg");
     expect(filenameFromSignedUrl("not a url", "fallback.jpg")).toBe("fallback.jpg");
   });

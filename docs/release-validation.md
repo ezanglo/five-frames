@@ -32,7 +32,7 @@ gallery URL in this file.
 |---|---|
 | Release-candidate commit (full SHA) | `6d8aca84a8a9aa5a8ea0909518b7b92b949683a1` (current; second targeted rerun). Earlier: `8f37fba7ed64b29c3c1a39260293f085c339e933` (first targeted rerun), `a2a32b13946f7902288739bfb6a943d6eb46fa0e` (first pass) |
 | Vercel environment used (Production or Preview) | Production (Option A) |
-| Deployment origin (no tokens) | `https://five-frames.vercel.app` |
+| Deployment origin (no tokens) | `https://www.fiveframes.app` for the next RC (since 2026-10-11; the apex `fiveframes.app` redirects to `www`). Earlier runs used `https://five-frames.vercel.app` |
 | Supabase project | `five-frames-dev` (expected) |
 | PayMongo mode | Not used: `PAYMENT_MODE = manual` (D23). Test, if the mode is switched to `online` |
 | Date(s) of the pass | 2026-10-01 (automated part on `a2a32b1`; targeted automated reruns on `8f37fba` and `6d8aca8`) |
@@ -294,11 +294,19 @@ unit tests, and `payments.manual.integration.test.ts` / `payments.integration.te
 keepsake, signage, capacity, cron and network case. Capture gating doesn't depend on the payment
 source.
 
-### Storage move to Cloudflare R2 (D26, planned) — invalidates media cases
+### Storage move to Cloudflare R2 (D26, Slice 25) — invalidates media cases
 
-Not built yet (roadmap Slice 25). When it lands, every case that **uploads, displays or downloads
-media** reruns on the new RC, because the storage provider, signed URLs and the upload mechanism
-all change:
+Built in Slice 25 (2026-10-11), not yet deployed. Every case that **uploads, displays or
+downloads media** reruns on the new RC, because the storage provider, signed URLs and the upload
+mechanism all changed:
+
+**Before the RC:**
+- The deployment's environment has `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`
+  and `R2_BUCKET`.
+- The bucket's CORS allows the validation origin (progress.md, Slice 25).
+
+There is no TUS path any more: every photo, large or small, is one presigned PUT, and Retry
+restarts it whole. Read "TUS" in older evidence below as history.
 - guest capture and upload: section C, the in-app cases in D, and every NET-* case in section I,
   especially NET-02's dropped-connection retry;
 - gallery and the guest's own photos (E, GAL-*);
@@ -345,7 +353,7 @@ or into a document.
 - [ ] **S-01 Freeze the release candidate.** Choose the commit to validate (normally `main` at
   freeze time). The working tree is clean. Record the full SHA in the run record.
 - [ ] **S-02 Choose the Vercel environment.** This is the user's decision:
-  - **Option A — Production** (`five-frames.vercel.app`, dev-backed). This is also step 1 of the
+  - **Option A — Production** (`www.fiveframes.app`, dev-backed; earlier runs used `five-frames.vercel.app`). This is also step 1 of the
     `share_path` deployment order. The drop migration still stays unapplied during the pass.
   - **Option B — Preview.** Production keeps running older code against the same dev database,
     including its daily cron and any webhook pointed at it.
@@ -1302,7 +1310,7 @@ reconnect isn't rerun here: the Slice 18 evidence stands unless its invalidation
   - RC `8f37fba` rerun finding: that proxy aborted only the Storage PUT. Aborting the **commit** request on this same standard path leaves the sheet on "Saving…" with no retryable message (see NET-02 and the rerun section). Rerun this proxy after the repair. Repaired after RC `8f37fba`; targeted rerun required against the next deployed release candidate (see [Repairs after RC `8f37fba`](#repairs-after-rc-8f37fba)).
   - **Proxy rerun, RC `6d8aca8` (BROWSER-WEBKIT iPhone 15 emulation, R1): repair verified.** The commit request was aborted after the `PUT` landed. The calm "Couldn’t reach FiveFrames. Check your connection and tap Retry — your shot is safe." showed with Retry within 0.7 s. Retry sent one commit and no second upload. The guest showed "4 of 5 · 1 taken", stable after reload, and exactly one card in host Photos. The real-iPhone Airplane Mode run remains. See [Targeted rerun on RC `6d8aca8`](#targeted-rerun-on-rc-6d8aca8).
 
-#### NET-02 · Interrupted large upload (resumable path)
+#### NET-02 · Interrupted large upload (restartable single PUT since D26)
 - **Where:** real Android phone, Chrome, E1
 - **Needs:** AND-01; a photo of 6 MB or more; a frame free
 - **Steps:**

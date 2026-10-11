@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { captureStorage } from "@/test/storage";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { closeCapture, createDraftEvent, openCapture } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
@@ -13,12 +14,13 @@ import {
   moderateCapture,
   reserveCapture,
 } from "@/lib/dal/captures";
+import { filenameFromSignedUrl } from "@/lib/media/save-files";
 import { buildGuestSlots, takenFrameCount } from "@/lib/capture/guest-slots";
 import { keepPhoto, type KeepDeps } from "@/lib/capture/keep";
 import type { UploadedReservation } from "@/lib/capture/attempt";
 
 /**
- * Runs against the real linked dev Postgres and dev Storage bucket (architecture §11) —
+ * Runs against the real linked dev Postgres and the dev R2 bucket (architecture §11) —
  * these are the tests that matter most in the project (roadmap Slice 2). They exercise the
  * frame-limit mechanism itself: the row lock, the idempotent reserve_key, the partial
  * unique slot index, and the reservation TTL (architecture §6, decisions D5/D6).
@@ -84,16 +86,10 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
   /** Reserves, uploads a tiny real PNG, and commits — for tests that need a genuinely
    *  committed capture (moderation only ever applies to committed rows). */
   async function commitTinyCapture(eventId: string, guestSessionId: string) {
-    const reserved = await reserveCapture(eventId, guestSessionId, crypto.randomUUID());
+    const reserved = await reserveCapture(eventId, guestSessionId, crypto.randomUUID(), null);
     if (reserved.kind !== "reserved") throw new Error("expected reserved");
 
-    const { error: uploadError } = await supabase.storage
-      .from("captures")
-      .upload(reserved.capture.storage_path, TINY_PNG, {
-        contentType: "image/png",
-        upsert: true,
-      });
-    if (uploadError) throw uploadError;
+    await captureStorage.put(reserved.capture.storage_path, TINY_PNG, "image/png");
 
     const committed = await commitCapture(eventId, guestSessionId, reserved.capture.id, null);
     if (committed.kind !== "committed") throw new Error("expected committed");
@@ -106,7 +102,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const keys = Array.from({ length: 6 }, () => crypto.randomUUID());
 
     const results = await Promise.all(
-      keys.map((key) => reserveCapture(event.id, session.id, key)),
+      keys.map((key) => reserveCapture(event.id, session.id, key, null)),
     );
 
     const reserved = results.filter((r) => r.kind === "reserved");
@@ -127,8 +123,8 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const key = crypto.randomUUID();
 
     const [first, second] = await Promise.all([
-      reserveCapture(event.id, session.id, key),
-      reserveCapture(event.id, session.id, key),
+      reserveCapture(event.id, session.id, key, null),
+      reserveCapture(event.id, session.id, key, null),
     ]);
 
     expect(first.kind).toBe("reserved");
@@ -152,7 +148,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const session = await newGuestSession(event.id);
     const key = crypto.randomUUID();
 
-    const reserved = await reserveCapture(event.id, session.id, key);
+    const reserved = await reserveCapture(event.id, session.id, key, null);
     expect(reserved.kind).toBe("reserved");
     if (reserved.kind !== "reserved") return;
 
@@ -161,18 +157,12 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(failedCommit.kind).toBe("not_uploaded");
 
     // Retry reuses the same reserve_key — idempotent no-op, same row and slot.
-    const retried = await reserveCapture(event.id, session.id, key);
+    const retried = await reserveCapture(event.id, session.id, key, null);
     expect(retried.kind).toBe("reserved");
     if (retried.kind !== "reserved") return;
     expect(retried.capture.id).toBe(reserved.capture.id);
 
-    const { error: uploadError } = await supabase.storage
-      .from("captures")
-      .upload(reserved.capture.storage_path, TINY_PNG, {
-        contentType: "image/png",
-        upsert: true,
-      });
-    if (uploadError) throw uploadError;
+    await captureStorage.put(reserved.capture.storage_path, TINY_PNG, "image/png");
 
     const committed = await commitCapture(event.id, session.id, reserved.capture.id, null);
     expect(committed.kind).toBe("committed");
@@ -191,9 +181,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(rows).toHaveLength(1);
 
     const basePath = reserved.capture.storage_path.replace(/\/original$/, "");
-    await supabase.storage
-      .from("captures")
-      .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
+    await captureStorage.remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
   });
 
   it("lost reserve and commit responses: Retry converges on exactly one capture (NET-02)", async () => {
@@ -208,18 +196,17 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
       pendingKey: () => key,
       rememberNewKey: () => (key = crypto.randomUUID()),
       reserve: async (reserveKey) => {
-        const outcome = await reserveCapture(event.id, session.id, reserveKey);
+        const outcome = await reserveCapture(event.id, session.id, reserveKey, {
+          sizeBytes: TINY_PNG.length,
+          contentType: "image/png",
+        });
         if (lose.reserve) throw new TypeError("Failed to fetch");
         if (outcome.kind === "reserved") {
           return {
             kind: "reserved",
             captureId: outcome.capture.id,
             slotIndex: outcome.capture.slot_index,
-            uploadUrl: outcome.uploadUrl,
-            uploadToken: outcome.uploadToken,
-            resumableEndpoint: outcome.resumableEndpoint,
-            bucket: "captures",
-            objectName: outcome.capture.storage_path,
+            upload: outcome.upload,
           };
         }
         if (outcome.kind === "already_committed") {
@@ -227,11 +214,14 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
         }
         return { kind: outcome.kind };
       },
+      // The browser's own request: one PUT to the presigned URL with exactly the signed headers.
       upload: async (reserved) => {
-        const { error } = await supabase.storage
-          .from("captures")
-          .upload(reserved.objectName, TINY_PNG, { contentType: "image/png", upsert: true });
-        if (error) throw error;
+        const response = await fetch(reserved.upload!.url, {
+          method: "PUT",
+          body: TINY_PNG,
+          headers: reserved.upload!.headers,
+        });
+        if (!response.ok) throw new Error(`upload failed: ${response.status}`);
       },
       commit: async (captureId) => {
         const outcome = await commitCapture(event.id, session.id, captureId, null);
@@ -269,13 +259,11 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     expect(rows?.[0].reserve_key).toBe(key);
 
     // One frame used: the guest's next attempt gets the next slot, not a sixth reservation.
-    const next = await reserveCapture(event.id, session.id, crypto.randomUUID());
+    const next = await reserveCapture(event.id, session.id, crypto.randomUUID(), null);
     expect(next).toMatchObject({ kind: "reserved", capture: { slot_index: 1 } });
 
     const basePath = (rows?.[0].storage_path as string).replace(/\/original$/, "");
-    await supabase.storage
-      .from("captures")
-      .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
+    await captureStorage.remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
   });
 
   it("an abandoned reservation past its TTL frees its slot for a fresh attempt", async () => {
@@ -283,14 +271,14 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const session = await newGuestSession(event.id);
     const staleKey = crypto.randomUUID();
 
-    const stale = await reserveCapture(event.id, session.id, staleKey);
+    const stale = await reserveCapture(event.id, session.id, staleKey, null);
     expect(stale.kind).toBe("reserved");
     if (stale.kind !== "reserved") return;
 
     await expirePending(session.id, staleKey);
 
     const freshKey = crypto.randomUUID();
-    const fresh = await reserveCapture(event.id, session.id, freshKey);
+    const fresh = await reserveCapture(event.id, session.id, freshKey, null);
     expect(fresh.kind).toBe("reserved");
     if (fresh.kind !== "reserved") return;
 
@@ -304,13 +292,13 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const session = await newGuestSession(event.id);
     const key = crypto.randomUUID();
 
-    const reserved = await reserveCapture(event.id, session.id, key);
+    const reserved = await reserveCapture(event.id, session.id, key, null);
     expect(reserved.kind).toBe("reserved");
     if (reserved.kind !== "reserved") return;
 
     await expirePending(session.id, key);
 
-    const retried = await reserveCapture(event.id, session.id, key);
+    const retried = await reserveCapture(event.id, session.id, key, null);
     expect(retried.kind).toBe("expired");
   });
 
@@ -319,7 +307,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const session = await newGuestSession(event.id);
     const key = crypto.randomUUID();
 
-    const reserved = await reserveCapture(event.id, session.id, key);
+    const reserved = await reserveCapture(event.id, session.id, key, null);
     expect(reserved.kind).toBe("reserved");
     if (reserved.kind !== "reserved") return;
 
@@ -339,7 +327,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
       .eq("id", event.id);
     if (error) throw error;
 
-    const result = await reserveCapture(event.id, session.id, crypto.randomUUID());
+    const result = await reserveCapture(event.id, session.id, crypto.randomUUID(), null);
     expect(result.kind).toBe("capture_not_open");
   });
 
@@ -348,22 +336,16 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const session = await newGuestSession(event.id);
 
     const committedKey = crypto.randomUUID();
-    const reservedCommitted = await reserveCapture(event.id, session.id, committedKey);
+    const reservedCommitted = await reserveCapture(event.id, session.id, committedKey, null);
     expect(reservedCommitted.kind).toBe("reserved");
     if (reservedCommitted.kind !== "reserved") return;
 
-    const { error: uploadError } = await supabase.storage
-      .from("captures")
-      .upload(reservedCommitted.capture.storage_path, TINY_PNG, {
-        contentType: "image/png",
-        upsert: true,
-      });
-    if (uploadError) throw uploadError;
+    await captureStorage.put(reservedCommitted.capture.storage_path, TINY_PNG, "image/png");
     const committed = await commitCapture(event.id, session.id, reservedCommitted.capture.id, null);
     expect(committed.kind).toBe("committed");
 
     const pendingKey = crypto.randomUUID();
-    const reservedPending = await reserveCapture(event.id, session.id, pendingKey);
+    const reservedPending = await reserveCapture(event.id, session.id, pendingKey, null);
     expect(reservedPending.kind).toBe("reserved");
 
     const view = await listCapturesForGuestSessionWithUrls(event.id, session.id);
@@ -377,9 +359,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
 
     if (reservedCommitted.kind === "reserved") {
       const basePath = reservedCommitted.capture.storage_path.replace(/\/original$/, "");
-      await supabase.storage
-        .from("captures")
-        .remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
+      await captureStorage.remove([`${basePath}/original`, `${basePath}/display`, `${basePath}/thumbnail`]);
     }
   });
 
@@ -398,7 +378,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     // fresh reserve storm still only yields the 4 remaining slots, never 5.
     const keys = Array.from({ length: 5 }, () => crypto.randomUUID());
     const results = await Promise.all(
-      keys.map((key) => reserveCapture(event.id, session.id, key)),
+      keys.map((key) => reserveCapture(event.id, session.id, key, null)),
     );
     expect(results.filter((r) => r.kind === "reserved")).toHaveLength(4);
     expect(results.filter((r) => r.kind === "frames_exhausted")).toHaveLength(1);
@@ -452,7 +432,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     await moderateCapture(hostId, event.id, captures[0].id, "hide");
     await commitTinyCapture(event.id, session.id);
     expect(await guestTaken()).toMatchObject({ taken: 5, free: 0 });
-    expect((await reserveCapture(event.id, session.id, crypto.randomUUID())).kind).toBe(
+    expect((await reserveCapture(event.id, session.id, crypto.randomUUID(), null)).kind).toBe(
       "frames_exhausted",
     );
   }, 60_000);
@@ -470,17 +450,18 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     // signing time — the anchor tag's own `download` attribute is silently ignored for
     // a cross-origin URL like this one, which is exactly what made host downloads
     // navigate instead of saving a file.
-    expect(tile!.downloadUrl).toMatch(/[?&]download=/);
-    expect(tile!.thumbnailUrl).not.toMatch(/[?&]download=/);
+    expect(tile!.downloadUrl).toMatch(/[?&]response-content-disposition=attachment/);
+    expect(tile!.thumbnailUrl).not.toMatch(/[?&]response-content-disposition=attachment/);
 
     const guestView = await listCapturesForGuestSessionWithUrls(event.id, session.id);
     const guestCapture = guestView.find((c) => c.id === capture.id);
     // The same failure class applies to the guest's own "Download my photos" (a sequential
     // loop like the host's bulk download): an inline url would navigate away after the first
     // photo. Viewing urls (thumbnail, display) must stay inline so <img> can render them.
-    expect(guestCapture?.downloadUrl).toMatch(/[?&]download=my-shot-\d/);
-    expect(guestCapture?.thumbnailUrl).not.toMatch(/[?&]download=/);
-    expect(guestCapture?.displayUrl).not.toMatch(/[?&]download=/);
+    expect(guestCapture?.downloadUrl).toMatch(/[?&]response-content-disposition=attachment/);
+    expect(filenameFromSignedUrl(guestCapture!.downloadUrl!, "")).toMatch(/^my-shot-\d/);
+    expect(guestCapture?.thumbnailUrl).not.toMatch(/[?&]response-content-disposition=attachment/);
+    expect(guestCapture?.displayUrl).not.toMatch(/[?&]response-content-disposition=attachment/);
   });
 
   it("moderation is scoped to the owning host — a different host can neither read nor moderate", async () => {
@@ -518,7 +499,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     const toDelete = await commitTinyCapture(event.id, session.id);
     await moderateCapture(hostId, event.id, hidden.id, "hide");
     await moderateCapture(hostId, event.id, toDelete.id, "delete");
-    const pendingReserve = await reserveCapture(event.id, session.id, crypto.randomUUID());
+    const pendingReserve = await reserveCapture(event.id, session.id, crypto.randomUUID(), null);
     expect(pendingReserve.kind).toBe("reserved");
 
     const downloads = await listOriginalDownloadUrlsForEventHost(hostId, event.id);
@@ -537,7 +518,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
     // capture's stable filename so a real browser saves it under a sensible name
     // rather than the raw storage path.
     for (const download of downloads!) {
-      expect(download.url).toContain(`download=${encodeURIComponent(download.filename)}`);
+      expect(filenameFromSignedUrl(download.url, "")).toBe(download.filename);
     }
 
     const { data: otherHost, error } = await supabase.auth.admin.createUser({

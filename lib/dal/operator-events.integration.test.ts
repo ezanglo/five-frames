@@ -102,7 +102,7 @@ describe("operator event visibility", () => {
       new URL("./operator-events.ts", import.meta.url),
       "utf-8",
     );
-    expect(source).not.toMatch(/media\/storage|createSignedReadUrl|createSignedUploadUrl/);
+    expect(source).not.toMatch(/media\/(theme-)?storage|lib\/storage|@aws-sdk|createSignedReadUrl|createCaptureUpload|presign(Get|Put)/);
   });
 
   it("operator authorization does not grant host ownership of another host's event", async () => {

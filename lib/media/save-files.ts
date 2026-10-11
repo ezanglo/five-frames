@@ -59,12 +59,18 @@ export async function saveFilesOneByOne(
 }
 
 /**
- * The filename a signed original URL was minted with (`createSignedReadUrl`'s `download`
- * parameter), so a guest's photos save under the same names a single download uses.
+ * The filename a signed original URL was minted with (`createSignedReadUrl`'s download name,
+ * carried as the presigned `response-content-disposition`), so a guest's photos save under the
+ * same names a single download uses.
  */
 export function filenameFromSignedUrl(url: string, fallback: string): string {
   try {
-    return new URL(url).searchParams.get("download") || fallback;
+    const disposition = new URL(url).searchParams.get("response-content-disposition");
+    if (!disposition) return fallback;
+    const encoded = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    if (encoded) return decodeURIComponent(encoded[1]);
+    const plain = disposition.match(/filename="([^"]*)"/i);
+    return plain?.[1] || fallback;
   } catch {
     return fallback;
   }

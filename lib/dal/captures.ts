@@ -4,10 +4,10 @@ import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventById, getEventForHost, listEventsForHost } from "@/lib/dal/events";
 import { isCaptureOpen } from "@/lib/events/lifecycle";
 import {
+  createCaptureUpload,
   createSignedReadUrl,
-  createSignedUploadUrl,
   generateDerivatives,
-  getResumableUploadEndpoint,
+  isAcceptableCaptureFile,
   verifyUploadedObject,
 } from "@/lib/media/storage";
 import type { CaptureRow, CaptureStatus, EventRow } from "@/lib/db/types";
@@ -23,25 +23,40 @@ export type ReserveOutcome =
   | {
       kind: "reserved";
       capture: CaptureRow;
-      uploadUrl: string;
-      uploadToken: string;
-      resumableEndpoint: string;
+      /**
+       * A presigned PUT for this reservation's object, with the exact headers the browser must
+       * send (each is signed). Null for a probe, which declares no file.
+       */
+      upload: { url: string; headers: Record<string, string> } | null;
     }
   | { kind: "already_committed"; capture: CaptureRow }
   | { kind: "expired" }
   | { kind: "capture_not_open" }
-  | { kind: "frames_exhausted" };
+  | { kind: "frames_exhausted" }
+  | { kind: "unsupported_file" };
+
+/** What the guest says they are about to upload. Bound into the presigned PUT (§7h). */
+export type DeclaredCaptureFile = { sizeBytes: number; contentType: string };
 
 /**
  * Reserve step. Re-checks the capture gate with a fresh read (architecture §10) before
  * ever calling the reserve_capture() function, then relies on that function's row lock and
  * idempotent-on-reserve_key behavior for the concurrency guarantee (invariants 1, 3, 5).
+ *
+ * A file that could never be committed (wrong type, empty, over the size limit) is refused
+ * before any slot is touched. Each reserve under the same key mints a fresh presigned PUT for
+ * the same object, so a Retry restarts its upload from the beginning into the same key. A
+ * `null` declaration is the page-load probe of a persisted key: it learns the row's state and
+ * gets no upload authorization.
  */
 export async function reserveCapture(
   eventId: string,
   guestSessionId: string,
   reserveKey: string,
+  declared: DeclaredCaptureFile | null,
 ): Promise<ReserveOutcome> {
+  if (declared && !isAcceptableCaptureFile(declared)) return { kind: "unsupported_file" };
+
   const event = await getEventById(eventId);
   if (!event || !isCaptureOpen(event)) {
     return { kind: "capture_not_open" };
@@ -69,14 +84,8 @@ export async function reserveCapture(
     return { kind: "expired" };
   }
 
-  const { signedUrl, token } = await createSignedUploadUrl(capture.storage_path);
-  return {
-    kind: "reserved",
-    capture,
-    uploadUrl: signedUrl,
-    uploadToken: token,
-    resumableEndpoint: getResumableUploadEndpoint(),
-  };
+  const upload = declared ? await createCaptureUpload(capture.storage_path, declared) : null;
+  return { kind: "reserved", capture, upload };
 }
 
 export type CommitOutcome =

@@ -3,19 +3,17 @@
  * this file has no `server-only` import and no secrets.
  */
 
-export const CAPTURES_BUCKET = "captures";
-
 /**
- * Supabase's own recommendation for switching from a standard upload to the resumable (TUS)
- * path — same value as the protocol's fixed chunk size (decision D7).
+ * Upload limits for a capture original (architecture §7h). Supabase Storage's `captures` bucket
+ * used to enforce these at upload; on R2 the presigned PUT signs the declared type and exact
+ * length instead, and commit re-checks the stored object. HEIC/HEIF are still accepted at upload
+ * and fail at derivative processing (product.md §14, a tracked follow-up).
  */
-export const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
-export const TUS_CHUNK_SIZE_BYTES = 6 * 1024 * 1024;
-
-/**
- * Supabase Storage accepts signed (`x-signature`) TUS uploads only under this suffix of the
- * resumable endpoint. The bare endpoint expects a JWT bearer, and rejects an x-signature-only
- * request with `Invalid Compact JWS` (NET-02; supabase/storage `src/http/routes/tus`,
- * `SIGNED_URL_SUFFIX`).
- */
-export const SIGNED_TUS_PATH_SUFFIX = "/sign";
+export const CAPTURE_MAX_BYTES = 50 * 1024 * 1024;
+export const CAPTURE_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+] as const;

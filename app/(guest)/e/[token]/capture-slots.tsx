@@ -2,11 +2,8 @@
 
 import { useEffect, useReducer, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import * as tus from "tus-js-client";
 import { Camera, Clock, Image as ImageIcon, Pointer, RefreshCw } from "lucide-react";
 import { reserveSlot, commitSlot } from "./actions";
-import { RESUMABLE_UPLOAD_THRESHOLD_BYTES } from "@/lib/media/constants";
-import { signedTusUploadOptions } from "@/lib/media/tus";
 import type { ReserveResponse } from "./actions";
 import { Button } from "@/components/ff/button";
 import type { CSSProperties } from "react";
@@ -34,65 +31,24 @@ import {
 /** Guest message limit shown in the UI (DS04: max 100 guest). The server stays authoritative. */
 const MESSAGE_MAX = 100;
 
-/**
- * Uploads directly to Supabase Storage over TUS (D7) — resumable in fixed 6MB chunks, and
- * automatically continues from a previous attempt's byte offset if this same file (by name,
- * size, type and last-modified) was already partway uploaded to this same reservation's object,
- * including across a reload.
- */
-function uploadViaTus(params: {
-  file: File;
-  endpoint: string;
-  token: string;
-  bucket: string;
-  objectName: string;
-}): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const upload = new tus.Upload(params.file, {
-      ...signedTusUploadOptions({
-        endpoint: params.endpoint,
-        token: params.token,
-        bucket: params.bucket,
-        objectName: params.objectName,
-        contentType: params.file.type || "application/octet-stream",
-      }),
-      onError: (error) => reject(error),
-      onSuccess: () => resolve(),
-    });
-
-    upload.findPreviousUploads().then((previousUploads) => {
-      if (previousUploads.length > 0) {
-        upload.resumeFromPreviousUpload(previousUploads[0]);
-      }
-      upload.start();
-    });
-  });
-}
-
 function pendingStorageKey(eventId: string) {
   return `ff_pending_reserve:${eventId}`;
 }
 
-/** Standard signed-URL PUT for typical phone photos; TUS above the threshold (D7). */
+/**
+ * One presigned PUT straight to storage (D26). The server signed the type, the exact length and
+ * the headers, so they are sent exactly as given. A failed upload is restarted whole by Retry,
+ * under the same reserve key and into the same object.
+ */
 async function uploadFile(
   file: File,
   reserved: Extract<ReserveResponse, { kind: "reserved" }>,
 ): Promise<void> {
-  if (file.size >= RESUMABLE_UPLOAD_THRESHOLD_BYTES) {
-    await uploadViaTus({
-      file,
-      endpoint: reserved.resumableEndpoint,
-      token: reserved.uploadToken,
-      bucket: reserved.bucket,
-      objectName: reserved.objectName,
-    });
-    return;
-  }
-
-  const putResponse = await fetch(reserved.uploadUrl, {
+  if (!reserved.upload) throw new Error("no upload authorization");
+  const putResponse = await fetch(reserved.upload.url, {
     method: "PUT",
     body: file,
-    headers: { "content-type": file.type || "application/octet-stream" },
+    headers: reserved.upload.headers,
   });
   if (!putResponse.ok) throw new Error("upload failed");
 }
@@ -100,7 +56,7 @@ async function uploadFile(
 /**
  * The guest's capture journey while capture is open (guest 02 Your Five → 03 Preview +
  * Message → 04 Completion). Presentation only changed in the redesign: the reserve → upload →
- * commit sequence, the client-persisted reserve key (D6), resumable upload (D7) and every
+ * commit sequence, the client-persisted reserve key (D6), direct upload (D26) and every
  * server-authoritative outcome are exactly as before. Retake is free; Keep is the only
  * committing action.
  */
@@ -168,7 +124,7 @@ export function CaptureSlots({
     if (!reserveKey) return;
 
     pendingKeyRef.current = reserveKey;
-    reserveSlot(token, reserveKey).then((res) => {
+    reserveSlot(token, reserveKey, null).then((res) => {
       if (res.kind === "reserved") {
         dispatch({ type: "resumable" });
       } else if (res.kind === "already_committed") {
@@ -256,7 +212,7 @@ export function CaptureSlots({
           }
           return key;
         },
-        reserve: (key) => reserveSlot(token, key),
+        reserve: (key) => reserveSlot(token, key, { sizeBytes: file.size, contentType: file.type }),
         upload: (reserved) => uploadFile(file, reserved),
         commit: (captureId) => commitSlot(token, captureId, message),
         onStep: (phase) => dispatch({ type: "step", phase }),

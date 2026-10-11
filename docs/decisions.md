@@ -1057,8 +1057,9 @@ back to D11's one-by-one save. The details are in architecture §7 "Bulk downloa
 
 ## D26 — Photo and theme storage on Cloudflare R2, before launch
 
-**Status:** Accepted (2026-10-11), planned. It is Slice 25, a prerequisite of the ZIP slice (26).
-It amends D1 (Supabase stays for Postgres, Auth and the DAL) and supersedes D7's TUS mechanism.
+**Status:** Accepted (2026-10-11). Built in Slice 25 (2026-10-11), a prerequisite of the ZIP
+slice (26). It amends D1 (Supabase stays for Postgres, Auth and the DAL) and supersedes D7's TUS
+mechanism. See "As built" at the end of this entry.
 
 **Context:** FiveFrames sends far more data out than it takes in: guests scroll galleries, hosts
 download whole events (as ZIPs, D25), and the Drive export will come later. A full Premium
@@ -1123,6 +1124,29 @@ founder. Under CLAUDE.md, the agent doesn't create provider accounts or enable p
   replaced when the slice lands.
 - release-validation.md marks every case that uploads, displays or downloads media for rerun.
 - A second vendor and secret to operate.
+
+**As built (Slice 25, 2026-10-11): the open questions, settled.**
+- **Upload: one restartable presigned PUT, not resumable multipart.** The browser declares type
+  and size on reserve. The server refuses an unusable file before touching a slot, then signs
+  the type, the exact length and the cache policy into a PUT for the one reserved key. Checked
+  against the dev bucket: R2 answers 403 for another length, another type, a missing signed
+  header or another key. Retry restarts the whole upload into the same key under the same
+  `reserve_key`.
+  - Chosen because phone photos are a few MB and the frame is consumed only at commit, so a
+    restart costs bandwidth, never a frame or a duplicate.
+  - Multipart means a create/part/complete protocol, server-signed parts, and client state to
+    persist across reloads. It is the same kind of moving part as TUS, whose endpoint broke
+    NET-02.
+  - Revisit only if real venue checks (NET-02) show large photos failing repeatedly.
+  - Product.md §14 allows "resumable *or* safely restartable."
+- **Placement:** the dev bucket reports `APAC`.
+- **CORS:** set by the founder in the Cloudflare dashboard. The app's token is object-scoped and
+  can't read or change bucket settings.
+- **Dev objects:** copied, not dropped (`pnpm ops:copy-media-to-r2`: 414 of the 420 objects live
+  rows point at; the other 6 were already gone, from 2026-09-22 test events).
+- **Orphans:** nothing removed an upload whose reservation lapsed, contrary to an earlier
+  architecture note. D18 now deletes the event's whole `captures/{event_id}/` prefix, so orphans
+  go at permanent deletion. No sweep runs during an event.
 
 
 ---

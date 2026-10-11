@@ -86,6 +86,9 @@ export async function keepPhoto(
       case "frames_exhausted":
       case "capture_not_open":
       case "expired":
+      // Refused before any slot was touched: this file can never be committed, so Retry
+      // can't help. The guest chooses another photo.
+      case "unsupported_file":
         return { kind: "ended", reason: reserved.kind };
       case "not_joined":
         return retryable(ATTEMPT_COPY.notJoined);
@@ -109,7 +112,7 @@ export async function keepPhoto(
   try {
     committed = await withTimeout(deps.commit(target.captureId), timeoutMs);
   } catch {
-    // The photo is in Storage. Retry re-commits this same capture; if this commit did land,
+    // The photo is in storage. Retry re-commits this same capture; if this commit did land,
     // the server answers `committed` for the same row.
     return retryable(ATTEMPT_COPY.connectionLost, target);
   }

@@ -45,7 +45,7 @@ const UPLOAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
 type NotAllowed = { kind: "not_found" } | { kind: "not_editable" };
 
 export type BeginThemeUploadResult =
-  | { kind: "ready"; uploadId: string; signedUrl: string }
+  | { kind: "ready"; uploadId: string; signedUrl: string; uploadHeaders: Record<string, string> }
   | { kind: "refused"; reason: ThemeImageRefusal }
   | NotAllowed;
 
@@ -67,8 +67,8 @@ function isNotAllowed(value: EventRow | NotAllowed): value is NotAllowed {
 
 /**
  * Step 1: a signed upload capability for one fresh, server-chosen raw path. The declared size and
- * type are only a fast, calm refusal; Storage enforces both again at upload, and commit
- * re-validates the actual bytes.
+ * type are only a fast, calm refusal; the presigned PUT signs both, so R2 refuses any other
+ * file at upload, and commit re-validates the actual bytes.
  */
 export async function beginThemeImageUpload(
   hostId: string,
@@ -88,8 +88,8 @@ export async function beginThemeImageUpload(
   }
 
   const uploadId = crypto.randomUUID();
-  const { signedUrl } = await createThemeSignedUpload(themeRawPath(event.id, uploadId));
-  return { kind: "ready", uploadId, signedUrl };
+  const upload = await createThemeSignedUpload(themeRawPath(event.id, uploadId), declared);
+  return { kind: "ready", uploadId, signedUrl: upload.url, uploadHeaders: upload.headers };
 }
 
 /**

@@ -34,12 +34,13 @@ export type AttemptState = {
 };
 
 /** Why an attempt ended with nothing kept and no retry possible. */
-export type EndedReason = "frames_exhausted" | "capture_not_open" | "expired";
+export type EndedReason = "frames_exhausted" | "capture_not_open" | "expired" | "unsupported_file";
 
 export const ATTEMPT_COPY = {
   frames_exhausted: "All five shots are already kept.",
   capture_not_open: "Capture has ended.",
   expired: "That attempt took too long. Please try again.",
+  unsupported_file: "This file can’t be kept. Choose a JPG, PNG or WebP photo under 50 MB.",
   notJoined: "Your session isn't recognized. Reload the page and rejoin.",
   uploadFailed: "Photo didn’t upload. Check your connection and tap Retry — your shot is safe.",
   notUploaded: "We couldn’t confirm the upload yet. Tap Retry — your shot is safe.",

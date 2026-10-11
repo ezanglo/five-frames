@@ -67,8 +67,8 @@ change, not a refactor.
 
 - **All data access goes through `lib/dal/`** with `import 'server-only'`. The browser never gets
   a Supabase client, never queries Postgres, and never uses Supabase Auth. The one permitted
-  direct guest↔Supabase interaction is uploading bytes to Storage under a server-issued,
-  path-scoped upload authorization — a per-upload capability, not database access.
+  direct browser↔storage interaction is uploading bytes to R2 under a server-issued presigned
+  PUT for one object key — a per-upload capability, not database access.
 - **Know what RLS does here.** The service role key our DAL uses **bypasses RLS entirely** — it
   is not a backstop on our code. Deny-all RLS exists only so that a future leaked anon key or a
   stray client-side call yields nothing. DAL discipline is the security model, and the service
@@ -124,7 +124,7 @@ change, not a refactor.
   state which roles it admits.
 - **Event Theme & Keepsakes (decisions D19, D20; architecture §7a–§7c).**
   - The theme image is public-facing but **not publicly addressable**. It lives in the private
-    `event-theme` bucket and reaches a browser only as a signed URL after that surface's own
+    R2 `theme/` prefix and reaches a browser only as a signed URL after that surface's own
     check (owner or support access, valid event token, or granted gallery access). The Console's
     own pages never get one. Never accept SVG uploads.
   - There is **one sharing system**: keepsakes in two families (five Single-photo styles, five
@@ -184,10 +184,14 @@ change, not a refactor.
   `router.refresh()` must be gated on a reachability probe (see `DashboardLive`): a failed
   refresh request makes Next hard-navigate, which strands an offline tab on the browser's error
   page.
-- **Signed TUS uploads go to `…/upload/resumable/sign`.** The bare `/upload/resumable` wants a
-  JWT and rejects an `x-signature` token with `Invalid Compact JWS` (NET-02). Keep the browser's
-  TUS options in `lib/media/tus.ts`; `captures.resumable.integration.test.ts` runs them against
-  real Storage.
+- **Media lives in one private R2 bucket, reached only through `lib/storage/r2.ts`** (D26,
+  architecture §7h). Rows store unprefixed paths. `lib/media/storage.ts` and `theme-storage.ts`
+  add `captures/` / `theme/`. Never add a custom domain or public access, and never read the
+  `R2_*` variables anywhere else. A browser upload is one presigned PUT. Its type, exact length
+  and cache policy are signed, so the browser must send exactly the headers the server returned,
+  and the declared size must be the file's real size. The SDK client keeps
+  `requestChecksumCalculation: "WHEN_REQUIRED"`, or presigned PUTs demand a checksum the browser
+  can't send. `captures.upload.integration.test.ts` runs the browser's request against real R2.
 - **The guest Keep sequence lives in `lib/capture/keep.ts`.** A server action rejects when its
   request fails in transit, so every reserve/commit call there must end in an outcome (Retry),
   never an uncaught throw. Retry reuses the persisted reserve key or re-commits the same uploaded

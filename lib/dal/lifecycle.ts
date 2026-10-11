@@ -2,7 +2,7 @@ import "server-only";
 
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { getEventById } from "@/lib/dal/events";
-import { deleteObjects } from "@/lib/media/storage";
+import { deleteEventCaptureFolder, deleteObjects } from "@/lib/media/storage";
 import { listThemeFolder, removeThemeObjects } from "@/lib/media/theme-storage";
 import type { EventRow } from "@/lib/db/types";
 
@@ -35,7 +35,7 @@ export type PermanentDeletionOutcome =
  *   already passed, and `media_deleted_at` must still be null) — the same "never trust the
  *   caller, re-derive server-side" discipline as every other lifecycle-gated mutation in
  *   this codebase (architecture §10).
- * - Deletes storage objects (captures and the event's `event-theme` folder) *before* deleting the capture rows that reference them, and
+ * - Deletes storage objects (captures, the event's whole capture prefix, and its theme folder) *before* deleting the capture rows that reference them, and
  *   only marks `media_deleted_at` (the durable "this is actually done" marker) after both
  *   steps succeed. If a run crashes between steps, the next run re-lists whatever capture
  *   rows are still present and retries — re-deleting an already-removed storage object is a
@@ -72,6 +72,9 @@ export async function permanentlyDeleteEventMedia(
   );
 
   await deleteObjects(paths);
+  // Then everything else under the event's capture prefix: uploads whose reservation lapsed
+  // before commit, which no row points at (architecture §7h, deletion by prefix).
+  const orphansDeleted = await deleteEventCaptureFolder(eventId);
 
   // The event's theme image folder goes with its media (product.md §14, architecture §7a):
   // storage first, like the capture objects, so a rerun after a crash simply finds less to do.
@@ -94,7 +97,7 @@ export async function permanentlyDeleteEventMedia(
   return {
     outcome: "deleted",
     capturesDeleted: count ?? rows.length,
-    objectsDeleted: paths.length + themeObjects.length,
+    objectsDeleted: paths.length + orphansDeleted + themeObjects.length,
   };
 }
 

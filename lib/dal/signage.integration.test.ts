@@ -8,7 +8,7 @@ import { beginThemeImageUpload, commitThemeImageUpload } from "@/lib/dal/event-t
 import { getSignageDownload, getSignagePreview, getTableNumberCardsDownload } from "@/lib/dal/signage";
 import { SIGNAGE_FORMATS } from "@/lib/media/signage-formats";
 import { deriveAccentRoles } from "@/lib/theme/accents";
-import { EVENT_THEME_BUCKET } from "@/lib/theme/image";
+import { themeStorage } from "@/test/storage";
 import { decodeSvgQr } from "@/test/qr-decode";
 import type { EventRow } from "@/lib/db/types";
 
@@ -28,7 +28,6 @@ const FILE_FORMATS = SIGNAGE_FORMATS.filter((f) => f !== "table-number");
 
 describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
   const supabase = createServiceClient();
-  const bucket = supabase.storage.from(EVENT_THEME_BUCKET);
   const suffix = crypto.randomUUID();
   const eventIds: string[] = [];
   let hostAId: string;
@@ -49,9 +48,7 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
 
   afterAll(async () => {
     for (const eventId of eventIds) {
-      const { data } = await bucket.list(eventId, { limit: 100 });
-      const objects = (data ?? []).filter((o) => o.id).map((o) => `${eventId}/${o.name}`);
-      if (objects.length) await bucket.remove(objects);
+      await themeStorage.remove(await themeStorage.list(eventId));
     }
     if (hostAId) await supabase.auth.admin.deleteUser(hostAId);
     if (hostBId) await supabase.auth.admin.deleteUser(hostBId);
@@ -84,7 +81,7 @@ describe("signage (real Postgres + Storage)", { timeout: 120_000 }, () => {
       .toBuffer();
     const begun = await beginThemeImageUpload(hostAId, event.id, { sizeBytes: bytes.length, contentType: "image/jpeg" });
     if (begun.kind !== "ready") throw new Error(`begin: ${begun.kind}`);
-    const put = await fetch(begun.signedUrl, { method: "PUT", body: new Uint8Array(bytes), headers: { "content-type": "image/jpeg" } });
+    const put = await fetch(begun.signedUrl, { method: "PUT", body: new Uint8Array(bytes), headers: begun.uploadHeaders });
     expect(put.ok).toBe(true);
     const committed = await commitThemeImageUpload(hostAId, event.id, begun.uploadId);
     expect(committed.kind).toBe("saved");

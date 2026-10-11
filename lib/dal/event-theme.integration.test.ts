@@ -14,7 +14,7 @@ import {
 } from "@/lib/dal/event-theme";
 import { getOperatorEventDetail, listEventsForOperator } from "@/lib/dal/operator-events";
 import { permanentlyDeleteEventMedia } from "@/lib/dal/lifecycle";
-import { EVENT_THEME_BUCKET } from "@/lib/theme/image";
+import { themeStorage } from "@/test/storage";
 import type { EventRow } from "@/lib/db/types";
 
 /**
@@ -27,7 +27,6 @@ import type { EventRow } from "@/lib/db/types";
  */
 describe("event theme image", { timeout: 60_000 }, () => {
   const supabase = createServiceClient();
-  const bucket = supabase.storage.from(EVENT_THEME_BUCKET);
   const suffix = crypto.randomUUID();
   const eventIds: string[] = [];
   let hostAId: string;
@@ -48,8 +47,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
 
   afterAll(async () => {
     for (const eventId of eventIds) {
-      const objects = await folder(eventId);
-      if (objects.length) await bucket.remove(objects);
+      await themeStorage.remove(await themeStorage.list(eventId));
     }
     if (hostAId) await supabase.auth.admin.deleteUser(hostAId);
     if (hostBId) await supabase.auth.admin.deleteUser(hostBId);
@@ -62,9 +60,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
   }
 
   async function folder(eventId: string): Promise<string[]> {
-    const { data, error } = await bucket.list(eventId, { limit: 100 });
-    if (error) throw error;
-    return (data ?? []).filter((o) => o.id).map((o) => `${eventId}/${o.name}`);
+    return themeStorage.list(eventId);
   }
 
   async function photo(width = 2000, height = 1400, color = "#c87a3c") {
@@ -86,7 +82,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
     const put = await fetch(begun.signedUrl, {
       method: "PUT",
       body: new Uint8Array(bytes),
-      headers: { "content-type": contentType },
+      headers: begun.uploadHeaders,
     });
     expect(put.ok).toBe(true);
     const committed = await commitThemeImageUpload(hostId, eventId, begun.uploadId);
@@ -109,7 +105,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
     expect(await folder(event.id)).toEqual([saved.theme_image_path]);
 
     const theme = await getEventThemeForHost(hostAId, event.id);
-    expect(theme?.imageUrl).toContain("/storage/v1/object/sign/");
+    expect(theme?.imageUrl).toContain("X-Amz-Signature=");
     const res = await fetch(theme!.imageUrl!);
     expect(res.ok).toBe(true);
     expect(res.headers.get("content-type")).toBe("image/jpeg");
@@ -166,7 +162,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
     ).toEqual({ kind: "refused", reason: "too_large" });
   });
 
-  it("Storage itself refuses an over-limit body or a disallowed type on the signed URL", async () => {
+  it("R2 itself refuses a body of another size or type than the presigned URL signed", async () => {
     const event = await newEvent();
     const begun = await beginThemeImageUpload(hostAId, event.id, {
       sizeBytes: 1000,
@@ -209,7 +205,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
       expect(await folder(event.id)).toEqual([]);
     });
 
-    it("Storage refuses a HEIC body on a signed URL", async () => {
+    it("R2 refuses a HEIC body on a URL signed for JPEG", async () => {
       const event = await newEvent();
       const begun = await beginThemeImageUpload(hostAId, event.id, { sizeBytes: 24_315, contentType: "image/jpeg" });
       if (begun.kind !== "ready") throw new Error("expected ready");
@@ -263,16 +259,13 @@ describe("event theme image", { timeout: 60_000 }, () => {
     expect(await getEventThemeForHost(hostBId, event.id)).toBeNull();
 
     // Host A's valid upload id, committed by host B against host A's event: refused.
+    const bytes = await photo();
     const begun = await beginThemeImageUpload(hostAId, event.id, {
-      sizeBytes: 1000,
+      sizeBytes: bytes.length,
       contentType: "image/jpeg",
     });
     if (begun.kind !== "ready") throw new Error("expected ready");
-    await fetch(begun.signedUrl, {
-      method: "PUT",
-      body: new Uint8Array(await photo()),
-      headers: { "content-type": "image/jpeg" },
-    });
+    expect((await fetch(begun.signedUrl, { method: "PUT", body: new Uint8Array(bytes), headers: begun.uploadHeaders })).ok).toBe(true);
     expect(await commitThemeImageUpload(hostBId, event.id, begun.uploadId)).toEqual({
       kind: "not_found",
     });
@@ -362,7 +355,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
       .update({ activated_at: new Date().toISOString(), event_token: token })
       .eq("id", event.id);
     const guest = await getEventThemeForGuest(token);
-    expect(guest?.imageUrl).toContain("/storage/v1/object/sign/");
+    expect(guest?.imageUrl).toContain("X-Amz-Signature=");
 
     // Capture closed: the theme still shows (it isn't the capture gate).
     await supabase
@@ -403,7 +396,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
     // Revealed to link holders: granted.
     await supabase.from("events").update({ visibility: "anyone_with_link" }).eq("id", event.id);
     const granted = await getEventThemeForGallery(galleryToken);
-    expect(granted?.imageUrl).toContain("/storage/v1/object/sign/");
+    expect(granted?.imageUrl).toContain("X-Amz-Signature=");
 
     expect(await getEventThemeForGallery(`gal-${crypto.randomUUID()}`)).toBeNull();
   });
@@ -417,7 +410,7 @@ describe("event theme image", { timeout: 60_000 }, () => {
     expect(detail?.event.theme_image_path).toBeNull();
     const listed = (await listEventsForOperator(event.name)).find((e) => e.id === event.id);
     expect(listed?.theme_image_path).toBeNull();
-    expect(JSON.stringify(detail)).not.toContain(EVENT_THEME_BUCKET);
+    expect(JSON.stringify(detail)).not.toMatch(/X-Amz-Signature|r2\.cloudflarestorage|theme\//);
   });
 
   it("refuses theme image changes once the event has expired", async () => {
@@ -440,16 +433,13 @@ describe("event theme image", { timeout: 60_000 }, () => {
     const event = await newEvent();
     await upload(event.id, await photo());
     // A leftover raw upload from an abandoned attempt.
+    const leftover = await photo();
     const begun = await beginThemeImageUpload(hostAId, event.id, {
-      sizeBytes: 1000,
+      sizeBytes: leftover.length,
       contentType: "image/jpeg",
     });
     if (begun.kind !== "ready") throw new Error("expected ready");
-    await fetch(begun.signedUrl, {
-      method: "PUT",
-      body: new Uint8Array(await photo()),
-      headers: { "content-type": "image/jpeg" },
-    });
+    expect((await fetch(begun.signedUrl, { method: "PUT", body: new Uint8Array(leftover), headers: begun.uploadHeaders })).ok).toBe(true);
     expect((await folder(event.id)).length).toBe(2);
 
     await supabase

@@ -35,11 +35,7 @@ class FakeServer {
       kind: "reserved",
       captureId: row.captureId,
       slotIndex: row.slotIndex,
-      uploadUrl: "https://storage.test/upload",
-      uploadToken: "upload-token",
-      resumableEndpoint: "https://storage.test/upload/resumable/sign",
-      bucket: "captures",
-      objectName: `${row.captureId}/original`,
+      upload: { url: `https://storage.test/captures/${row.captureId}/original`, headers: { "content-type": "image/jpeg" } },
     };
   }
 
@@ -334,5 +330,32 @@ describe("the next attempt after a transport failure", () => {
     expect(guest.state.uploaded).toBeNull();
     expect(guest.state.error).toBeNull();
     expect(attemptReducer(guest.state, { type: "discarded", resuming: true }).uploaded).toBeNull();
+  });
+});
+
+describe("Keep with a file the server refuses before reserving", () => {
+  it("ends the attempt with the refusal, uploads nothing, and leaves every frame free", async () => {
+    const server = new FakeServer();
+    const guest = new Guest(server);
+    const outcome = await keepPhoto(
+      {
+        pendingKey: () => null,
+        rememberNewKey: () => "key-unsupported",
+        reserve: async () => ({ kind: "unsupported_file" }),
+        upload: async () => {
+          throw new Error("must not upload");
+        },
+        commit: async () => {
+          throw new Error("must not commit");
+        },
+        onStep: () => undefined,
+      },
+      null,
+    );
+    expect(outcome).toEqual({ kind: "ended", reason: "unsupported_file" });
+    const ended = attemptReducer(guest.state, { type: "ended", reason: "unsupported_file" });
+    expect(ended.error).toBe(ATTEMPT_COPY.unsupported_file);
+    expect(ended.file).toBeNull();
+    expect(server.rows.size).toBe(0);
   });
 });

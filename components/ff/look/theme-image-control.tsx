@@ -25,17 +25,20 @@ type Phase =
 
 const FAILED_COPY = "That upload didn’t finish. Your current image is unchanged.";
 
-/** PUT to the signed upload URL with progress (fetch can't report upload progress). */
+/**
+ * PUT to the presigned upload URL with progress (fetch can't report upload progress). The headers
+ * are the ones the server signed; the browser adds the file's own length, which R2 checks too.
+ */
 function putWithProgress(
   url: string,
   file: File,
-  contentType: string,
+  headers: Record<string, string>,
   onProgress: (fraction: number) => void,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("PUT", url);
-    xhr.setRequestHeader("content-type", contentType);
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable) onProgress(event.loaded / event.total);
     };
@@ -113,7 +116,7 @@ export function ThemeImageControl({
         return;
       }
 
-      await putWithProgress(begun.signedUrl, file, contentType, (fraction) =>
+      await putWithProgress(begun.signedUrl, file, begun.uploadHeaders, (fraction) =>
         setPhase({ kind: "uploading", progress: fraction, localUrl }),
       );
 

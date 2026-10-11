@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import sharp from "sharp";
+import { captureStorage, themeStorage } from "@/test/storage";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { createDraftEvent } from "@/lib/dal/events";
 import { createGuestSession } from "@/lib/dal/guest-sessions";
@@ -69,28 +70,23 @@ describe("Single-photo keepsakes (real Postgres + Storage)", () => {
   }
 
   async function commit(eventId: string, sessionId: string, message: string | null = null): Promise<CaptureRow> {
-    const reserved = await reserveCapture(eventId, sessionId, crypto.randomUUID());
+    const reserved = await reserveCapture(eventId, sessionId, crypto.randomUUID(), null);
     if (reserved.kind !== "reserved") throw new Error(`expected reserved, got ${reserved.kind}`);
-    const { error } = await supabase.storage
-      .from("captures")
-      .upload(reserved.capture.storage_path, portrait, { contentType: "image/jpeg", upsert: true });
-    if (error) throw error;
+    await captureStorage.put(reserved.capture.storage_path, portrait, "image/jpeg");
     const committed = await commitCapture(eventId, sessionId, reserved.capture.id, message);
     if (committed.kind !== "committed") throw new Error("expected committed");
     return committed.capture;
   }
 
   async function bytesOf(path: string): Promise<Buffer> {
-    const { data, error } = await supabase.storage.from("captures").download(path);
-    if (error) throw error;
-    return Buffer.from(await data.arrayBuffer());
+    const bytes = await captureStorage.get(path);
+    if (!bytes) throw new Error(`missing ${path}`);
+    return bytes;
   }
 
   async function folderListing(capture: CaptureRow): Promise<string[]> {
     const folder = capture.storage_path.slice(0, capture.storage_path.lastIndexOf("/"));
-    const { data, error } = await supabase.storage.from("captures").list(folder);
-    if (error) throw error;
-    return data.map((o) => o.name).sort();
+    return (await captureStorage.list(folder)).map((p) => p.slice(folder.length + 1)).sort();
   }
 
   async function capturesOf(eventId: string) {
@@ -139,8 +135,7 @@ describe("Single-photo keepsakes (real Postgres + Storage)", () => {
     expect(await folderListing(capture)).toEqual(filesBefore); // no keepsake object stored
     const { data: sessionsAfter } = await supabase.from("guest_sessions").select("id").eq("event_id", event.id);
     expect(sessionsAfter).toEqual(sessionsBefore);
-    const { data: themeObjects } = await supabase.storage.from("event-theme").list(event.id);
-    expect(themeObjects ?? []).toEqual([]);
+    expect(await themeStorage.list(event.id)).toEqual([]);
   }, 60_000);
 
   it("refuses another guest's capture, a missing session, another event's session and unknown ids — all as not-found", async () => {
@@ -199,7 +194,7 @@ describe("Single-photo keepsakes (real Postgres + Storage)", () => {
   it("refuses a pending (uncommitted) capture", async () => {
     const event = await openEvent();
     const session = await guest(event.id);
-    const reserved = await reserveCapture(event.id, session, crypto.randomUUID());
+    const reserved = await reserveCapture(event.id, session, crypto.randomUUID(), null);
     if (reserved.kind !== "reserved") throw new Error("expected reserved");
     expect((await makeSingleKeepsake(event.event_token!, session, reserved.capture.id, "print")).kind).toBe("not_found");
   });

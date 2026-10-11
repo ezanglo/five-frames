@@ -15,11 +15,13 @@ const DEMO_ROUTE_DIR = path.resolve(import.meta.dirname, "../../app/(demo)");
 const FORBIDDEN_IMPORT_PATTERNS: RegExp[] = [
   /from\s+["']@\/lib\/dal\//,
   /from\s+["']@\/lib\/auth\/(guest-session|host-session|operator-session)/,
-  /from\s+["']@\/lib\/media\/storage/,
+  /from\s+["']@\/lib\/media\/(storage|theme-storage)/,
+  /from\s+["']@\/lib\/storage\//,
+  /from\s+["']@aws-sdk\//,
   /from\s+["']@\/lib\/auth\/link-tokens/,
   /from\s+["']@supabase\//,
   /import\s+["']server-only["']/,
-  /createSignedUploadUrl|createSignedReadUrl|generateLinkToken/,
+  /createCaptureUpload|createSignedReadUrl|presign(Get|Put)|generateLinkToken/,
   // Slice 18 (demo keepsakes): no production keepsake route or picker, no signage, no QR.
   /from\s+["']@\/components\/ff\/keepsakes\/keepsake-picker/,
   /from\s+["']@\/lib\/keepsakes\/render/,
@@ -27,8 +29,6 @@ const FORBIDDEN_IMPORT_PATTERNS: RegExp[] = [
   /from\s+["']qrcode["']/,
   /\/keepsake\/(photo|set)\//,
   // The demo's photo picker shares its input with real capture; the upload path must not follow.
-  /from\s+["']tus-js-client["']/,
-  /from\s+["']@\/lib\/media\/tus/,
   /from\s+["'][^"']*\/actions["']/,
   /["']use server["']/,
 ];

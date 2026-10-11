@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { captureStorage } from "@/test/storage";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { createDraftEvent, getEventForHost } from "@/lib/dal/events";
 import {
@@ -11,7 +12,6 @@ import {
   permanentlyDeleteEventMedia,
   runLifecycleSweep,
 } from "@/lib/dal/lifecycle";
-import { CAPTURES_BUCKET } from "@/lib/media/constants";
 import * as storageModule from "@/lib/media/storage";
 
 /**
@@ -87,25 +87,14 @@ describe("lifecycle: retention and permanent deletion", () => {
    *  bypassing the signed-URL step (test setup, not the guest upload path itself) — enough
    *  to prove permanentlyDeleteEventMedia removes a real storage object, not just a row. */
   async function reserveAndUploadOriginal(eventId: string, guestSessionId: string) {
-    const outcome = await reserveCapture(eventId, guestSessionId, crypto.randomUUID());
+    const outcome = await reserveCapture(eventId, guestSessionId, crypto.randomUUID(), null);
     if (outcome.kind !== "reserved") throw new Error("expected reserved");
-    const { error } = await supabase.storage
-      .from(CAPTURES_BUCKET)
-      .upload(outcome.capture.storage_path, Buffer.from("test-bytes"), {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
-    if (error) throw error;
+    await captureStorage.put(outcome.capture.storage_path, Buffer.from("test-bytes"), "image/jpeg");
     return outcome.capture;
   }
 
   async function objectExists(path: string): Promise<boolean> {
-    const lastSlash = path.lastIndexOf("/");
-    const { data, error } = await supabase.storage
-      .from(CAPTURES_BUCKET)
-      .list(path.slice(0, lastSlash), { search: path.slice(lastSlash + 1) });
-    if (error) throw error;
-    return (data ?? []).some((entry) => entry.name === path.slice(lastSlash + 1));
+    return captureStorage.exists(path);
   }
 
   it("is not eligible before the grace period elapses, and not listed for the sweep", async () => {
@@ -201,7 +190,7 @@ describe("lifecycle: retention and permanent deletion", () => {
 
     // Simulate "storage already removed, but the run crashed before deleting rows / marking
     // media_deleted_at" by removing the object out-of-band first.
-    await supabase.storage.from(CAPTURES_BUCKET).remove([capture.storage_path]);
+    await captureStorage.remove([capture.storage_path]);
     expect(await objectExists(capture.storage_path)).toBe(false);
 
     const result = await permanentlyDeleteEventMedia(event.id, now);

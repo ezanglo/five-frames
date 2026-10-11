@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
+import { captureStorage } from "@/test/storage";
 import { createServiceClient } from "@/lib/supabase/service-client";
 import { generateLinkToken } from "@/lib/auth/link-tokens";
 import {
@@ -96,7 +97,7 @@ describe("gallery layout (real Postgres)", { timeout: 120_000 }, () => {
   });
 
   afterAll(async () => {
-    if (storagePaths.length) await supabase.storage.from("captures").remove(storagePaths);
+    if (storagePaths.length) await captureStorage.remove(storagePaths);
     if (hostId) await supabase.auth.admin.deleteUser(hostId);
     if (otherHostId) await supabase.auth.admin.deleteUser(otherHostId);
   });
@@ -169,12 +170,9 @@ describe("gallery layout (real Postgres)", { timeout: 120_000 }, () => {
     for (const [index, [w, h]] of shapes.entries()) {
       const joined = await createGuestSession(event.id, `Guest ${index + 1}`);
       if (joined.kind !== "joined") throw new Error("expected joined");
-      const reserved = await reserveCapture(event.id, joined.session.id, crypto.randomUUID());
+      const reserved = await reserveCapture(event.id, joined.session.id, crypto.randomUUID(), null);
       if (reserved.kind !== "reserved") throw new Error("expected reserved");
-      const { error } = await supabase.storage
-        .from("captures")
-        .upload(reserved.capture.storage_path, await jpeg(w, h, index), { contentType: "image/jpeg", upsert: true });
-      if (error) throw error;
+      await captureStorage.put(reserved.capture.storage_path, await jpeg(w, h, index), "image/jpeg");
       const base = reserved.capture.storage_path.replace(/\/original$/, "");
       storagePaths.push(`${base}/original`, `${base}/display`, `${base}/thumbnail`);
 
@@ -195,8 +193,8 @@ describe("gallery layout (real Postgres)", { timeout: 120_000 }, () => {
       const originals = await Promise.all(
         captureIds.map(async (id) => {
           const row = data.find((r) => r.id === id)!;
-          const { data: blob } = await supabase.storage.from("captures").download(row.storage_path);
-          return createHash("sha256").update(Buffer.from(await blob!.arrayBuffer())).digest("hex");
+          const bytes = await captureStorage.get(row.storage_path);
+          return createHash("sha256").update(bytes!).digest("hex");
         }),
       );
       return { rows: data, originals };
@@ -291,12 +289,9 @@ describe("gallery layout (real Postgres)", { timeout: 120_000 }, () => {
     for (const index of [0, 1, 2, 3]) {
       const joined = await createGuestSession(event.id, `Guest ${index + 1}`);
       if (joined.kind !== "joined") throw new Error("expected joined");
-      const reserved = await reserveCapture(event.id, joined.session.id, crypto.randomUUID());
+      const reserved = await reserveCapture(event.id, joined.session.id, crypto.randomUUID(), null);
       if (reserved.kind !== "reserved") throw new Error("expected reserved");
-      const { error } = await supabase.storage
-        .from("captures")
-        .upload(reserved.capture.storage_path, await jpeg(40, 30, index), { contentType: "image/jpeg", upsert: true });
-      if (error) throw error;
+      await captureStorage.put(reserved.capture.storage_path, await jpeg(40, 30, index), "image/jpeg");
       const base = reserved.capture.storage_path.replace(/\/original$/, "");
       storagePaths.push(`${base}/original`, `${base}/display`, `${base}/thumbnail`);
       const committed = await commitCapture(event.id, joined.session.id, reserved.capture.id, null);

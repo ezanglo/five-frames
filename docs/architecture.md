@@ -21,7 +21,7 @@ styles in the same registry and renderer; the server derives a session's five el
 in `(committed_at, slot_index)` order; deterministic geometric cover crops; one family canvas
 chosen by design; still on demand and never persisted — §7b, §10, §11, §13. Earlier the same day:
 Event Theme & Keepsakes, decision D19: theme config on `events`, a
-private `event-theme` bucket, keepsakes rendered on demand from a closed five-style registry and
+private theme image store (now R2's `theme/` prefix, §7h), keepsakes rendered on demand from a closed five-style registry and
 never persisted (replacing share cards and `share_path`), themed signage with a placeholder-QR
 Draft preview — §4, §7a–§7c, §10. Slices 15–17 (§7a–§7c) are implemented. Earlier: Slice 12 lifecycle automation and retention, D18.)
 
@@ -48,12 +48,16 @@ feature.
                     ┌───────────────────────────────┐
                     │ Supabase (ap-southeast-1)     │
                     │ ├─ Postgres (source of truth) │
-                    │ ├─ Auth     (hosts only)      │
-                    │ └─ Storage  (photos)          │
+                    │ └─ Auth     (hosts only)      │
+                    └───────────────────────────────┘
+
+                    ┌───────────────────────────────┐
+                    │ Cloudflare R2 (APAC, private) │
+                    │ └─ captures/, theme/ (media)  │
                     └───────────────────────────────┘
                                     ▲
                                     │  direct browser upload
-                                    │  (signed upload URL —
+                                    │  (presigned PUT, one key —
    Guest browser ───────────────────┘   never proxied through Vercel)
 
    PayMongo ── Checkout Session ──▶ host browser
@@ -77,7 +81,7 @@ solving any requirement in the spec.
 | Database | Supabase Postgres, region `ap-southeast-1` | Provisioned (Slice 1): `five-frames-dev` |
 | Host auth | Supabase Auth (email + password, magic link) | Email + password live (Slice 1); magic link not yet wired up |
 | Guest identity | Own signed httpOnly cookie + `guest_sessions` row | Built — Slice 2 |
-| Photo storage | Supabase Storage, private buckets | Built — Slice 2 (bucket `captures`). **Moving to Cloudflare R2 before launch**: one private bucket, presigned reads (D26, §7h, Slice 25) |
+| Photo storage | Cloudflare R2, one private bucket per environment (`captures/`, `theme/` prefixes) | Built — Slice 25 (D26, §7h). Replaced Supabase Storage (Slice 2) |
 | Payment | PayMongo Checkout Sessions + signed webhooks | Built — Slice 8 (provider path only; manual is Slice 9) |
 | Image derivatives | `sharp` in server routes | Built — Slice 2 (display + thumbnail on commit); also normalizes the theme image (D19, planned) |
 | Composed images (keepsakes) | `next/og` `ImageResponse` (Satori + resvg), then `sharp` → JPEG | Built — Slice 16: both keepsake families (D19, D20); the Slice 10 share card is retired |
@@ -108,7 +112,8 @@ lib/
   dal/                    Data Access Layer — the ONLY place that touches the database
                           (lifecycle.ts: system-authoritative, no ownership predicate, D18)
   auth/                   Host session, guest session, operator authorization, token verification
-  media/                  Storage paths, signed URLs, derivative generation, signage, QR
+  storage/                The one R2 client: presign GET/PUT, get/put, list, delete by prefix (D26)
+  media/                  Capture/theme storage paths on top of storage/, derivatives, signage, QR
   theme/                  Curated accent registry + deriveAccentRoles (contrast safeguard) (D19)
   keepsakes/              The keepsake registry (two families of five styles) and its JSX
                           templates, shared by the server renderer and browser previews;
@@ -125,8 +130,8 @@ supabase/migrations/      SQL migrations, source of truth for schema
   browser, and no browser ever queries Postgres or uses Supabase Auth. All data access goes
   through the DAL on the server. See §5 for why, and §10 for exactly which credential does what.
 - **The one exception is the storage upload itself**, and it is narrow: the browser uploads bytes
-  directly to Supabase Storage using a short-lived upload authorization the server issued for one
-  specific object path. That is a capability handed out per upload, not a client library and not
+  directly to R2 using a short-lived presigned PUT the server issued for one specific object key
+  (§7h). That is a capability handed out per upload, not a client library and not
   database access.
 - Mutations use Server Actions; webhooks and cron use Route Handlers.
 - Next 16 async APIs: `cookies()`, `headers()`, and route `params` are awaited.
@@ -222,9 +227,9 @@ A guest session is an **httpOnly, Secure, SameSite=Lax signed cookie** scoped to
 carrying the `guest_session_id`, backed by a `guest_sessions` row. Supabase anonymous auth was
 rejected: it would fill the auth schema with one throwaway user per guest per event, and it
 provides nothing we need. Guests never query Postgres and never use Supabase Auth — every read
-and write of their data is mediated by the DAL. Their only direct contact with Supabase is
-uploading bytes to Storage, and only under a server-issued upload authorization scoped to a
-single object path (§7).
+and write of their data is mediated by the DAL. Their only direct contact with storage is
+uploading bytes to R2, and only under a server-issued presigned PUT scoped to a single object key
+(§7).
 
 **Consequence:** guests are not Postgres roles, so **RLS cannot express guest permissions.**
 Authorization lives in the DAL. See §10 for what RLS does and does not protect here — the
@@ -349,7 +354,7 @@ The allowance is **exactly five photos per guest session** — one kind of captu
    that the event is paid/active/capture-open, and inserts a `captures` row with
    `status='pending'` and the lowest free `slot_index`. It returns the capture id and a signed
    upload target.
-2. **Upload.** The browser uploads **directly** to Supabase Storage. Nothing streams through Vercel.
+2. **Upload.** The browser uploads **directly** to R2 (presigned PUT, §7). Nothing streams through Vercel.
 3. **Commit.** The server verifies the object actually exists and is a valid image, then sets
    `status='committed'`.
 
@@ -598,41 +603,35 @@ no theme upload, no signage, no QR. `lib/demo/route-isolation.test.ts` and
 
 ### Upload
 
-Photos upload **directly from the browser to Supabase Storage**, never proxied through Vercel
-(spec §14). The server mints a time-limited signed upload URL via `createSignedUploadUrl`, which
-Supabase documents as a way to let end users upload without exposing privileged credentials.
+Photos upload **directly from the browser to Cloudflare R2**, never proxied through Vercel
+(spec §14, D26, §7h). Reserve returns a **presigned PUT for exactly the reserved object key**,
+minted server-side with `@aws-sdk/s3-request-presigner`; the browser never holds an R2 credential.
 
-The spec requires uploads to be resilient to interruption. Supabase Storage implements the **TUS
-protocol for resumable uploads**, which is the path for large files; standard signed uploads
-cover typical phone photos. First-party constraints that shape the client:
-
-- Resumable chunks are fixed at 6MB.
-- A **`createSignedUploadUrl` token is valid for 2 hours.** A **TUS resumable upload's created
-  upload URL may remain valid for up to 24 hours**, which is what allows a long-interrupted
-  resumable upload to be picked up again later. These two lifetimes are different and the client
-  must not assume the longer one applies to a signed token.
-- Concurrent uploads to the same path return `409 Conflict` — a helpful property here, since a
-  duplicated retry to an already-uploading path fails cleanly rather than racing.
-
-Both lifetimes are longer than the reservation TTL in §6, so a client can still hold usable upload
-credentials after its reservation has lapsed. That is safe, but only because **commit is refused
-for a lapsed reservation** (§6): such an upload lands in storage as an orphaned object and is
-removed by the same sweep that expires reservations. Upload authorization proves only "you may
-write these bytes to this path" — it never implies the slot is still yours.
-
-**Implemented (Slice 3):** the client picks standard signed-URL PUT below 6MB, TUS at or above it
-— Supabase's own recommended threshold, and the same value as the fixed chunk size (D7). The TUS
-path authenticates with the `token` from `createSignedUploadUrl` via the `x-signature` header, so
-the browser still never receives the anon key or a broader credential (D3/D4). Storage accepts an
-`x-signature`-only TUS upload only on the signed endpoint, `…/storage/v1/upload/resumable/sign`.
-The bare `…/upload/resumable` expects a JWT bearer and rejects the request with `Invalid Compact
-JWS` (NET-02, found in release validation; supabase/storage `src/http/routes/tus`). The options
-the browser uses live in `lib/media/tus.ts`, and `captures.resumable.integration.test.ts` runs them
-against real Storage. `tus-js-client`'s fingerprint-based resume means a re-selected file
-continues from its last successful chunk rather than restarting, including across a reload —
-this is the mechanism, beyond the reserve/commit gate, that makes "connection drops mid-upload"
-cheap for large files. The fingerprint includes the reservation's object path, so a stored upload
-only ever resumes into the same reservation's object.
+**As built (Slice 25):**
+- **One PUT, safely restartable, not resumable** (D26's first decision). The browser declares
+  the file's type and size on reserve. The server refuses an unusable file (`unsupported_file`:
+  not JPEG/PNG/WebP/HEIC/HEIF, empty, or over 50 MB) **before** touching a slot, then signs the
+  type, the **exact byte length** and `Cache-Control` into the URL. R2 itself refuses a body of
+  any other size or type, a missing signed header, or a different key (403). These are the
+  upload-time limits the Supabase bucket settings used to enforce. The browser sends exactly the
+  headers reserve returned, plus the file's own length.
+- **Retry restarts the whole upload.** Each reserve under the same `reserve_key` returns the same
+  row and a fresh URL for the same object, so a failed or interrupted upload is re-sent from byte
+  zero into the same key, and a duplicated PUT just overwrites it. The frame is consumed only at
+  commit, so a restart costs bandwidth, never a frame. Phone photos are a few MB. A 50 MB
+  single PUT on a poor connection is the worst case, and no multipart resume was built for it.
+  The Keep sequence's retry rules (`lib/capture/keep.ts`, NET-02) are unchanged.
+- The page-load probe of a persisted reserve key passes no file and gets no URL (`upload: null`).
+- **Lifetimes.** The upload URL lives 1 hour, longer than the 30-minute reservation. That is
+  safe only because **commit is refused for a lapsed reservation** (§6). Such an upload lands as
+  an orphaned object that no row points at. Nothing sweeps orphans during the event. D18
+  permanent deletion removes them by deleting the event's whole `captures/{event_id}/` prefix
+  after the rows' own paths. Upload authorization proves only "you may write these bytes to this
+  key". It never implies the slot is still yours.
+- Commit verifies the object with a HEAD request (exists, accepted type, size within the limit)
+  before the frame is consumed. `captures.upload.integration.test.ts` runs the browser's exact
+  request against real R2: a large photo, every refusal, a forged key, restart under one key, and
+  a lapsed upload.
 
 ### Derivatives
 
@@ -682,8 +681,10 @@ only ever resumes into the same reservation's object.
 ### Private delivery
 
 No media is reachable at a stable public URL (invariant 8). Photos are served through short-lived
-Supabase Storage signed URLs, minted by the DAL only after an access check. Signed URL generation
-is the *result* of authorization, never a substitute for it.
+presigned R2 GET URLs, minted by the DAL only after an access check. The bucket has no public
+access and no custom domain (§7h). Signed URL generation is the *result* of authorization, never a
+substitute for it. A download URL carries `response-content-disposition: attachment` with an
+RFC 5987 filename, because the HTML `download` attribute is ignored cross-origin.
 
 ---
 
@@ -696,7 +697,7 @@ the row the app already loads, not a new entity.
 
 | Column | Meaning | Default / unset |
 |---|---|---|
-| `theme_image_path` | Key of the normalized theme image in the `event-theme` bucket | `null` → default no-image treatment |
+| `theme_image_path` | Path of the normalized theme image under R2's `theme/` prefix (§7h) | `null` → default no-image treatment |
 | `accent_color` | A key into the curated registry in `lib/theme/` (e.g. `violet`) | `violet` |
 | `hashtag` | Existing column; stored without `#` | `null` → omitted everywhere, with no gap left |
 
@@ -720,19 +721,18 @@ the row the app already loads, not a new entity.
 
 ### Theme image storage and upload
 
-- **Bucket:** a new private bucket, `event-theme` (`public = false`), created by migration. Its
-  own `file_size_limit` (**15 MB**) and `allowed_mime_types` (`image/jpeg`, `image/png`,
-  `image/webp`; HEIC/HEIF removed by the forward migration `20260930010000`) are enforced by
-  Storage at upload time. Kept separate
-  from `captures` so theme media can never be mistaken for, counted with, or downloaded as a
-  capture (product.md §10.1).
+- **Storage:** the `theme/` prefix of the private R2 bucket (§7h; until Slice 25, the Supabase
+  `event-theme` bucket). The **15 MB** limit and the accepted types (`image/jpeg`, `image/png`,
+  `image/webp`) are checked at *Begin* and then signed into the presigned PUT (exact length and
+  type), so R2 refuses any other file at upload. Kept separate from `captures/` so theme media
+  can never be mistaken for, counted with, or downloaded as a capture (product.md §10.1).
+  `events.theme_image_path` stores the path without the prefix.
 - **Layout:** flat, one folder per event: `{event_id}/{upload_id}.upload` (the raw upload, transient)
   and `{event_id}/{upload_id}.{jpg|png}` (the normalized image). `upload_id` is a server-generated
   UUID. The browser never chooses a path.
 - **Flow (host-authenticated, ownership-scoped, only while settings are editable):**
-  1. *Begin*: server action mints a signed upload URL for a fresh `…/{upload_id}.upload` path (the
-     D7 mechanism). Theme files are small enough that the standard signed PUT is the normal path.
-     The existing TUS-above-6 MB client helper may be reused unchanged.
+  1. *Begin*: server action mints a presigned PUT for a fresh `…/{upload_id}.upload` path (§7h),
+     with the declared type and size signed in. The browser sends the returned headers.
   2. *Commit*: the server verifies the object exists, then normalizes it with `sharp`. It refuses
      HEIC/HEIF from its header before decoding, then decodes, rejects anything with more than one
      frame/page (animated WebP/PNG) or over a ~40-megapixel decode cap, rejects a shortest edge
@@ -748,8 +748,8 @@ the row the app already loads, not a new entity.
     No lock or saga is needed.
 - **Formats (product.md §10.1/§14):** JPEG, PNG and static WebP, identified from the file's own
   header, never by the declared type. **Not accepted:** raw HEIC/HEIF (see §7 "HEIC/HEIF";
-  refused in the browser pre-check by type or name, at *Begin* by declared type, by Storage's
-  MIME list, and at *Commit* by header, each with "choose or export it as JPG, PNG or WebP" and
+  refused in the browser pre-check by type or name, at *Begin* by declared type, by the type signed
+  into the presigned PUT, and at *Commit* by header, each with "choose or export it as JPG, PNG or WebP" and
   the previous image kept), SVG (script-capable markup, never ingested), GIF, animated images,
   PDF/multi-page, RAW, video. Recommended source:
   ≥ 1600 px on the long edge so the poster format prints cleanly. Whether to warn below that is a
@@ -780,7 +780,7 @@ expiry.
 Theme edits are allowed in exactly the states where other event settings are editable, and never
 change payment, activation, tokens or lifecycle state. A refund leaves the theme as configuration.
 **Permanent deletion (D18)** gains one step in its storage-first order: delete the capture objects
-**and** every object in the event's `event-theme` folder → hard-delete `captures` rows → set
+**and** every object in the event's `theme/` folder → hard-delete `captures` rows → set
 `media_deleted_at` (and clear `theme_image_path`) under the existing atomic guard. Re-running it
 after a partial failure is still a no-op-safe sweep.
 
@@ -1419,15 +1419,15 @@ Not built in this update. product.md §11.2.2 defines it, with the same "coming 
 
 ---
 
-## 7h. Storage on Cloudflare R2 (D26) — planned, Slice 25
+## 7h. Storage on Cloudflare R2 (D26) — built, Slice 25
 
-Planned, not built. Until Slice 25 lands, §7, §7a and the CLAUDE.md storage gotchas describe
-Supabase Storage as built. Target shape:
+Built in Slice 25 (2026-10-11). Supabase Storage is retired for media; its buckets stay only for
+the legacy `share_path` cleanup (`pnpm ops:retire-share-cards`).
 
 - **One private bucket per environment, split by prefix:** `captures/` (originals and
   derivatives, same key layout as today under that prefix) and `theme/` (theme images).
-  Deletion by prefix and the access checks work per prefix. The bucket is created with the
-  Asia-Pacific location hint. No `r2.dev` public access and **no custom domain**: R2 makes a
+  Deletion by prefix and the access checks work per prefix. The dev bucket reports location
+  `APAC` (checked in Slice 25). No `r2.dev` public access and **no custom domain**: R2 makes a
   bucket publicly readable through a custom domain, and presigned URLs don't work there
   ([public buckets](https://developers.cloudflare.com/r2/buckets/public-buckets/),
   [presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/)). Every read and
@@ -1439,29 +1439,39 @@ Supabase Storage as built. Target shape:
 - **Browser caching instead.** Originals and derivatives are never modified (invariant 10), so
   objects are written with a long, `private` `Cache-Control`. Presigned GETs are signed on
   fixed time windows, so the same viewer gets the same URL for an object within a window and
-  the browser reuses it instead of refetching on every page load. The window stays short
-  enough that a URL still expires soon after access is withdrawn.
-- **One storage module**, `lib/storage/` (server-only, behind the DAL's checks), wrapping the
-  S3 API:
+  the browser reuses it instead of refetching on every page load. The window is half the TTL. A
+  URL is valid for at least the TTL after it is handed out and at most 1.5× it (captures 10–15
+  min, theme 30–45 min), so it still expires soon after access is withdrawn. A browser may keep
+  showing a copy it already fetched after a host hides that capture. Only that same viewer, who
+  already saw it, keeps it, and nothing new is served.
+- **One storage module**, `lib/storage/r2.ts` (server-only, behind the DAL's checks), wrapping
+  the S3 API with `@aws-sdk/client-s3` (checksums only when required, so a presigned PUT needs no
+  checksum header). `lib/media/storage.ts` (captures) and `lib/media/theme-storage.ts` (theme)
+  add the prefix to the unprefixed paths the database stores:
   - presign GET (short expiry);
-  - presign PUT / multipart parts;
+  - presign PUT (type, exact length and cache policy signed);
   - get and put for server work;
   - delete by prefix (D18 permanent deletion: list, then batch delete).
 
-  Every current Supabase Storage call moves behind it. No route talks to R2 directly.
+  Every media call goes through it. No route talks to R2 directly.
 - **Guest upload** keeps the reserve → upload → commit sequence (§6) and its idempotency rules
   unchanged. Only the upload step changes. The server issues a presigned authorization for
   exactly the reserved object key, and commit verifies the object exists (HEAD) before
-  committing, as today. The resumable-versus-restartable choice is the slice's first decision
-  (D26). `lib/media/tus.ts` and its integration test are replaced by the chosen mechanism's own
-  real-R2 integration test.
+  committing, as today. **Decided: one restartable presigned PUT, not multipart** (§7 "Upload").
+  `lib/media/tus.ts`, `tus-js-client` and the TUS test are gone; `captures.upload.integration.test.ts`
+  replaces them against real R2.
 - **Theme image upload** (D19) and **D25 ZIP fetches** use the same presigned paths. The bucket
-  CORS allows the app's origins for PUT and GET only.
+  CORS allows the app's origins for PUT and GET only. CORS is set in the Cloudflare dashboard
+  (the app's R2 token is object-scoped and can't change bucket settings). Each environment's
+  rule lists its own origins; the rule is in docs/progress.md.
+- **Existing dev media** was copied, not dropped: `pnpm ops:copy-media-to-r2` copies exactly the
+  objects committed captures and current theme images point at, idempotently, reading only from
+  Supabase Storage.
 - **Credentials:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` and `R2_BUCKET`,
   server-only, never `NEXT_PUBLIC_`, read only in `lib/storage/`. They are listed in `.env.example` by name.
-- **Tests:** integration tests that touch Storage today (captures, resumable upload, theme,
-  keepsakes, signage, lifecycle deletion) run against a dev R2 bucket. Unit tests mock nothing
-  new.
+- **Tests:** the integration tests that touch media (captures, upload, theme, keepsakes, signage,
+  gallery layouts, lifecycle deletion) run against the dev R2 bucket through `test/storage.ts`.
+  Unit tests mock nothing new.
 
 ## 8. Payment
 
@@ -1786,7 +1796,7 @@ Browser (EventSource) ──▶ GET /events/[eventId]/live ──▶ DAL getDash
 | Operator support access (planned) | `getEventAccess` role check per DAL function, owner-only functions untouched; each change and its `support_actions` entry in one transaction; display derivatives only, never originals; log visible to the host (§5b, D27) |
 | Guest scoped to one event | Signed cookie bound to `guest_session_id` + `event_id` |
 | Capture gate | Server-side re-check of paid/active/open on **reserve and commit**, not just page render |
-| Media privacy | Short-lived signed URLs minted after an access check; private buckets (`captures`, `event-theme`) |
+| Media privacy | Short-lived presigned URLs minted after an access check; one private R2 bucket (`captures/`, `theme/`), no public access, no custom domain |
 | Theme image | Private bucket; signed URL only after the surface's own check (§7a table); never for the Console's own pages; server-chosen paths; SVG never accepted |
 | Keepsake isolation | Per-request check of own committed, non-hidden capture (Single-photo) or the server-derived five eligible captures of the cookie's own session (Full Set), + sharing toggle + lifecycle, re-confirmed before responding (§7b); closed render inputs (no display name, links, tokens; no message in a Full Set) |
 | Signage / preview QR | Live QR only from an activated event's token; Draft previews use the URL-less `preview` type (§7c) |
@@ -1838,7 +1848,7 @@ feature adds, and what closes each one:
 | Preview becoming real access | URL-less `preview` QR type; no temporary token; preview responses are inline-only and host-owned |
 | Cross-host theme edits | Ownership predicate on every theme mutation; server-generated upload path; commit verifies the path is under that event's folder |
 | Text injection into images | Satori takes React text nodes (no markup parsing); SVG interpolation always via `escapeXml`; hashtag charset-validated; accent is a registry key, never raw CSS |
-| Hostile image files | SVG never accepted; decode-pixel cap; single-frame check; Storage-enforced size/MIME limits |
+| Hostile image files | SVG never accepted; decode-pixel cap; single-frame check; size and type signed into the presigned PUT, so R2 refuses anything else |
 | Render-endpoint abuse | Bounded work per request (a Full Set reads five sources, so about 5× a Single-photo render's I/O), cookie + capture authorization; no dedicated limiter in MVP (product.md allows ordinary fair use). Watch pilot logs and add a simple per-session limit if needed |
 
 ---
