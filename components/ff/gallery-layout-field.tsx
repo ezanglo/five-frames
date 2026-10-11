@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import type { GalleryLayout } from "@/lib/db/types";
 import { GALLERY_LAYOUT_LABEL } from "@/lib/events/labels";
+import { Toggle } from "@/components/ff/field";
 import {
   DEFAULT_GALLERY_LAYOUT,
   GALLERY_LAYOUTS,
@@ -91,5 +92,26 @@ function LayoutSketch({ layout, className }: { layout: GalleryLayout; className?
         ))}
       </svg>
     </span>
+  );
+}
+
+/**
+ * Settings · Event & gallery → Time sections (D24, architecture §7d). On by default; off gives
+ * one continuous page. Uncontrolled like the layout cards. The hidden field tells the action this
+ * form carries the setting, since an unchecked switch posts nothing.
+ */
+export function TimeSectionsToggle({ value }: { value: boolean }) {
+  return (
+    <label className="flex items-start justify-between gap-4">
+      <input type="hidden" name="galleryTimeSectionsField" value="1" />
+      <span className="flex flex-col gap-0.5">
+        <span className="text-label font-semibold text-ink">Time sections</span>
+        <span className="text-caption font-medium text-ink-muted">
+          Splits the gallery by the hour photos were added, like “7 PM”. Off shows one continuous
+          page.
+        </span>
+      </span>
+      <Toggle name="galleryTimeSections" defaultChecked={value} />
+    </label>
   );
 }

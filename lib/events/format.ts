@@ -33,6 +33,15 @@ export function formatEventTime(iso: string | null, timeZone: string): string | 
   }).format(new Date(iso));
 }
 
+/** "7 PM", or "Sat, 7 PM" with the day, for the hour an instant falls in, in the event's timezone. */
+export function formatEventHour(iso: string, timeZone: string, options: { day?: boolean } = {}): string {
+  const date = new Date(iso);
+  const hour = new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone }).format(date);
+  if (!options.day) return hour;
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone }).format(date);
+  return `${weekday}, ${hour}`;
+}
+
 /** "Sat, Oct 18 · 2:46 PM" (or "Sat, Oct 18, 2026 · 2:46 PM") for an instant, in the event's timezone. */
 export function formatEventDateTime(
   iso: string | null,

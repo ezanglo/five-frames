@@ -1333,23 +1333,27 @@ product.md §7.5: on by default for every event, display only.
   sections are hour buckets of `created_at` in the event's IANA timezone. Using one key keeps
   every section contiguous. Bucketing by `committed_at` while ordering by `created_at` could
   split an hour in two.
-- **Computed on the server.** A pure helper, `lib/gallery/time-sections.ts`
-  (`sectionFor(createdAt, timezone)`), runs alongside `listCapturesForGalleryViewer`'s mapping and
-  tags each item with `{ sectionKey, label }`. The key is the UTC instant of the local hour's
-  start, so a repeated DST hour gets two sections. The label is formatted through
-  `lib/events/timezone.ts` helpers, never the server's own zone. Including the day ("Sat, 7 PM")
-  is decided once per gallery, from the min and max `created_at` of the visible captures, and
-  sent with the first page. Labels are therefore identical on the server and the client, with no
-  hydration mismatch.
-- **Rendering.** Consecutive items with the same `sectionKey` form one `GalleryLayoutList` under a
-  heading. "Show more" appends to the last section when the key matches, or starts a new one.
-  Masonry placement is per section and prefix-stable, so appending never moves a tile. Section
-  headings are `h2` with the label, nothing else (no counts).
+- **Computed on the server.** `listCapturesForGalleryViewer(eventId, timezone)` tags each item
+  with `section: { key, label }` from the pure `lib/gallery/time-sections.ts`
+  (`assignTimeSections`). The key is the UTC instant of the local hour's start
+  (`zonedHourStartUtcMs` in `lib/events/timezone.ts`), so a repeated DST hour gets two sections.
+  The label comes from `formatEventHour` in the event's timezone, never the server's. Whether it
+  includes the day ("Sat, 7 PM") is decided once per gallery: do the min and max `created_at` of
+  the visible captures fall on different local days? The whole signed list is sent at once, so
+  every label is final on the server, and the client never gets a capture's own time. The
+  timezone only labels: the list, its filters and its order don't depend on it or on the setting.
+- **Rendering.** Consecutive items with the same key form one `GalleryLayoutList` under a
+  heading (`groupBySection`). "Show more" appends to the last section when the key matches, or
+  starts a new one. Masonry placement is per section and prefix-stable, so appending never moves
+  a tile. Section headings are `h2` with the label, nothing else (no counts).
 - **What doesn't change:** `listCapturesForGalleryViewer`'s filters and order, access checks
   (sections are computed only after access is granted), and the layout tiers.
   `gallery_time_sections = false` renders the single flat list exactly as before.
-- **Host setting:** a checkbox beside "Gallery layout", saved by `saveEventAndGalleryAction`.
-  A save without the field leaves the stored value alone, like `gallery_layout`.
+- **Host setting:** a "Time sections" switch under "Gallery layout", saved by
+  `saveEventAndGalleryAction`. The form also posts a `galleryTimeSectionsField` marker, because an
+  unchecked switch posts nothing. A save without the marker (the Create flow) leaves the stored
+  value alone, like `gallery_layout`. Column `gallery_time_sections boolean not null default true`
+  (migration `20261011030000`), so every older event has sections on.
 - **Marketing** keeps calling `GalleryLayoutList` directly, without sections.
 
 ---

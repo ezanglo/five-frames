@@ -11,6 +11,7 @@ import {
   verifyUploadedObject,
 } from "@/lib/media/storage";
 import type { CaptureRow, CaptureStatus, EventRow } from "@/lib/db/types";
+import { assignTimeSections, type TimeSection } from "@/lib/gallery/time-sections";
 
 /**
  * The frame-limit mechanism (architecture §6, decisions D5/D6). Every function here takes
@@ -456,6 +457,9 @@ export type GalleryCaptureView = {
   /** Natural size of `imageUrl`'s image for the layout (D22); null for a not-yet-backfilled capture. */
   width: number | null;
   height: number | null;
+  /** The capture's hour section (§7d "Time sections"). Always computed; the page uses it only
+   *  when the host left time sections on. The client never gets the capture's own time. */
+  section: TimeSection;
 };
 
 /**
@@ -466,10 +470,12 @@ export type GalleryCaptureView = {
  * (architecture §7). Hidden and deleted captures are excluded, same as every other gallery
  * surface. Uses the display derivative, not the original, since a public viewer only ever
  * needs to view — downloading originals is host-only (product.md §11.2, roadmap Slice 8).
- * The host's gallery layout (D22) is not an input: every layout renders exactly this list.
+ * The host's gallery layout (D22) and time-sections setting are not inputs: every presentation
+ * renders exactly this list. `timeZone` (the event's) only labels each capture's hour section.
  */
 export async function listCapturesForGalleryViewer(
   eventId: string,
+  timeZone: string,
 ): Promise<GalleryCaptureView[]> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -494,10 +500,15 @@ export async function listCapturesForGalleryViewer(
     display_height: number | null;
     thumbnail_path: string | null;
     storage_path: string;
+    created_at: string;
   };
 
+  const rows = data as Row[];
+  // Sections use the same key as the order (created_at), so each one is contiguous.
+  const sections = assignTimeSections(rows.map((row) => row.created_at), timeZone);
+
   return Promise.all(
-    (data as Row[]).map(async (row) => ({
+    rows.map(async (row, index) => ({
       id: row.id,
       message: row.message,
       favorited: row.favorited_at !== null,
@@ -508,6 +519,7 @@ export async function listCapturesForGalleryViewer(
       // is served (its shape is then unknown and the tile renders square).
       width: row.display_path ? row.display_width : null,
       height: row.display_path ? row.display_height : null,
+      section: sections[index],
     })),
   );
 }

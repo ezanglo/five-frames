@@ -638,7 +638,7 @@ describe("frame-limit mechanism (reserve → upload → commit)", () => {
       await moderateCapture(hostId, event.id, deleted.id, "delete");
       await moderateCapture(hostId, event.id, favorited.id, "favorite");
 
-      const gallery = await listCapturesForGalleryViewer(event.id);
+      const gallery = await listCapturesForGalleryViewer(event.id, event.timezone);
       const ids = gallery.map((c) => c.id);
 
       expect(ids).toContain(visible.id);

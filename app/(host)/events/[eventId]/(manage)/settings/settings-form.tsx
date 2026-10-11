@@ -6,7 +6,7 @@ import type { EventRow } from "@/lib/db/types";
 import type { EventFormState } from "@/app/(host)/events/actions";
 import { SectionCard } from "@/components/ff/cards";
 import { AfterPartyFields, EventDetailsFields } from "@/components/ff/event-fields";
-import { GalleryLayoutField } from "@/components/ff/gallery-layout-field";
+import { GalleryLayoutField, TimeSectionsToggle } from "@/components/ff/gallery-layout-field";
 import { resolveGalleryLayout } from "@/lib/gallery/layouts";
 import { UnsavedChangesCard, useUnsavedChanges } from "@/components/ff/host/settings-sections";
 
@@ -16,7 +16,7 @@ function serialize(form: HTMLFormElement): string {
 
 /**
  * Settings · Event & gallery: what guests see when they open the link (name, date, timezone),
- * After the party (reveal timing, visibility) and the Gallery layout (D22). The unsaved card — amber dot, Discard, Save
+ * After the party (reveal timing, visibility) and the Gallery layout (D22) with time sections (D24). The unsaved card — amber dot, Discard, Save
  * changes — appears once something changed; leaving or switching sub-section asks first.
  */
 export function EventGalleryForm({
@@ -93,7 +93,12 @@ export function EventGalleryForm({
         caption="How everyone’s photos are arranged once the gallery opens. Change it any time."
         titleFont="heading"
       >
-        <GalleryLayoutField value={resolveGalleryLayout(event.gallery_layout)} />
+        <div className="flex flex-col gap-5">
+          <GalleryLayoutField value={resolveGalleryLayout(event.gallery_layout)} />
+          <div className="border-t border-line pt-5">
+            <TimeSectionsToggle value={event.gallery_time_sections !== false} />
+          </div>
+        </div>
       </SectionCard>
       {state.error && (
         <p className="text-caption font-medium text-danger" role="alert">

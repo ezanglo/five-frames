@@ -36,6 +36,23 @@ export function utcIsoToZonedDateTimeLocal(
   return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
+const HOUR_MS = 3_600_000;
+
+/**
+ * The UTC instant (epoch ms) at which the local wall-clock hour containing `instantMs` began in
+ * the given timezone. A repeated DST hour has two different starts, so its two halves stay apart.
+ */
+export function zonedHourStartUtcMs(instantMs: number, timeZone: string): number {
+  // The offset is whole seconds; drop the instant's milliseconds so they can't leak into it.
+  const offset = tzOffsetMillis(new Date(Math.floor(instantMs / 1000) * 1000), timeZone);
+  return Math.floor((instantMs + offset) / HOUR_MS) * HOUR_MS - offset;
+}
+
+/** The local calendar date ("YYYY-MM-DD") of a UTC instant in the given timezone. */
+export function zonedDateKey(isoUtc: string, timeZone: string): string {
+  return utcIsoToZonedDateTimeLocal(isoUtc, timeZone).slice(0, 10);
+}
+
 function tzOffsetMillis(date: Date, timeZone: string): number {
   const dtf = new Intl.DateTimeFormat("en-US", {
     timeZone,

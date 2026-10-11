@@ -207,6 +207,9 @@ change, not a refactor.
   Its container tiers live in both `lib/gallery/layouts.ts` and `app/globals.css`;
   `layouts.test.ts` checks that they match. Tile shapes come from `display_width/height`,
   recorded at commit, never from measuring in the browser.
+  Time sections (D24) follow the same rules: labels only, computed on the server from
+  `created_at` (the order key) in the event's timezone. Never send a capture's own time to the
+  client.
 - **Prices, guest capacities and hosted-access periods live only in `lib/plans/registry.ts`**
   (D24). Activation stamps them onto the event from `payments.plan`, never from the draft's
   `events.plan`, so a plan change after a checkout can't change what was bought. After

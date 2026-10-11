@@ -27,8 +27,8 @@ import { GalleryArchive } from "./gallery-archive";
  * locked and "only me" pages never load the theme reader, so they receive no theme image URL,
  * accent or hashtag and keep the FiveFrames default look.
  *
- * The host's gallery layout (D22) is read only here, after access is granted, and only chooses
- * how the already-authorized list is arranged.
+ * The host's gallery layout (D22) and time sections (D24) are read only here, after access is
+ * granted, and only choose how the already-authorized list is arranged and labelled.
  */
 export default async function GalleryPage({
   params,
@@ -103,7 +103,7 @@ export default async function GalleryPage({
 
   if (!isGalleryOpenToLinkHolders(event)) notFound();
   const [captures, theme] = await Promise.all([
-    listCapturesForGalleryViewer(event.id),
+    listCapturesForGalleryViewer(event.id, event.timezone),
     getEventThemeForGallery(token),
   ]);
 
@@ -142,7 +142,11 @@ export default async function GalleryPage({
           body="This gallery doesn’t have any photos to show."
         />
       ) : (
-        <GalleryArchive captures={captures} layout={resolveGalleryLayout(event.gallery_layout)} />
+        <GalleryArchive
+          captures={captures}
+          layout={resolveGalleryLayout(event.gallery_layout)}
+          timeSections={event.gallery_time_sections !== false}
+        />
       )}
     </GuestShell>
   );

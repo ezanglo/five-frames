@@ -1,6 +1,6 @@
 # FiveFrames — Progress
 
-Last updated: 2026-10-11 (**Slice 22, the operator capacity override, is `complete`: migration on dev, integration suite and human checklist passed.** Slice 21, the Free first event, is `awaiting human verification`: its migration is on dev and all 618 tests pass. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
+Last updated: 2026-10-11 (**Slice 23, time sections in the revealed gallery, is `complete`: migration on dev, 642/642 tests and the human checklist passed.** Slice 22, the operator capacity override, is `complete`. Slice 21, the Free first event, is `awaiting human verification`. Slice 20 is complete and deploys with 21. Operator support access (D27) is planned as Slice 27, not started. Sales-led payment (D23) and Slice 19 still await a new RC and human verification.)
 
 - **Plans (D24), Slices 20–24 (roadmap.md).** Slice 20, the plan model, is `complete`. See
   [Slice 20](#slice-20--plan-model-2026-10-11-complete). It must deploy together with Slice 21,
@@ -8,9 +8,9 @@ Last updated: 2026-10-11 (**Slice 22, the operator capacity override, is `comple
   See [Slice 21](#slice-21--free-first-event-2026-10-11-awaiting-human-verification).
   Slice 22, the capacity override, is `complete`. See
   [Slice 22](#slice-22--capacity-override-2026-10-11-complete).
-  Not started:
-  - 23 time sections;
-  - 24 table-number cards.
+  Slice 23, time sections, is `complete`. See
+  [Slice 23](#slice-23--time-sections-2026-10-11-complete).
+  Not started: 24 table-number cards.
 - **Operator support access (D27), Slice 27: `not started`.** Planned on 2026-10-11 at the
   founder's request. Operators open any event's host pages from the Console, change its
   settings, and view and hide its photos. Plan, payment, deletion, ownership and original
@@ -54,6 +54,69 @@ This file is current project state for a fresh implementation session, not a ses
 History and reasoning live in [docs/decisions.md](./decisions.md) (consequential decisions) and
 git history (everything else). Update this file by rewriting it to match current reality, not by
 appending narrative.
+
+## Slice 23 — Time sections (2026-10-11): `complete`
+
+The revealed gallery is split into one section per local hour that has photos, on by default for
+every event, plan and layout, with a host switch for one continuous page (product.md §7.5,
+criteria 79–80; architecture §7d "Time sections"). Not committed, not deployed.
+
+**Migration applied to the dev project** (2026-10-11, `supabase db query --linked -f` plus
+`migration repair`, not `db push`): `20261011030000_gallery_time_sections.sql`, one additive
+column, `gallery_time_sections boolean not null default true`. All 41 dev events read on. The
+gallery page and Settings read the column, so this code must never run against a database
+without it.
+
+**Built:**
+- `lib/gallery/time-sections.ts`: hour keys and labels, the once-per-gallery day decision, and
+  grouping. Plus `zonedHourStartUtcMs` / `zonedDateKey` (`lib/events/timezone.ts`) and
+  `formatEventHour` (`lib/events/format.ts`).
+- `listCapturesForGalleryViewer(eventId, timezone)` adds `section: { key, label }` to each item.
+  Filters, order and signing are unchanged, and it never returns a capture's own time.
+- `GalleryArchive` renders an `h2` and its own `GalleryLayoutList` per section when the setting is
+  on, and the old flat list when it's off.
+- Settings · Event & gallery: a "Time sections" switch under the layout cards. It is saved by
+  `saveEventAndGalleryAction` through `updateEventConfig`. No new host DAL function, so Slice 27
+  has nothing new to classify: support access reaches it through the existing settings save.
+
+**Verification:**
+- `pnpm typecheck` ✔ · `pnpm lint` ✔ · `pnpm build` ✔
+- Full suite **642/642 ✔ across 63 files**, integration suites included. New:
+  - `time-sections.test.ts` (9):
+    - local hour in New York;
+    - local midnight splitting with the day shown;
+    - the day decided from local days, not UTC days (Manila);
+    - a DST repeated hour;
+    - a half-hour zone;
+    - grouping and "Show more" prefix stability.
+  - `gallery-layout.test.tsx`:
+    - the same photos, order and labels in all six presentations;
+    - one heading and one list per hour;
+    - flat when off;
+    - masonry placed per section;
+    - no time or count shown.
+  - `gallery-layout.integration.test.ts`, new cases against real Postgres:
+    - on for a new event, and the Settings switch round-trips;
+    - a save without the field leaves the value alone;
+    - another host is refused;
+    - the column refuses null;
+    - real captures across Los Angeles midnight get the right labels, and a hidden one gets no
+      section;
+    - toggling changes no capture row, list or access.
+
+**Human checklist on local dev against the dev database, all 3 passed** (reported by the user 2026-10-11):
+1. Open `/g/<token>` for a revealed dev event with photos. PASS: a heading with the event-local
+   hour ("7 PM") sits above that hour's photos, with nothing else in it, in Masonry, Rows and
+   Grid.
+2. Settings → Event & gallery: "Time sections" is on. Turn it off. PASS: the unsaved card
+   appears; Save shows "Changes saved", and the switch is still off after a reload. The gallery
+   is one continuous page with no headings, with the same photos in the same order. Turning it
+   off and pressing Discard restores the switch.
+3. Turn it back on and save. PASS: the headings return. At phone width (≈390 px), the switch row
+   and the headings fit with no sideways scroll.
+
+Release-validation case GAL-08 is the same check for the release candidate, on a real phone
+with photos from more than one hour.
 
 ## Slice 22 — Capacity override (2026-10-11): `complete`
 
@@ -2621,7 +2684,7 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
 ## Next step
 
 1. **Slice 21 still needs its human checklist** (the Slice 21 section). In a fresh session,
-   **Slice 23: time sections**. Then Slices 24–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
+   **Slice 24: table-number cards**. Then Slices 25–26 (roadmap.md), each in a fresh session. Slices 21, 24 and 26 must all land
    before anything deploys, because the site already advertises them.
    - **Slice 25 (storage on Cloudflare R2, D26) comes before the ZIP slice.** It needs the user
      to create the Cloudflare account, enable R2 and put its keys in `.env.local` / Vercel
@@ -2631,7 +2694,7 @@ Apart from §3 and §7, nothing in Slice 14 is passed.
    pricing pages and the Console, which the pending D23 reruns (HOST-04, OPS-03/05/06) cover.
    Cutting the RC after the plan slices avoids rerunning those twice. If an RC is cut sooner,
    recheck those screens after the plan slices land.
-   - The dev database already has `20261001000000`, `20261002000000`, `20261011000000`, `20261011010000` and `20261011020000`.
+   - The dev database already has `20261001000000`, `20261002000000`, `20261011000000`, `20261011010000`, `20261011020000` and `20261011030000`.
    - Don't deploy code from Slice 19 or Slice 20 against a database that lacks them.
 3. For that RC: deploy to `five-frames.vercel.app`, then run `/e2e-validate`:
    - the targeted reruns from "Gallery-layout change after RC `6d8aca8`" and "Sales-led payment
@@ -2657,6 +2720,7 @@ pass doesn't resolve them, and they must not be disguised as tests.
 | **Gallery layouts on a production database.** Apply `20261001000000_gallery_layout.sql` **before** deploying Slice 19 code to any database (the code reads and writes its columns; the migration is additive and safe under older code). Then run `pnpm ops:backfill-display-dimensions --apply`; until it runs, older captures show as squares in Masonry and Rows. The production database must also get the earlier pending migrations in their own order | Migration + one-off backfill (needs explicit approval for production) | Next deploy / release |
 | **Plans migration on a production database (Slice 20).** Apply `20261011000000_event_plans.sql` **before** deploying Slice 20 code anywhere (the code reads `events.plan`, `payments.plan` and calls `begin_provider_checkout_for_plan`). It is additive and safe under older code. Already applied to dev | Migration (needs explicit approval for production) | Next deploy / release |
 | **Free event and capacity-override migrations on a production database (Slices 21, 22).** Apply `20261011010000_free_event.sql` and `20261011020000_capacity_overrides.sql`, in that order, **before** deploying code from those slices. Both are additive. The Slice 21 code activates every event through `activate_event()`, and the Slice 22 Console page reads `capacity_overrides` | Migration (needs explicit approval for production) | Next deploy / release |
+| **Time-sections migration on a production database (Slice 23).** Apply `20261011030000_gallery_time_sections.sql` **before** deploying Slice 23 code (the gallery page and Settings read the column). Additive and safe under older code | Migration (needs explicit approval for production) | Next deploy / release |
 | **`payments.plan` NOT NULL and drop `begin_provider_checkout()`** once no deployment runs pre-plans code (architecture §8c "As built"). Backfill any null `payments.plan` to `celebration` first | Deployment-order dependency | After Slice 20 is deployed everywhere this database is served |
 | **Raw HEIC in guest capture.** A raw HEIC file supplied directly fails at derivative processing (no frame consumed, retry error) instead of getting an early, calm unsupported-format refusal. The theme image already refuses it (Slice 15). IOS-03 records whether real iPhone library photos are affected | Maintenance follow-up | Guest capture |
 | **Refund, retention and deletion legal copy** (product.md §19) | Business/legal decision | Pre-launch |

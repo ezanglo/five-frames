@@ -19,6 +19,8 @@ export type EventRow = {
   visibility: GalleryVisibility;
   /** Read through `resolveGalleryLayout`, which renders anything unexpected as Masonry. */
   gallery_layout: GalleryLayout;
+  /** Hourly sections in the revealed gallery (§7d); on by default. Presentation only. */
+  gallery_time_sections: boolean;
   sharing_enabled: boolean;
   /** Stored without "#"; validated by lib/theme/hashtag.ts on every write. */
   hashtag: string | null;

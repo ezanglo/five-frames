@@ -412,7 +412,7 @@ earlier ones create:
 8. **B** HOST-07 (close and reopen), with GAL-02 during the closed period
 9. **E** GAL-03 (custom reveal)
 10. **B** HOST-08 … HOST-11 (moderation, downloads, state)
-11. **E** GAL-04, GAL-07, then GAL-05, GAL-06
+11. **E** GAL-04, GAL-07, GAL-08, then GAL-05, GAL-06
 12. **F** OPS-01 … OPS-06
 13. **G** CAP-01, CAP-02, CAP-03
 14. **H** CRON-01 … CRON-03
@@ -1018,6 +1018,27 @@ Open gallery links on a phone that is **not** signed in as host A.
   - tapping any tile opens the whole photo, and closing returns to the same place.
 - **Result:** NOT RUN
 - **Evidence / notes:** Real phone required. Local proxy, not deployment evidence (Playwright Chromium, local production build, dev database, synthetic event of 20 captures with 1 hidden and 1 deleted, since deleted): every layout showed 18 tiles in canonical order with no overlap and no horizontal overflow at 390/768/1280. Masonry: 2/3/4 columns; the largest tile-vs-photo shape difference was 6%, the 3.2:1 panorama clamped to 3:1 by design. Rows: one height per row, full width, last row natural (desktop 200–277 px). Grid: 3/4/5 squares (108/159/224 px). Settings: Rows and Grid saved and reloaded; Discard restored the stored choice. Viewer `object-contain`, and Escape returned focus to the opening tile.
+
+#### GAL-08 · Time sections (Slice 23, criteria 79–80)
+- **Where:** desktop browser (Settings) + real phone (iPhone; Android optional)
+- **Needs:** GAL-07 (revealed E1). Its photos should come from at least two different hours of
+  the event's own timezone (take them over a couple of hours on the day). Ideally include one
+  photo after local midnight.
+- **Steps:**
+  1. Open the gallery on the phone without changing anything in Settings.
+  2. In Settings → Event & gallery → Gallery layout, switch **Time sections** off and save.
+     Reload Settings, then reload the gallery.
+  3. Switch it back on, save, and check the gallery again under Rows and Grid as well.
+- **PASS when:**
+  - with nothing set, the gallery is split by hour, labelled in the event's local time ("7 PM").
+    If the photos span two local days, every label also shows the day ("Sat, 7 PM");
+  - hours with no visible photos have no heading, and the headings show only the hour, with no
+    count, name or exact time;
+  - off: one continuous page with no headings, and the same photos in the same order;
+  - the setting survives the reload, and every layout shows the same sections;
+  - "Show more" (once there are more than 30 photos) only adds photos below, and nothing jumps.
+- **Result:** NOT RUN
+- **Evidence / notes:**
 
 ### F. Operator / manual payment
 

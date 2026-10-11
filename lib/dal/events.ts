@@ -28,6 +28,8 @@ export type EventConfigInput = {
   visibility: GalleryVisibility;
   /** Presentation of the revealed gallery only (D22). */
   galleryLayout: GalleryLayout;
+  /** Hourly time sections in the revealed gallery (D24). Presentation only. */
+  galleryTimeSections: boolean;
   sharingEnabled: boolean;
   hashtag: string | null;
   /** A curated registry key (lib/theme/accents.ts). Theme image changes go through
@@ -66,6 +68,10 @@ function toRow(input: Partial<EventConfigInput>) {
   if (input.galleryLayout !== undefined) {
     if (!isGalleryLayout(input.galleryLayout)) throw new InvalidGalleryLayoutError();
     row.gallery_layout = input.galleryLayout;
+  }
+  if (input.galleryTimeSections !== undefined) {
+    if (typeof input.galleryTimeSections !== "boolean") throw new TypeError("galleryTimeSections must be a boolean");
+    row.gallery_time_sections = input.galleryTimeSections;
   }
   if (input.sharingEnabled !== undefined)
     row.sharing_enabled = input.sharingEnabled;

@@ -22,10 +22,12 @@ import type { HostSession } from "@/lib/auth/host-session";
 import type { EventRow, GalleryLayout } from "@/lib/db/types";
 
 /**
- * Gallery layouts (decision D22) against the real dev Postgres and Storage. The layout is a
+ * Gallery layouts (decision D22) and time sections (D24) against the real dev Postgres and
+ * Storage. The layout is a
  * host-owned presentation setting: it persists through the real Settings action, defaults to
  * Masonry, and changing it alters nothing else — not which captures the gallery lists or their
- * order, not a capture row, not an original's bytes, and not who may open the gallery.
+ * order, not a capture row, not an original's bytes, and not who may open the gallery. Time
+ * sections are the same kind of setting, on by default.
  */
 
 let currentHost: HostSession | null = null;
@@ -50,13 +52,18 @@ async function settle(promise: Promise<unknown>): Promise<string> {
   }
 }
 
-function settingsForm(event: EventRow, galleryLayout?: string) {
+function settingsForm(event: EventRow, galleryLayout?: string, timeSections?: boolean) {
   const form = new FormData();
   form.set("name", event.name);
   form.set("timezone", event.timezone);
   form.set("revealMode", event.reveal_mode);
   form.set("visibility", event.visibility);
   if (galleryLayout !== undefined) form.set("galleryLayout", galleryLayout);
+  // As the Settings form posts it: the marker always, the switch only when on.
+  if (timeSections !== undefined) {
+    form.set("galleryTimeSectionsField", "1");
+    if (timeSections) form.set("galleryTimeSections", "on");
+  }
   return form;
 }
 
@@ -212,7 +219,7 @@ describe("gallery layout (real Postgres)", { timeout: 120_000 }, () => {
       const resolved = (await getEventByGalleryToken(event.gallery_token!))!;
       expect(isGalleryRevealed(resolved)).toBe(true);
       expect(isGalleryOpenToLinkHolders(resolved)).toBe(true);
-      expect(viewable(await listCapturesForGalleryViewer(event.id))).toEqual(expected);
+      expect(viewable(await listCapturesForGalleryViewer(event.id, event.timezone))).toEqual(expected);
 
       // Access rules are untouched: "only me" and an unrevealed gallery still grant nothing,
       // and an unknown token still finds nothing.
@@ -228,6 +235,112 @@ describe("gallery layout (real Postgres)", { timeout: 120_000 }, () => {
 
     // Unhiding brings the capture back, in its place, under the current layout; deleted stays out.
     expect(await moderateCapture(hostId, event.id, captureIds[1], "unhide")).toBe(true);
-    expect((await listCapturesForGalleryViewer(event.id)).map((c) => c.id)).toEqual(captureIds.slice(0, 3));
+    expect((await listCapturesForGalleryViewer(event.id, event.timezone)).map((c) => c.id)).toEqual(captureIds.slice(0, 3));
+  });
+  it("time sections are on for a new event, and the host switches them in Settings", async () => {
+    const event = await createDraftEvent(hostId, "Sections choice");
+    expect(event.gallery_time_sections).toBe(true);
+    currentHost = { id: hostId } as HostSession;
+
+    for (const on of [false, true, false]) {
+      const outcome = await settle(saveEventAndGalleryAction(event.id, { error: null }, settingsForm(event, "masonry", on)));
+      expect(outcome).toBe("redirect");
+      expect((await getEventForHost(hostId, event.id))!.gallery_time_sections).toBe(on);
+    }
+
+    // A save without the field (the Create flow's Details step) leaves the choice alone.
+    const reloaded = (await getEventForHost(hostId, event.id))!;
+    await settle(saveDetailsStepAction(event.id, { error: null }, settingsForm(reloaded)));
+    expect((await getEventForHost(hostId, event.id))!.gallery_time_sections).toBe(false);
+
+    // Another host can't change it (invariant 9).
+    currentHost = { id: otherHostId } as HostSession;
+    const foreign = await settle(saveEventAndGalleryAction(event.id, { error: null }, settingsForm(reloaded, "masonry", true)));
+    expect(foreign).toBe("not_found");
+    expect(await updateEventConfig(otherHostId, event.id, { galleryTimeSections: true })).toBeNull();
+    expect((await getEventForHost(hostId, event.id))!.gallery_time_sections).toBe(false);
+    currentHost = null;
+
+    // The column refuses null, even from the service role.
+    const { error } = await supabase.from("events").update({ gallery_time_sections: null }).eq("id", event.id);
+    expect(error?.code).toBe("23502");
+  });
+
+  it("sections real captures by local hour across midnight, and switching them changes nothing else", async () => {
+    // A revealed event in Los Angeles (UTC−7 in October) with four captures.
+    const draft = await createDraftEvent(hostId, "Sections invariants");
+    const now = new Date().toISOString();
+    const { data: opened, error: openError } = await supabase
+      .from("events")
+      .update({
+        timezone: "America/Los_Angeles",
+        activated_at: now,
+        capture_opened_at: now,
+        safety_net_closes_at: new Date(Date.now() + 3_600_000).toISOString(),
+        reveal_mode: "immediate",
+        visibility: "anyone_with_link",
+        gallery_token: generateLinkToken(),
+      })
+      .eq("id", draft.id)
+      .select()
+      .single();
+    if (openError) throw openError;
+    const event = opened as EventRow;
+
+    const captureIds: string[] = [];
+    for (const index of [0, 1, 2, 3]) {
+      const joined = await createGuestSession(event.id, `Guest ${index + 1}`);
+      if (joined.kind !== "joined") throw new Error("expected joined");
+      const reserved = await reserveCapture(event.id, joined.session.id, crypto.randomUUID());
+      if (reserved.kind !== "reserved") throw new Error("expected reserved");
+      const { error } = await supabase.storage
+        .from("captures")
+        .upload(reserved.capture.storage_path, await jpeg(40, 30, index), { contentType: "image/jpeg", upsert: true });
+      if (error) throw error;
+      const base = reserved.capture.storage_path.replace(/\/original$/, "");
+      storagePaths.push(`${base}/original`, `${base}/display`, `${base}/thumbnail`);
+      const committed = await commitCapture(event.id, joined.session.id, reserved.capture.id, null);
+      if (committed.kind !== "committed") throw new Error("expected committed");
+      captureIds.push(committed.capture.id);
+    }
+
+    // Place the captures either side of local midnight: Fri 11:20 PM, Fri 11:50 PM,
+    // Sat 12:10 AM, Sat 2:05 AM (no photos at 1 AM). On UTC days, all four are Saturday.
+    const addedAt = ["2026-10-17T06:20:00Z", "2026-10-17T06:50:00Z", "2026-10-17T07:10:00Z", "2026-10-17T09:05:00Z"];
+    for (const [index, id] of captureIds.entries()) {
+      const { error } = await supabase.from("captures").update({ created_at: addedAt[index] }).eq("id", id);
+      if (error) throw error;
+    }
+    // The hidden capture is the only one at 2 AM: hidden photos get no section.
+    expect(await moderateCapture(hostId, event.id, captureIds[3], "hide")).toBe(true);
+
+    const plain = (label: string) => label.replace(/\u202f/g, " ");
+    const list = await listCapturesForGalleryViewer(event.id, event.timezone);
+    expect(list.map((c) => c.id)).toEqual(captureIds.slice(0, 3));
+    expect(list.map((c) => plain(c.section.label))).toEqual(["Fri, 11 PM", "Fri, 11 PM", "Sat, 12 AM"]);
+    expect(list[0].section.key).toBe(list[1].section.key);
+    expect(list[2].section.key).not.toBe(list[1].section.key);
+    // The list carries no capture time, only the hour's label and key.
+    expect(Object.keys(list[0]).sort()).toEqual(["favorited", "height", "id", "imageUrl", "message", "section", "width"]);
+
+    async function snapshot() {
+      const { data, error } = await supabase.from("captures").select("*").eq("event_id", event.id).order("id");
+      if (error) throw error;
+      return data;
+    }
+    const before = await snapshot();
+    // Signed URLs differ per call; everything else must match exactly.
+    const strip = (items: typeof list) =>
+      items.map(({ id, message, favorited, width, height, section }) => ({ id, message, favorited, width, height, section }));
+
+    for (const on of [false, true]) {
+      const updated = await updateEventConfig(hostId, event.id, { galleryTimeSections: on });
+      expect(updated!.gallery_time_sections).toBe(on);
+      const resolved = (await getEventByGalleryToken(event.gallery_token!))!;
+      expect(isGalleryOpenToLinkHolders(resolved)).toBe(true);
+      expect(strip(await listCapturesForGalleryViewer(event.id, resolved.timezone))).toEqual(strip(list));
+      expect(isGalleryOpenToLinkHolders({ ...resolved, visibility: "only_me" })).toBe(false);
+    }
+    expect(await snapshot()).toEqual(before);
   });
 });

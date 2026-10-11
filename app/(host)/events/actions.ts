@@ -105,6 +105,18 @@ function parseGalleryLayout(
   return { ok: true, input: { galleryLayout: raw } };
 }
 
+/**
+ * Time sections (Settings · Event & gallery only, D24). A checkbox posts nothing when unchecked,
+ * so the form also posts `galleryTimeSectionsField`; without it (the Create flow) the stored value
+ * is left alone, like the layout.
+ */
+function parseTimeSections(
+  formData: FormData,
+): Pick<EventConfigInput, "galleryTimeSections"> | Record<string, never> {
+  if (formData.get("galleryTimeSectionsField") === null) return {};
+  return { galleryTimeSections: formData.get("galleryTimeSections") === "on" };
+}
+
 type LookInput = Pick<EventConfigInput, "hostMessage" | "hashtag" | "accentColor" | "sharingEnabled">;
 
 /**
@@ -183,7 +195,8 @@ export async function saveLookStepAction(
   redirect(`/events/${eventId}/setup?step=share`);
 }
 
-/** Settings · Event & gallery: name, date, timezone, reveal timing, visibility, gallery layout. */
+/** Settings · Event & gallery: name, date, timezone, reveal timing, visibility, gallery layout
+ *  and time sections. */
 export async function saveEventAndGalleryAction(
   eventId: string,
   _prev: EventFormState,
@@ -199,6 +212,7 @@ export async function saveEventAndGalleryAction(
     ...details,
     ...parseAfterParty(formData, details.timezone),
     ...layout.input,
+    ...parseTimeSections(formData),
   });
   if (!updated) notFound();
   redirect(`/events/${eventId}/settings?saved=1`);

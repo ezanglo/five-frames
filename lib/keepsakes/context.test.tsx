@@ -24,6 +24,7 @@ const EVENT: EventRow = {
   reveal_at: null,
   visibility: "only_me",
   gallery_layout: "masonry",
+  gallery_time_sections: true,
   sharing_enabled: true,
   hashtag: "DaniTurns40",
   accent_color: "marigold",
